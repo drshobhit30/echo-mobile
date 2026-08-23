@@ -22,7 +22,7 @@
    Bump CACHE_VERSION whenever the shell changes. The old cache is deleted on
    activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-v6';   // v6: recurring wordmark sheen
+const CACHE_VERSION = 'echo-nexus-v7';   // v7: month trend + share as text
 
 const SHELL = [
   './',

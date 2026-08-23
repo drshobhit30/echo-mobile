@@ -357,6 +357,42 @@
   .pay-amt{ font-family:'Jost', sans-serif; font-weight:600; font-size:0.95rem; color:var(--ink);
     font-variant-numeric:tabular-nums lining-nums; }
 
+  /* ---------- Share ---------- */
+  .share-row{ padding:0 16px 12px; }
+  .share-btn{
+    width:100%; padding:11px; border-radius:12px; cursor:pointer;
+    border:1px solid var(--line); background:var(--white); color:var(--gold-deep);
+    font-family:'Jost', sans-serif; font-size:0.84rem; letter-spacing:0.04em;
+    box-shadow:0 1px 2px rgba(74,59,40,0.04);
+  }
+  .share-btn:active{ background:var(--gold-pale); }
+  .share-btn.done{ background:rgba(62,125,90,0.10); border-color:rgba(62,125,90,0.4); color:#2F6B4A; }
+
+  /* ---------- Month-on-month ---------- */
+  .trend{
+    font-family:'Jost', sans-serif; font-size:0.78rem; margin-top:8px;
+    color:var(--muted); font-variant-numeric:tabular-nums lining-nums;
+  }
+  .trend .up{ color:var(--success); font-weight:600; }
+  .trend .down{ color:var(--danger); font-weight:600; }
+  .trend-pair{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 16px 16px; }
+  .trend-box{
+    background:var(--white); border:1px solid var(--line); border-radius:14px;
+    padding:13px 14px; text-align:left;
+  }
+  .t-label{
+    font-family:'Jost', sans-serif; font-size:0.62rem; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--muted);
+  }
+  .t-amt{
+    font-family:'Jost', sans-serif; font-weight:600; font-size:1.02rem; color:var(--ink);
+    margin-top:7px; white-space:nowrap;
+    font-variant-numeric:tabular-nums lining-nums;
+  }
+  .t-delta{ font-family:'Jost', sans-serif; font-size:0.72rem; margin-top:4px; color:var(--muted); }
+  .t-delta .up{ color:var(--success); }
+  .t-delta .down{ color:var(--danger); }
+
   /* ---------- Bills vs payments ----------
      They were the same white card with a name and an amount, which is
      exactly how you misread one for the other at a glance. They are opposite
@@ -642,6 +678,8 @@
       <div class="mode-chip bank"><div class="m-label">Bank</div><div class="m-amt" id="modeBank">&#8377;0</div></div>
     </div>
 
+    <div class="share-row"><button type="button" class="share-btn" id="shareDayBtn">&#128203; Share this day</button></div>
+
     <div class="section-title">
       <h3>&#128176; Payments</h3>
       <div class="count" id="payCount">0</div>
@@ -668,7 +706,24 @@
 
     <div class="total-hero">
       <div class="amount" id="monthTotal">&#8377;0</div>
-      <div class="label">Collected this month</div>
+      <div class="label" id="monthTotalLabel">Collected this month</div>
+      <!-- Against the SAME point in the previous month while the month is
+           still running, otherwise a half-finished month always looks like a
+           collapse. -->
+      <div class="trend" id="monthTrend"></div>
+    </div>
+
+    <div class="trend-pair" id="monthBilledRow">
+      <div class="trend-box">
+        <div class="t-label">Billed</div>
+        <div class="t-amt" id="monthBilled">&#8377;0</div>
+        <div class="t-delta" id="monthBilledTrend"></div>
+      </div>
+      <div class="trend-box">
+        <div class="t-label">Collected</div>
+        <div class="t-amt" id="monthCollected">&#8377;0</div>
+        <div class="t-delta" id="monthCollectedTrend"></div>
+      </div>
     </div>
 
     <div class="mode-grid">
@@ -677,6 +732,8 @@
       <div class="mode-chip card"><div class="m-label">Card</div><div class="m-amt" id="monthCard">&#8377;0</div></div>
       <div class="mode-chip bank"><div class="m-label">Bank</div><div class="m-amt" id="monthBank">&#8377;0</div></div>
     </div>
+
+    <div class="share-row"><button type="button" class="share-btn" id="shareMonthBtn">&#128203; Share this month</button></div>
 
     <div class="section-title">
       <h3>&#128197; Day by day</h3>
@@ -705,6 +762,8 @@
       </div>
       <div class="pd-name" id="pdName">&mdash;</div>
       <div class="pd-sub" id="pdSub">&mdash;</div>
+
+      <div class="share-row"><button type="button" class="share-btn" id="sharePatientBtn">&#128203; Share balance</button></div>
 
       <div class="section-title">
         <h3>&#129534; Bills</h3>
@@ -1416,6 +1475,140 @@ function shiftMonth(ym, delta){
   return d.getFullYear() + '-' + pad2(d.getMonth()+1);
 }
 
+/* ---------------- Share as text ----------------
+   Android's own share sheet when it exists (so it lands straight in a
+   WhatsApp thread), the clipboard when it does not. The text is plain and
+   self-describing: whoever receives it should not have to ask which clinic,
+   which day, or whether the figures are final.
+
+   Nothing sensitive beyond what the sender chose to send. A patient share
+   carries that patient only — no list of other people's debts. */
+async function shareText(text, btn){
+  const original = btn ? btn.textContent : '';
+  try{
+    if(navigator.share){ await navigator.share({ text: text }); return; }
+    await navigator.clipboard.writeText(text);
+    if(btn){ btn.classList.add('done'); btn.textContent = '\u2713 Copied'; }
+  }catch(e){
+    /* A cancelled share sheet lands here too — that is not an error, so it
+       must not look like one. */
+    if(e && e.name === 'AbortError') return;
+    if(btn){ btn.textContent = 'Could not share'; }
+  }finally{
+    if(btn) setTimeout(() => { btn.classList.remove('done'); btn.textContent = original; }, 2200);
+  }
+}
+/* Every share ends the same way, so a forwarded figure can always be traced
+   back to when it was true. */
+function shareFooter(){
+  return '\n\nEcho Nexus \u00b7 Echo Dental Clinic'
+       + '\nAs at ' + new Date().toLocaleString('en-IN',
+           { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+async function shareDay(btn){
+  const idx = await loadEntriesIndex();
+  const entry = (currentDate !== todayStr() && idx) ? (idx[currentDate] || null) : null;
+  const e = entry || await (async () => {
+    const fileId = await driveFindChild(cachedDataFolderId, currentDate + '.json', false);
+    return fileId ? await driveReadJson(fileId) : null;
+  })();
+  const t = entryModeTotals(e);
+  const total = t.cash + t.upi + t.card + t.bank;
+  const bills = (await loadBills()).filter(b => b && b.date === currentDate && billCountsAsMoney(b));
+  const billed = bills.reduce((s,b) => s + (Number(b.grandTotal)||0), 0);
+  const lines = [
+    fullDateLabel(currentDate),
+    '',
+    'Collected: ' + fmtINR(total),
+    '  Cash ' + fmtINR(t.cash) + ' \u00b7 UPI ' + fmtINR(t.upi),
+    '  Card ' + fmtINR(t.card) + ' \u00b7 Bank ' + fmtINR(t.bank),
+    '',
+    'Billed: ' + fmtINR(billed) + ' (' + bills.length + ' bill' + (bills.length === 1 ? '' : 's') + ')'
+  ];
+  await shareText(lines.join('\n') + shareFooter(), btn);
+}
+
+async function shareMonth(btn){
+  const [entries, bills] = await Promise.all([loadAllEntries(), loadBills()]);
+  const cmp = monthCompareRange(monthAnchor);
+  const now = sumMonth(entries, bills, monthAnchor, cmp.isCurrent ? cmp.dayOfMonth : 0);
+  const prev = sumMonth(entries, bills, cmp.prev, cmp.isCurrent ? cmp.dayOfMonth : 0);
+  const pct = (a, b) => (!b || Math.abs(b) < 1) ? '' :
+    ' (' + (a >= b ? '+' : '') + Math.round(((a-b)/Math.abs(b))*100) + '% vs last month)';
+  const lines = [
+    monthLabelOf(monthAnchor) + (cmp.isCurrent ? ' \u00b7 1\u2013' + cmp.dayOfMonth : ''),
+    '',
+    'Collected: ' + fmtINR(now.collected) + pct(now.collected, prev.collected),
+    'Billed: ' + fmtINR(now.billed) + pct(now.billed, prev.billed)
+  ];
+  if(cmp.isCurrent) lines.push('', 'Compared like for like against the same dates last month.');
+  await shareText(lines.join('\n') + shareFooter(), btn);
+}
+
+async function sharePatientBalance(btn){
+  if(!selectedPatientId) return;
+  const { people, entries, bills } = await patientIndex();
+  const person = people[selectedPatientId] || { name:'Unknown' };
+  const rec = computePendingFromData(bills, entries)[selectedPatientId]
+           || { pending:0, totalBilled:0, totalPayments:0 };
+  const p = rec.pending;
+  const state = p > 0.5 ? 'Outstanding: ' + fmtINR(p)
+              : (p < -0.5 ? 'Advance with clinic: ' + fmtINR(Math.abs(p)) : 'Account settled');
+  const lines = [
+    (person.name || 'Unknown') + ' (ID ' + selectedPatientId + ')',
+    '',
+    state,
+    'Billed ' + fmtINR(rec.totalBilled) + ' \u00b7 Paid ' + fmtINR(rec.totalPayments)
+  ];
+  await shareText(lines.join('\n') + shareFooter(), btn);
+}
+
+/* ---------------- Month on month ----------------
+   THE TRAP THIS AVOIDS: comparing a month that is four days old against a
+   complete previous month makes every early month look like a collapse. So
+   while the month is still running, the comparison is against the SAME
+   STRETCH of the previous month — 1st to the 4th against 1st to the 4th.
+   Once the month is over, it is the whole month against the whole month.
+   The label says which, because a comparison whose basis is unstated is
+   worse than none. */
+function monthCompareRange(ym){
+  const today = todayStr();
+  const isCurrent = (ym === today.slice(0,7));
+  const prev = shiftMonth(ym, -1);
+  const dayOfMonth = isCurrent ? Number(today.slice(8,10)) : 0;
+  return { prev, isCurrent, dayOfMonth };
+}
+/* Sums a month, optionally only up to a day-of-month. */
+function sumMonth(entries, bills, ym, uptoDay){
+  let collected = 0;
+  entries.forEach(e => {
+    if(!e || (e.date||'').slice(0,7) !== ym) return;
+    if(uptoDay && Number((e.date||'').slice(8,10)) > uptoDay) return;
+    const m = entryModeTotals(e);
+    collected += m.cash + m.upi + m.card + m.bank;
+  });
+  let billed = 0;
+  bills.forEach(b => {
+    if(!billCountsAsMoney(b) || (b.date||'').slice(0,7) !== ym) return;
+    if(uptoDay && Number((b.date||'').slice(8,10)) > uptoDay) return;
+    billed += Number(b.grandTotal) || 0;
+  });
+  return { collected, billed };
+}
+/* "▲ 12% vs last month" — or an honest silence when there is nothing to
+   compare against. A percentage off a zero base is not a number. */
+function trendHtml(now, before){
+  if(!before || Math.abs(before) < 1){
+    return before === 0 && now > 0 ? '<span class="up">new</span>' : '';
+  }
+  const pct = Math.round(((now - before) / Math.abs(before)) * 100);
+  if(pct === 0) return 'level with last month';
+  const cls = pct > 0 ? 'up' : 'down';
+  const arrow = pct > 0 ? '\u25B2' : '\u25BC';
+  return '<span class="' + cls + '">' + arrow + ' ' + Math.abs(pct) + '%</span>';
+}
+
 async function renderMonthView(){
   const entries = (await loadAllEntries()).filter(e => e && (e.date||'').slice(0,7) === monthAnchor);
   document.getElementById('monthLabel').textContent = monthLabelOf(monthAnchor);
@@ -1432,6 +1625,26 @@ async function renderMonthView(){
   });
   const total = t.cash + t.upi + t.card + t.bank;
   document.getElementById('monthTotal').textContent = fmtINR(total);
+
+  /* Billed and the month-on-month comparison. Both read from data already
+     loaded for the list above, so this costs no extra Drive traffic. */
+  const allEntries = await loadAllEntries();
+  const allBills = await loadBills();
+  const cmp = monthCompareRange(monthAnchor);
+  const nowSums = sumMonth(allEntries, allBills, monthAnchor, cmp.isCurrent ? cmp.dayOfMonth : 0);
+  const prevSums = sumMonth(allEntries, allBills, cmp.prev, cmp.isCurrent ? cmp.dayOfMonth : 0);
+
+  document.getElementById('monthBilled').textContent = fmtINR(nowSums.billed);
+  document.getElementById('monthCollected').textContent = fmtINR(nowSums.collected);
+  document.getElementById('monthBilledTrend').innerHTML = trendHtml(nowSums.billed, prevSums.billed);
+  document.getElementById('monthCollectedTrend').innerHTML = trendHtml(nowSums.collected, prevSums.collected);
+
+  const basis = cmp.isCurrent
+    ? 'vs 1\u2013' + cmp.dayOfMonth + ' ' + monthLabelOf(cmp.prev).split(' ')[0]
+    : 'vs ' + monthLabelOf(cmp.prev).split(' ')[0];
+  document.getElementById('monthTrend').innerHTML =
+    trendHtml(nowSums.collected, prevSums.collected)
+    + ' <span class="muted">' + escapeHtml(basis) + '</span>';
   document.getElementById('monthCash').textContent = fmtINR(t.cash);
   document.getElementById('monthUpi').textContent  = fmtINR(t.upi);
   document.getElementById('monthCard').textContent = fmtINR(t.card);
@@ -1785,6 +1998,19 @@ if(_psInput){
     }, 180);
   });
 }
+const _wireShare = (id, fn) => {
+  const b = document.getElementById(id);
+  if(b) b.addEventListener('click', () => {
+    fn(b).catch(err => {
+      if(err && err.name === 'TokenExpiredError'){ requestTokenSilently(); return; }
+      showError(err.message || String(err));
+    });
+  });
+};
+_wireShare('shareDayBtn', shareDay);
+_wireShare('shareMonthBtn', shareMonth);
+_wireShare('sharePatientBtn', sharePatientBalance);
+
 document.getElementById('patientBackBtn').addEventListener('click', () => {
   if(history.state && history.state.patient){ history.back(); return; }
   closePatientDetail();
