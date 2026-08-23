@@ -22,7 +22,7 @@
    Bump CACHE_VERSION whenever the shell changes. The old cache is deleted on
    activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-v1';
+const CACHE_VERSION = 'echo-nexus-v2';   // v2: icons redrawn at full size
 
 const SHELL = [
   './',
@@ -30,6 +30,7 @@ const SHELL = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
+  './icon-maskable-192.png',
   './icon-maskable-512.png'
 ];
 
