@@ -88,14 +88,41 @@
     background:linear-gradient(180deg, #FDFAF3 0%, var(--white) 100%);
     border-bottom:1px solid var(--line);
     box-shadow:0 1px 0 rgba(175,121,51,0.16), 0 2px 10px rgba(74,59,40,0.05);
-    padding:12px 16px; display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; display:flex; align-items:center; justify-content:center;
     position:sticky; top:0; z-index:20;
   }
-  .brand{ display:flex; align-items:center; gap:11px; }
+  /* Centred, and stacked: with nothing else in the bar there is no reason to
+     push the identity into a corner. */
+  .brand{ display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center; }
+  /* THE SHEEN, ported verbatim from the clinic app's wordmark: a highlight
+     enters from the right, crosses the letters once, and leaves. Both ends
+     of the gradient are the same flat bronze so nothing sits frozen on the
+     text afterwards, and the glow rises and falls with the pass. This is
+     what was missing — the name was drawing as plain ink. */
   .brand .name{
     font-family:'Cinzel', serif; font-weight:600; font-size:0.92rem;
-    letter-spacing:0.26em; text-indent:0.26em; color:var(--brown);
-    text-transform:uppercase; line-height:1.1;
+    letter-spacing:0.26em; text-indent:0.26em;
+    text-transform:uppercase; line-height:1.1; white-space:nowrap;
+    color:#7A3C01;
+    background-image: linear-gradient(100deg,
+      #7A3C01 0%, #7A3C01 36%, #C98C33 43%, #F3DFAE 47%, #FFFFFF 50%, #F3DFAE 53%,
+      #C98C33 57%, #7A3C01 64%, #7A3C01 100%);
+    background-size: 260% 100%;
+    background-position: 0% 0;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: nexusSheen 3.4s cubic-bezier(.32,.06,.24,1) 1 forwards;
+  }
+  @keyframes nexusSheen{
+    0%   { background-position: 100% 0; filter:none; }
+    50%  { filter: drop-shadow(0 0 8px rgba(232,193,124,0.6)); }
+    100% { background-position: 0% 0;   filter:none; }
+  }
+  /* A tap asks for it again — the phone equivalent of the desktop's hover. */
+  .brand:active .name{ animation: nexusSheen 1.8s ease-in-out 1 forwards; }
+  @media (prefers-reduced-motion: reduce){
+    .brand .name{ animation:none; background-position:0% 0;
+      -webkit-text-fill-color:#7A3C01; background-image:none; }
   }
   .brand .tag{
     font-family:'Jost', sans-serif; font-weight:400; font-size:0.58rem;
@@ -105,7 +132,7 @@
   /* The mark stands on its own — no engraved rim, no circular crop, no
      plate behind it. The logo already carries its own form (the bolt), and
      ringing it fought that instead of framing it. */
-  .brand-mark{ width:40px; height:40px; flex:none; display:flex;
+  .brand-mark{ width:46px; height:46px; flex:none; display:flex;
     align-items:center; justify-content:center; }
   .brand{ display:flex; align-items:center; gap:10px; }
   .brand-badge{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
@@ -215,8 +242,11 @@
    fixed rows mean the block is a rectangle whatever the numbers do. */
   .mode-grid{
     display:grid; grid-template-columns:1fr 1fr; gap:10px;
-    /* Both rows the same height, so Card and Bank cannot drift apart. */
-    grid-auto-rows:1fr;
+    /* Equal rows AND equal columns: 1fr columns can still differ by a
+       sub-pixel when the container width is odd, which is enough to make one
+       tile look a hair wider than its neighbour. minmax(0,1fr) pins them. */
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-auto-rows:78px;
     padding:0 16px 16px;
   }
   /* An internal GRID, not a flex column with space-between. Space-between
@@ -228,7 +258,13 @@
      whatever the numbers are. */
   .mode-chip{
     position:relative; border-radius:14px; padding:13px 14px 12px;
-    min-height:76px; display:grid; grid-template-rows:auto 1fr; align-items:end;
+    /* A FIXED height, not a minimum. min-height still let a tile grow — and
+       Bank, being last, is the one whose figure is most often the longest,
+       so it grew while the other three stayed put. With a fixed box and
+       border-box sizing, all four are the same rectangle whatever they
+       contain. */
+    height:78px; box-sizing:border-box;
+    display:grid; grid-template-rows:auto 1fr; align-items:end;
     text-align:left; background:var(--white); border:1px solid var(--line);
     box-shadow:0 1px 2px rgba(74,59,40,0.05);
     overflow:hidden;
@@ -307,20 +343,6 @@
   .tab-btn.active{
     background:linear-gradient(135deg, var(--gold), var(--gold-deep));
     color:#fff; font-weight:600; box-shadow:0 3px 10px rgba(138,95,38,0.28);
-  }
-  .period-row{ display:flex; gap:7px; overflow-x:auto; padding:2px 16px 6px; margin-bottom:6px;
-    -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-  .period-row::-webkit-scrollbar{ display:none; }
-  .period-chip{
-    flex:none; border:1px solid var(--line); background:var(--white);
-    border-radius:999px; padding:8px 15px; font-family:'Jost', sans-serif; font-size:0.78rem;
-    letter-spacing:0.04em; color:var(--muted); cursor:pointer; white-space:nowrap;
-    transition:background .18s ease, color .18s ease, border-color .18s ease;
-  }
-  .period-chip.active{
-    background:linear-gradient(135deg, var(--gold), var(--gold-deep));
-    border-color:var(--gold-deep); color:#fff; font-weight:600;
-    box-shadow:0 3px 10px rgba(138,95,38,0.24);
   }
   .period-label{ font-family:'Jost', sans-serif; font-size:0.76rem; letter-spacing:0.08em;
     text-transform:uppercase; color:#9a8362; text-align:center; margin-bottom:12px; }
@@ -572,13 +594,12 @@
 
   <!-- ---------------- REPORT ---------------- -->
   <div id="viewReport" class="hidden">
-    <div class="period-row" id="periodRow">
-      <button class="period-chip active" data-period="month">This month</button>
-      <button class="period-chip" data-period="prevmonth">Last month</button>
-      <button class="period-chip" data-period="year">This year</button>
-      <button class="period-chip" data-period="all">All time</button>
-    </div>
-    <div class="period-label" id="reportPeriodLabel">&mdash;</div>
+    <!-- One period only. The Day and Month tabs already answer "how did this
+         month go"; a Report that also offered month-sized windows was the
+         same question in a third place. What it uniquely answers is the
+         lifetime picture — total billed, total collected, and who still
+         owes. -->
+    <div class="period-label" id="reportPeriodLabel">All time</div>
 
     <div class="stat-pair">
       <div class="stat-box collected">
@@ -591,13 +612,6 @@
       </div>
     </div>
     <div class="gap-note" id="repGapNote"></div>
-
-    <div class="mode-grid">
-      <div class="mode-chip cash"><div class="m-label">Cash</div><div class="m-amt" id="repCash">&#8377;0</div></div>
-      <div class="mode-chip upi"><div class="m-label">UPI</div><div class="m-amt" id="repUpi">&#8377;0</div></div>
-      <div class="mode-chip card"><div class="m-label">Card</div><div class="m-amt" id="repCard">&#8377;0</div></div>
-      <div class="mode-chip bank"><div class="m-label">Bank</div><div class="m-amt" id="repBank">&#8377;0</div></div>
-    </div>
 
     <div class="section-title">
       <h3>&#9203; Outstanding</h3>
@@ -1145,7 +1159,7 @@ function closeBillSheet(){ document.getElementById('billModal').classList.add('h
    thing on a phone, not the arithmetic. */
 let currentView = 'day';
 let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
-let reportPeriod = 'month';
+
 
 async function renderCurrentView(){
   document.getElementById('viewDay').classList.toggle('hidden', currentView !== 'day');
@@ -1271,19 +1285,10 @@ async function renderMonthView(){
 }
 
 /* ---------------- Report ---------------- */
+/* The Report covers everything, always. Month-sized windows lived here once
+   and were removed: Day and Month already answer that question, and a third
+   place to ask it only invited "which of these three is right?". */
 function reportRange(){
-  const today = todayStr();
-  const ym = today.slice(0,7);
-  if(reportPeriod === 'month')      return { from: ym + '-01', to: today, label: monthLabelOf(ym) };
-  if(reportPeriod === 'prevmonth'){
-    const p = shiftMonth(ym, -1);
-    const d = new Date(p + '-01T00:00:00');
-    const last = new Date(d.getFullYear(), d.getMonth()+1, 0);
-    return { from: p + '-01',
-             to: last.getFullYear() + '-' + pad2(last.getMonth()+1) + '-' + pad2(last.getDate()),
-             label: monthLabelOf(p) };
-  }
-  if(reportPeriod === 'year')       return { from: today.slice(0,4) + '-01-01', to: today, label: today.slice(0,4) };
   return { from: '0000-01-01', to: '9999-12-31', label: 'All time' };
 }
 
@@ -1293,12 +1298,16 @@ async function renderReportView(){
   document.getElementById('reportPeriodLabel').textContent = r.label;
 
   const inRange = entries.filter(e => e && e.date >= r.from && e.date <= r.to);
-  const t = { cash:0, upi:0, card:0, bank:0 };
+  /* The mode split is deliberately NOT shown here. Over a lifetime, "how
+     much of everything ever came as cash" answers no question anyone at
+     this clinic asks — the split matters for reconciling a DAY against the
+     drawer, which is where it lives. Still summed through the same doctrine
+     so the collected figure stays identical to the Day and Month tabs. */
+  let collected = 0;
   inRange.forEach(e => {
     const m = entryModeTotals(e);
-    t.cash += m.cash; t.upi += m.upi; t.card += m.card; t.bank += m.bank;
+    collected += m.cash + m.upi + m.card + m.bank;
   });
-  const collected = t.cash + t.upi + t.card + t.bank;
   /* Billed counts finalized, non-cancelled documents; credit notes are stored
      negative, so summing grandTotal subtracts them automatically. */
   const billed = bills.filter(b => billCountsAsMoney(b) && b.date >= r.from && b.date <= r.to)
@@ -1306,10 +1315,6 @@ async function renderReportView(){
 
   document.getElementById('repCollected').textContent = fmtINR(collected);
   document.getElementById('repBilled').textContent = fmtINR(billed);
-  document.getElementById('repCash').textContent = fmtINR(t.cash);
-  document.getElementById('repUpi').textContent  = fmtINR(t.upi);
-  document.getElementById('repCard').textContent = fmtINR(t.card);
-  document.getElementById('repBank').textContent = fmtINR(t.bank);
 
   /* The gap is the point of showing both, but it is NOT the outstanding
      figure — collections in this period may settle bills raised earlier.
@@ -1481,14 +1486,6 @@ document.getElementById('billModal').addEventListener('click', (e) => {
   }
 });
 window.addEventListener('popstate', () => closeBillSheet());
-document.querySelectorAll('.period-chip').forEach(chip => {
-  chip.addEventListener('click', () => {
-    reportPeriod = chip.getAttribute('data-period');
-    document.querySelectorAll('.period-chip').forEach(c =>
-      c.classList.toggle('active', c === chip));
-    navigate(() => {});
-  });
-});
 
 document.getElementById('prevDayBtn').addEventListener('click',
   () => navigate(() => { currentDate = addDays(currentDate, -1); }));
