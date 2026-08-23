@@ -362,6 +362,42 @@ let tokenClient = null;
 let driveFolderId = localStorage.getItem('echoDental_driveFolderId') || '';
 let currentDate = todayStr();
 
+/* The token used to live only in memory, so EVERY open — and every pull to
+   refresh — threw the person back to a sign-in tap. Google's tokens last
+   about an hour, so keeping one until it actually expires means most opens
+   need no interaction at all; and when it has expired, we ask Google for a
+   fresh one SILENTLY (prompt:'') first, which works without any tap while
+   the phone still has a live Google session and the earlier consent stands.
+   A visible sign-in is now the last resort rather than the routine.
+
+   A 2-minute safety margin is subtracted so a token can't expire mid-load.
+   What is stored is a read-only Drive token on the owner's own phone —
+   it can view the clinic backup and nothing else, and it dies within the
+   hour. Sign Out below clears it. */
+const TOKEN_KEY = 'echoDental_driveToken';
+function saveToken(token, expiresInSec){
+  try{
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({
+      token: token,
+      expiresAt: Date.now() + ((Number(expiresInSec) || 3600) - 120) * 1000
+    }));
+  }catch(e){ /* private mode / storage full — the session still works */ }
+}
+function loadStoredToken(){
+  try{
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if(!raw) return null;
+    const rec = JSON.parse(raw);
+    if(!rec || !rec.token || !rec.expiresAt) return null;
+    if(Date.now() >= rec.expiresAt){ localStorage.removeItem(TOKEN_KEY); return null; }
+    return rec.token;
+  }catch(e){ return null; }
+}
+function clearStoredToken(){
+  accessToken = null;
+  try{ localStorage.removeItem(TOKEN_KEY); }catch(e){}
+}
+
 function setStatus(elId, text, isError){
   const el = document.getElementById(elId);
   el.textContent = text;
@@ -379,21 +415,56 @@ function initGoogleAuth(){
     scope: DRIVE_SCOPE,
     callback: (resp) => {
       if(resp.error){
+        // A silent attempt that fails is normal and must stay quiet: it just
+        // means a tap is needed after all.
+        if(silentAttemptInFlight){
+          silentAttemptInFlight = false;
+          setStatus('signInStatus', 'Tap to sign in.', false);
+          return;
+        }
         setStatus('signInStatus', 'Sign-in failed: ' + resp.error, true);
         return;
       }
+      silentAttemptInFlight = false;
       accessToken = resp.access_token;
+      saveToken(resp.access_token, resp.expires_in);
       setStatus('signInStatus', 'Signed in.', false);
       document.getElementById('folderCard').classList.remove('hidden');
       if(driveFolderId){
         document.getElementById('folderIdInput').value = driveFolderId;
         connectAndLoad();
       }
+    },
+    error_callback: () => {   // popup blocked or silent attempt declined
+      silentAttemptInFlight = false;
+      setStatus('signInStatus', 'Tap to sign in.', false);
     }
   });
+
+  /* Straight back in, no tap: a stored token that is still good. */
+  const stored = loadStoredToken();
+  if(stored && driveFolderId){
+    accessToken = stored;
+    document.getElementById('folderIdInput').value = driveFolderId;
+    connectAndLoad();
+    return;
+  }
+  /* Otherwise try to get one WITHOUT any interaction before showing a button. */
+  if(driveFolderId) requestTokenSilently();
 }
+
+let silentAttemptInFlight = false;
+function requestTokenSilently(){
+  if(!tokenClient) return false;
+  silentAttemptInFlight = true;
+  setStatus('signInStatus', 'Reconnecting…', false);
+  try{ tokenClient.requestAccessToken({ prompt: '' }); return true; }
+  catch(e){ silentAttemptInFlight = false; return false; }
+}
+
 document.getElementById('signInBtn').addEventListener('click', () => {
   if(!tokenClient){ setStatus('signInStatus', 'Still loading Google sign-in — try again in a moment.', true); return; }
+  silentAttemptInFlight = false;
   tokenClient.requestAccessToken();
 });
 document.getElementById('saveFolderBtn').addEventListener('click', () => {
@@ -405,21 +476,34 @@ document.getElementById('saveFolderBtn').addEventListener('click', () => {
 });
 
 /* ---------------- Drive REST helpers ---------------- */
+/* A stored token can expire mid-session, and an expired token looks exactly
+   like a permissions error (401/403) to the code below. Every Drive call
+   goes through here so that case is handled ONCE: throw a marked error the
+   loader recognises, rather than showing the person a bare status code for
+   something that is really just "your hour is up". */
+class TokenExpiredError extends Error {
+  constructor(){ super('Session expired'); this.name = 'TokenExpiredError'; }
+}
+async function driveFetch(url, whatFailed){
+  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+  if(res.status === 401 || res.status === 403){
+    clearStoredToken();
+    throw new TokenExpiredError();
+  }
+  if(!res.ok) throw new Error(whatFailed + ' (' + res.status + ')');
+  return res;
+}
 async function driveFindChild(parentId, name, isFolder){
   const mimeQ = isFolder ? " and mimeType='application/vnd.google-apps.folder'" : "";
   const q = encodeURIComponent(`'${parentId}' in parents and name='${name}'${mimeQ} and trashed=false`);
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
-    headers: { Authorization: 'Bearer ' + accessToken }
-  });
-  if(!res.ok) throw new Error('Drive lookup failed (' + res.status + ')');
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,
+                               'Drive lookup failed');
   const data = await res.json();
   return (data.files && data.files[0]) ? data.files[0].id : null;
 }
 async function driveReadJson(fileId){
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-    headers: { Authorization: 'Bearer ' + accessToken }
-  });
-  if(!res.ok) throw new Error('File read failed (' + res.status + ')');
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+                               'File read failed');
   return await res.json();
 }
 async function driveListChildren(parentId){
@@ -429,8 +513,7 @@ async function driveListChildren(parentId){
     const q = encodeURIComponent(`'${parentId}' in parents and trashed=false`);
     let url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name)&pageSize=1000`;
     if(pageToken) url += '&pageToken=' + pageToken;
-    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
-    if(!res.ok) throw new Error('Drive listing failed (' + res.status + ')');
+    const res = await driveFetch(url, 'Drive listing failed');
     const data = await res.json();
     files = files.concat(data.files || []);
     pageToken = data.nextPageToken || null;
@@ -463,6 +546,17 @@ async function loadEverything(){
     await loadLabSummary();
     document.getElementById('lastSynced').textContent = 'Synced ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
   }catch(err){
+    /* The hour ran out mid-use. Ask Google for a fresh token WITHOUT any tap
+       and carry on — the person never learns this happened. Only if that
+       silent renewal is refused do we hand them back a sign-in button. */
+    if(err && err.name === 'TokenExpiredError'){
+      showLoading(false);
+      if(requestTokenSilently()) return;
+      showError('Session expired — tap Sign in to continue.');
+      document.getElementById('mainScreen').classList.add('hidden');
+      document.getElementById('setupScreen').classList.remove('hidden');
+      return;
+    }
     showError(err.message || String(err));
   }finally{
     showLoading(false);
