@@ -337,6 +337,40 @@
   .pay-right{ text-align:right; flex:none; }
   .pay-amt{ font-family:'Jost', sans-serif; font-weight:600; font-size:0.95rem; color:var(--ink);
     font-variant-numeric:tabular-nums lining-nums; }
+
+  /* ---------- Bills vs payments ----------
+     They were the same white card with a name and an amount, which is
+     exactly how you misread one for the other at a glance. They are opposite
+     kinds of money, so they now differ in three ways at once — colour, icon,
+     and a leading edge — because on a phone in poor light one difference is
+     not enough.
+
+       BILL    gold, receipt icon, money CHARGED
+       PAYMENT green, downward arrow, money RECEIVED (↩ when it went back) */
+  .pay-row.row-bill{
+    border-left:3px solid var(--gold-light);
+    background:linear-gradient(90deg, rgba(215,180,123,0.09) 0%, var(--white) 42%);
+  }
+  .pay-row.row-payment{
+    border-left:3px solid rgba(62,125,90,0.55);
+    background:linear-gradient(90deg, rgba(62,125,90,0.07) 0%, var(--white) 42%);
+  }
+  .row-icon{
+    flex:none; width:30px; height:30px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:0.82rem; font-weight:700;
+  }
+  .row-icon.bill{ background:var(--gold-pale); color:var(--gold-deep); }
+  .row-icon.pay{ background:rgba(62,125,90,0.12); color:#3E7D5A; font-size:0.95rem; }
+  /* The amount carries the same reading as the row it sits in. */
+  .pay-row.row-payment .pay-amt{ color:#2F6B4A; }
+  .pay-row.row-bill .pay-amt{ color:var(--gold-deep); }
+  /* Exceptions keep their own louder signal — money going back out, or a
+     document that counts for nothing, must still outrank the row colour. */
+  .pay-row.row-payment .pay-amt.pay-amt-out{ color:var(--danger); }
+  .pay-row.bill-cancelled .pay-amt, .pay-row.bill-credit .pay-amt{ color:var(--danger); }
+  .pay-row.row-payment.pay-row-writeoff .row-icon.pay,
+  .pay-row.row-payment.pay-row-reversed .row-icon.pay{ background:var(--line); color:var(--muted); }
   /* ---------- Admin money view: tabs, month, report, outstanding ---------- */
   .tabbar{
     display:flex; gap:4px; background:var(--white); border:1px solid var(--line);
@@ -1329,8 +1363,8 @@ async function renderDayBills(dateStr){
     const credit = isCreditNote(b);
     const cls = cancelled ? ' bill-cancelled' : (credit ? ' bill-credit' : '');
     const status = cancelled ? 'Cancelled' : (credit ? 'Credit note' : (b.status || 'finalized'));
-    return '<div class="pay-row tappable' + cls + '" data-bill="' + escapeHtml(b.billId || '') + '">'
-      + '<div class="pay-sr">' + (i+1) + '</div>'
+    return '<div class="pay-row row-bill tappable' + cls + '" data-bill="' + escapeHtml(b.billId || '') + '">'
+      + '<div class="row-icon bill">\u{1F9FE}</div>'
       + '<div class="pay-main">'
         + '<div class="pay-name">' + escapeHtml(b.patientName || '—') + '</div>'
         + '<div class="pay-sub">' + escapeHtml(b.billNumber || 'No number')
@@ -1505,9 +1539,9 @@ async function openPatientDetail(patientId){
     ? '<div class="empty-state">No bills on record.</div>'
     : mine.map((b, i) => {
         const cancelled = isCancelledBill(b), credit = isCreditNote(b);
-        return '<div class="pay-row tappable' + (cancelled ? ' bill-cancelled' : (credit ? ' bill-credit' : ''))
+        return '<div class="pay-row row-bill tappable' + (cancelled ? ' bill-cancelled' : (credit ? ' bill-credit' : ''))
           + '" data-bill="' + escapeHtml(b.billId || '') + '">'
-          + '<div class="pay-sr">' + (i+1) + '</div>'
+          + '<div class="row-icon bill">\u{1F9FE}</div>'
           + '<div class="pay-main">'
             + '<div class="pay-name">' + escapeHtml(b.billNumber || 'No number') + '</div>'
             + '<div class="pay-sub">' + escapeHtml(fullDateLabel(b.date)) + '</div>'
@@ -1539,8 +1573,8 @@ async function openPatientDetail(patientId){
   document.getElementById('pdPayList').innerHTML = pays.length === 0
     ? '<div class="empty-state">No payments on record.</div>'
     : pays.map((r, i) =>
-        '<div class="pay-row' + (r.amount < 0 ? ' pay-row-refund' : (r.writeoff ? ' pay-row-writeoff' : '')) + '">'
-        + '<div class="pay-sr">' + (i+1) + '</div>'
+        '<div class="pay-row row-payment' + (r.amount < 0 ? ' pay-row-refund' : (r.writeoff ? ' pay-row-writeoff' : '')) + '">'
+        + '<div class="row-icon pay">' + (r.amount < 0 ? '\u21A9' : '\u2193') + '</div>'
         + '<div class="pay-main">'
           + '<div class="pay-name">' + escapeHtml(LBL[r.method] || r.method) + '</div>'
           + '<div class="pay-sub">' + escapeHtml(fullDateLabel(r.date))
@@ -1671,8 +1705,8 @@ function renderPayments(entry, items){
       ? group.map(x => ITEM_MODE_LABELS[x.method]||x.method).join(' + ')
       : (ITEM_MODE_LABELS[first.method]||first.method);
     const modeClass = group.length > 1 ? '' : first.method;
-    return '<div class="pay-row' + (tag ? ' pay-row-' + tag : '') + '">'
-      + '<div class="pay-sr">'+(i+1)+'</div>'
+    return '<div class="pay-row row-payment' + (tag ? ' pay-row-' + tag : '') + '">'
+      + '<div class="row-icon pay">' + (amount < 0 ? '\u21A9' : '\u2193') + '</div>'
       + '<div class="pay-main">'
         + '<div class="pay-name">'+escapeHtml(first.patientName||first.note||'—')+'</div>'
         + '<div class="pay-sub">ID '+escapeHtml(first.patientId||'—')
