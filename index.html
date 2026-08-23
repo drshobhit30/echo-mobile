@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Echo Dental — Mobile View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Jost:wght@500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root{
+    --gold-deep:#8A5F26;
+    --gold-light:#D7B47B;
+    --gold-pale:#F3E6CE;
+    --brown:#4A3B28;
+    --ink:#2E2419;
+    --cream:#FBF7EF;
+    --white:#FFFFFF;
+    --success:#3E7D5A;
+    --success-bg:#E4F1E9;
+    --danger:#B14A3D;
+    --danger-bg:#FBEAE6;
+    --line:#E7DCC5;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--cream); color:var(--ink);
+    font-family:'Poppins', sans-serif; -webkit-font-smoothing:antialiased;
+    padding-bottom:40px;
+  }
+  h1,h2,h3{ font-family:'Jost', sans-serif; color:var(--brown); margin:0 0 4px; font-weight:600; }
+
+  /* ---------------- Top header ---------------- */
+  .topbar{
+    background:var(--white); border-bottom:1px solid var(--line);
+    padding:14px 16px; display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:20;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-badge{
+    width:34px; height:34px; border-radius:50%; background:var(--gold-pale);
+    color:var(--gold-deep); display:flex; align-items:center; justify-content:center;
+    font-family:'Cinzel', serif; font-weight:700; font-size:0.85rem; flex:none;
+  }
+  .brand-text .name{ font-family:'Jost', sans-serif; font-weight:700; font-size:0.95rem; color:var(--brown); line-height:1.1; }
+  .brand-text .tag{ font-size:0.62rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--gold-deep); }
+  .readonly-chip{
+    font-size:0.65rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
+    background:var(--gold-pale); color:var(--gold-deep); padding:4px 9px; border-radius:20px;
+  }
+
+  /* ---------------- Setup / sign-in screens ---------------- */
+  .screen{ max-width:520px; margin:0 auto; padding:18px 16px; }
+  .card{
+    background:var(--white); border:1px solid var(--line); border-radius:14px;
+    padding:20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(74,59,40,0.06);
+  }
+  .card p{ font-size:0.85rem; line-height:1.6; color:var(--brown); margin:0 0 12px; }
+  .card p.muted{ color:#9a8362; font-size:0.78rem; }
+  label{ display:block; font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--gold-deep); margin-bottom:5px; }
+  input[type="text"]{
+    width:100%; border:1.5px solid var(--line); background:var(--cream); border-radius:9px;
+    padding:11px 12px; font-size:0.92rem; font-family:'Poppins', sans-serif; color:var(--ink);
+    margin-bottom:12px;
+  }
+  input[type="text"]:focus{ outline:none; border-color:var(--gold-light); }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    background:linear-gradient(180deg, var(--gold-light), var(--gold-deep));
+    color:#fff; border:none; border-radius:10px; padding:12px 18px;
+    font-family:'Poppins', sans-serif; font-weight:600; font-size:0.9rem; cursor:pointer; width:100%;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn.secondary{ background:var(--white); color:var(--gold-deep); border:1.5px solid var(--gold-light); }
+  .step-num{
+    display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px;
+    border-radius:50%; background:var(--gold-pale); color:var(--gold-deep); font-size:0.72rem; font-weight:700;
+    margin-right:8px; flex:none; margin-top:1px;
+  }
+  .step{ display:flex; align-items:flex-start; margin-bottom:10px; font-size:0.82rem; line-height:1.5; color:var(--brown); }
+  .step span.step-text{ flex:1; min-width:0; }
+  a{ color:var(--gold-deep); }
+  code{ background:var(--gold-pale); padding:1px 5px; border-radius:4px; font-size:0.82em; }
+
+  /* ---------------- Day nav ---------------- */
+  .daynav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; gap:10px;
+  }
+  .daynav-btn{
+    width:36px; height:36px; border-radius:50%; border:1.5px solid var(--line);
+    background:var(--white); color:var(--gold-deep); font-size:1.1rem; display:flex;
+    align-items:center; justify-content:center; cursor:pointer; flex:none;
+  }
+  .daynav-btn:disabled{ opacity:0.35; }
+  .daynav-label{ text-align:center; flex:1; }
+  .daynav-label .eyebrow{ font-size:0.65rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--gold-deep); font-weight:600; }
+  .daynav-label .date{ font-family:'Jost', sans-serif; font-weight:600; font-size:0.95rem; color:var(--brown); }
+  .jump-today{ text-align:center; margin:-6px 16px 10px; }
+  .jump-today button{ background:none; border:none; color:var(--gold-deep); font-size:0.78rem; text-decoration:underline; cursor:pointer; font-family:'Poppins', sans-serif; }
+
+  /* ---------------- Totals ---------------- */
+  .total-hero{ text-align:center; padding:6px 0 18px; }
+  .total-hero .amount{ font-family:'Cinzel', serif; font-weight:700; font-size:2.3rem; color:var(--gold-deep); }
+  .total-hero .label{ font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:#9a8362; margin-top:2px; }
+  .mode-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:0 16px 14px; }
+  .mode-chip{ border-radius:11px; padding:12px 6px; text-align:center; }
+  .mode-chip .m-label{ font-size:0.62rem; text-transform:uppercase; letter-spacing:0.04em; font-weight:700; opacity:0.75; }
+  .mode-chip .m-amt{ font-family:'Jost', sans-serif; font-weight:600; font-size:0.95rem; margin-top:3px; }
+  .mode-chip.cash{ background:#E4F1E9; color:#2E6E49; }
+  .mode-chip.upi{ background:#E4EBFB; color:#2452C7; }
+  .mode-chip.card{ background:#F1EAFE; color:#6D3FC4; }
+  .mode-chip.bank{ background:#FCF0DE; color:#B5691C; }
+
+  /* ---------------- Section ---------------- */
+  .section-title{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 16px 8px;
+  }
+  .section-title h3{ font-size:0.95rem; }
+  .section-title .count{
+    background:var(--gold-pale); color:var(--gold-deep); font-size:0.72rem; font-weight:700;
+    padding:2px 9px; border-radius:20px;
+  }
+
+  /* ---------------- Payment rows ---------------- */
+  .pay-list{ padding:0 16px; }
+  .pay-row{
+    background:var(--white); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; margin-bottom:9px; display:flex; align-items:center; gap:11px;
+  }
+  .pay-sr{
+    width:26px; height:26px; border-radius:50%; background:var(--cream); color:var(--gold-deep);
+    font-size:0.72rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .pay-dot{ width:12px; height:12px; border-radius:50%; flex:none; }
+  .pay-main{ flex:1; min-width:0; }
+  .pay-name{ font-weight:600; font-size:0.88rem; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pay-sub{ font-size:0.72rem; color:#9a8362; margin-top:1px; }
+  .pay-right{ text-align:right; flex:none; }
+  .pay-amt{ font-family:'Jost', sans-serif; font-weight:600; font-size:0.92rem; color:var(--ink); }
+  /* Money leaving, or never really arriving: on a phone these get read in a
+     half-second between patients, so they must not look like collections. */
+  .pay-amt.pay-amt-out{ color:var(--danger); }
+  .pay-row-refund{ border-color:rgba(203,72,49,0.35); background:rgba(203,72,49,0.04); }
+  .pay-row-writeoff, .pay-row-reversed{ opacity:0.66; }
+  .pay-row-reversed .pay-amt{ text-decoration:line-through; }
+  .pay-mode{
+    display:inline-block; margin-top:3px; font-size:0.62rem; font-weight:700; text-transform:uppercase;
+    padding:2px 7px; border-radius:20px;
+  }
+  .pay-mode.cash{ background:#E4F1E9; color:#2E6E49; }
+  .pay-mode.upi{ background:#E4EBFB; color:#2452C7; }
+  .pay-mode.card{ background:#F1EAFE; color:#6D3FC4; }
+  .pay-mode.bank{ background:#FCF0DE; color:#B5691C; }
+  .empty-state{ text-align:center; padding:30px 16px; color:#9a8362; font-size:0.85rem; font-style:italic; }
+
+  /* ---------------- Lab strip ---------------- */
+  .lab-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 16px 6px; }
+  .lab-card{ background:var(--white); border:1px solid var(--line); border-radius:12px; padding:12px 8px; text-align:center; }
+  .lab-card .lab-n{ font-family:'Cinzel', serif; font-weight:700; font-size:1.3rem; color:var(--gold-deep); }
+  .lab-card .lab-l{ font-size:0.6rem; text-transform:uppercase; letter-spacing:0.03em; color:#9a8362; margin-top:2px; }
+  .overdue-banner{
+    margin:8px 16px 0; background:var(--danger-bg); color:var(--danger); border-radius:10px;
+    padding:10px 12px; font-size:0.78rem; font-weight:600; display:flex; align-items:center; gap:8px;
+  }
+
+  /* ---------------- Status / loading ---------------- */
+  .status-bar{ padding:8px 16px; font-size:0.72rem; color:#9a8362; text-align:center; }
+  .status-bar.err{ color:var(--danger); }
+  .spinner{
+    width:26px; height:26px; border-radius:50%; border:3px solid var(--gold-pale);
+    border-top-color:var(--gold-deep); animation:spin 0.7s linear infinite; margin:40px auto;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .refresh-fab{
+    position:fixed; bottom:18px; right:18px; width:48px; height:48px; border-radius:50%;
+    background:linear-gradient(180deg, var(--gold-light), var(--gold-deep)); color:#fff; border:none;
+    box-shadow:0 4px 12px rgba(138,95,38,0.35); font-size:1.2rem; cursor:pointer; z-index:15;
+  }
+  .footnote{ text-align:center; font-size:0.68rem; color:#b3a184; padding:18px 16px 4px; }
+  .hidden{ display:none !important; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-badge">ED</div>
+    <div class="brand-text">
+      <div class="name">Echo Dental Clinic</div>
+      <div class="tag">Mobile View</div>
+    </div>
+  </div>
+  <div class="readonly-chip">View only</div>
+</div>
+
+<!-- ============== SETUP SCREEN (first run / not connected) ============== -->
+<div class="screen" id="setupScreen">
+  <div class="card">
+    <h2>Connect to Google Drive</h2>
+    <p>This page shows a live, read-only view of today's collections — pulled straight from the same Drive folder the desktop app backs up to. Nothing can be edited here.</p>
+  </div>
+
+  <div class="card" id="signInCard">
+    <h3 style="margin-bottom:10px;">1. Sign in with Google</h3>
+    <p class="muted">Uses your Google account only to read the backup folder — never to change anything in it.</p>
+    <button class="btn" id="signInBtn">Sign in with Google</button>
+    <div id="signInStatus" class="status-bar"></div>
+  </div>
+
+  <div class="card hidden" id="folderCard">
+    <h3 style="margin-bottom:10px;">2. Point it at your backup folder</h3>
+    <p class="muted">Open Google Drive, go into the same folder the desktop app is connected to, and copy the ID from the address bar — the part after <code>/folders/</code>.</p>
+    <label for="folderIdInput">Drive Folder ID</label>
+    <input type="text" id="folderIdInput" placeholder="e.g. 1AbCдEfGhIjKlmNoPQRstuVWXyz">
+    <button class="btn" id="saveFolderBtn">Connect Folder</button>
+    <div id="folderStatus" class="status-bar"></div>
+  </div>
+
+  <div class="card" id="setupHelpCard">
+    <h3 style="margin-bottom:10px;">One-time setup, on your end</h3>
+    <div class="step"><span class="step-num">1</span><span class="step-text">Create a free project at <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a></span></div>
+    <div class="step"><span class="step-num">2</span><span class="step-text">Enable the <b>Google Drive API</b> for that project</span></div>
+    <div class="step"><span class="step-num">3</span><span class="step-text">Under <i>Credentials</i>, create an <b>OAuth Client ID</b> (type: Web application)</span></div>
+    <div class="step"><span class="step-num">4</span><span class="step-text">Add this page's URL to <i>Authorized JavaScript origins</i></span></div>
+    <div class="step"><span class="step-num">5</span><span class="step-text">Paste that Client ID into <code>GOOGLE_CLIENT_ID</code> near the top of this file's code, before hosting it</span></div>
+    <p class="muted" style="margin-top:10px;">This only needs doing once. After that, sign-in above is a normal one-tap Google login.</p>
+  </div>
+</div>
+
+<!-- ============== MAIN VIEW (connected) ============== -->
+<div id="mainScreen" class="hidden">
+
+  <div class="daynav">
+    <button class="daynav-btn" id="prevDayBtn">‹</button>
+    <div class="daynav-label">
+      <div class="eyebrow" id="dayEyebrow">Today</div>
+      <div class="date" id="dayDateLabel">—</div>
+    </div>
+    <button class="daynav-btn" id="nextDayBtn">›</button>
+  </div>
+  <div class="jump-today hidden" id="jumpTodayRow"><button id="jumpTodayBtn">Jump to Today</button></div>
+
+  <div class="total-hero">
+    <div class="amount" id="totalAmount">₹0</div>
+    <div class="label">Total collected</div>
+  </div>
+
+  <div class="mode-grid">
+    <div class="mode-chip cash"><div class="m-label">Cash</div><div class="m-amt" id="modeCash">₹0</div></div>
+    <div class="mode-chip upi"><div class="m-label">UPI</div><div class="m-amt" id="modeUpi">₹0</div></div>
+    <div class="mode-chip card"><div class="m-label">Card</div><div class="m-amt" id="modeCard">₹0</div></div>
+    <div class="mode-chip bank"><div class="m-label">Bank</div><div class="m-amt" id="modeBank">₹0</div></div>
+  </div>
+
+  <div id="overdueBanner" class="overdue-banner hidden">⚠️ <span id="overdueText"></span></div>
+
+  <div class="section-title"><h3>🦷 Lab Cases</h3></div>
+  <div class="lab-grid">
+    <div class="lab-card"><div class="lab-n" id="labActive">0</div><div class="lab-l">Active</div></div>
+    <div class="lab-card"><div class="lab-n" id="labWaiting">0</div><div class="lab-l">Pickup</div></div>
+    <div class="lab-card"><div class="lab-n" id="labDelivery">0</div><div class="lab-l">Delivery</div></div>
+  </div>
+
+  <div class="section-title">
+    <h3>💰 Payments</h3>
+    <div class="count" id="payCount">0</div>
+  </div>
+  <div class="pay-list" id="payList"></div>
+
+  <div class="footnote" id="lastSynced"></div>
+</div>
+
+<div id="loadingScreen" class="hidden"><div class="spinner"></div></div>
+<div id="loadErrorBar" class="status-bar err hidden"></div>
+
+<button class="refresh-fab hidden" id="refreshBtn" title="Refresh">↻</button>
+
+<script>
+/* ======================================================================
+   CONFIG — the one thing you must edit before hosting this page.
+   Get this from Google Cloud Console → APIs & Services → Credentials
+   (see the in-page setup card for the full steps).
+   ====================================================================== */
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+
+/* ---------------- Small helpers (mirrors the desktop app's own) ---------------- */
+function pad2(n){ return String(n).padStart(2, '0'); }
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+function addDays(dateStr, delta){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+function fmtINR(n){
+  n = Number(n) || 0;
+  return new Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits: (n % 1 === 0 ? 0 : 2) }).format(n);
+}
+function fullDateLabel(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const ITEM_MODE_LABELS = { cash:'Cash', upi:'UPI', card:'Card', bank:'Bank', refund:'Refund', writeoff:'Write-off' };
+
+/* ---------------- Money doctrine, ported verbatim from the desktop app ----
+   The phone must never disagree with the screen at the clinic, so these
+   four functions mirror isVoidedItem / reversalExcludesFromDayTotals /
+   computeItemTotals / entryModeTotals exactly. Before this, the mobile page
+   read entry.cash/upi/card/bank straight — the LEGACY stored fields — so a
+   normal item-based day showed a ₹0 header above a list of real payments.
+   Keep these in step with the desktop's versions if those ever change. */
+function isVoidedItem(it){ return !!(it && it.voided); }
+function localDateOf(iso){
+  if(!iso) return null;
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return null;
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+function reversalExcludesFromDayTotals(it){
+  if(!it || !it.reversal) return false;
+  if(!it.time) return true;   // no timestamp to compare — be conservative
+  return localDateOf(it.reversal.reversedAt) === localDateOf(it.time);
+}
+function computeItemTotals(items){
+  const t = { cash:0, upi:0, card:0, bank:0 };
+  (items||[]).forEach(it=>{
+    if(isVoidedItem(it)) return;                       // cancelled — counts as nothing
+    if(it.method === 'refund'){ t.cash -= (Number(it.amount)||0); return; }  // money leaving the drawer
+    if(it.method === 'writeoff') return;               // no money changed hands
+    if(reversalExcludesFromDayTotals(it)) return;      // reversed same day
+    if(Object.prototype.hasOwnProperty.call(t, it.method)) t[it.method] += (Number(it.amount)||0);
+    else t.cash += (Number(it.amount)||0);             // unknown method folds into cash, never vanishes
+  });
+  return t;
+}
+function entryModeTotals(e){
+  if(!e) return { cash:0, upi:0, card:0, bank:0 };
+  const stored = {
+    cash: Number(e.cash)||0, upi: Number(e.upi)||0,
+    card: Number(e.card)||0, bank: Number(e.bank)||0
+  };
+  if(!(e.items && e.items.length)) return stored;
+  const derived = computeItemTotals(e.items);
+  // Whichever source accounts for more money, taken WHOLE — so the split
+  // always sums to the figure beside it, and a day can never quietly shrink.
+  const storedSum  = stored.cash + stored.upi + stored.card + stored.bank;
+  const derivedSum = derived.cash + derived.upi + derived.card + derived.bank;
+  return derivedSum >= storedSum ? derived : stored;
+}
+
+/* ---------------- Auth state ---------------- */
+let accessToken = null;
+let tokenClient = null;
+let driveFolderId = localStorage.getItem('echoDental_driveFolderId') || '';
+let currentDate = todayStr();
+
+function setStatus(elId, text, isError){
+  const el = document.getElementById(elId);
+  el.textContent = text;
+  el.style.color = isError ? 'var(--danger)' : '#9a8362';
+}
+
+/* ---------------- Google sign-in ---------------- */
+function initGoogleAuth(){
+  if(typeof google === 'undefined' || !google.accounts){
+    setStatus('signInStatus', 'Google sign-in script did not load — check your connection and reload.', true);
+    return;
+  }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: DRIVE_SCOPE,
+    callback: (resp) => {
+      if(resp.error){
+        setStatus('signInStatus', 'Sign-in failed: ' + resp.error, true);
+        return;
+      }
+      accessToken = resp.access_token;
+      setStatus('signInStatus', 'Signed in.', false);
+      document.getElementById('folderCard').classList.remove('hidden');
+      if(driveFolderId){
+        document.getElementById('folderIdInput').value = driveFolderId;
+        connectAndLoad();
+      }
+    }
+  });
+}
+document.getElementById('signInBtn').addEventListener('click', () => {
+  if(!tokenClient){ setStatus('signInStatus', 'Still loading Google sign-in — try again in a moment.', true); return; }
+  tokenClient.requestAccessToken();
+});
+document.getElementById('saveFolderBtn').addEventListener('click', () => {
+  const val = document.getElementById('folderIdInput').value.trim();
+  if(!val){ setStatus('folderStatus', 'Paste your folder ID first.', true); return; }
+  driveFolderId = val;
+  localStorage.setItem('echoDental_driveFolderId', val);
+  connectAndLoad();
+});
+
+/* ---------------- Drive REST helpers ---------------- */
+async function driveFindChild(parentId, name, isFolder){
+  const mimeQ = isFolder ? " and mimeType='application/vnd.google-apps.folder'" : "";
+  const q = encodeURIComponent(`'${parentId}' in parents and name='${name}'${mimeQ} and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+    headers: { Authorization: 'Bearer ' + accessToken }
+  });
+  if(!res.ok) throw new Error('Drive lookup failed (' + res.status + ')');
+  const data = await res.json();
+  return (data.files && data.files[0]) ? data.files[0].id : null;
+}
+async function driveReadJson(fileId){
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: 'Bearer ' + accessToken }
+  });
+  if(!res.ok) throw new Error('File read failed (' + res.status + ')');
+  return await res.json();
+}
+async function driveListChildren(parentId){
+  let files = [];
+  let pageToken = null;
+  do{
+    const q = encodeURIComponent(`'${parentId}' in parents and trashed=false`);
+    let url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name)&pageSize=1000`;
+    if(pageToken) url += '&pageToken=' + pageToken;
+    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+    if(!res.ok) throw new Error('Drive listing failed (' + res.status + ')');
+    const data = await res.json();
+    files = files.concat(data.files || []);
+    pageToken = data.nextPageToken || null;
+  } while(pageToken);
+  return files;
+}
+
+/* ---------------- Data loading ---------------- */
+let cachedDataFolderId = null;
+let cachedLabFolderId = null;
+
+async function connectAndLoad(){
+  document.getElementById('setupScreen').classList.add('hidden');
+  document.getElementById('mainScreen').classList.remove('hidden');
+  document.getElementById('refreshBtn').classList.remove('hidden');
+  await loadEverything();
+}
+
+async function loadEverything(){
+  showLoading(true);
+  hideError();
+  try{
+    if(!cachedDataFolderId){
+      cachedDataFolderId = await driveFindChild(driveFolderId, 'data', true);
+    }
+    if(!cachedDataFolderId){
+      throw new Error('Could not find a "data" folder inside the folder you connected — double check the Folder ID matches the same folder the desktop app backs up to.');
+    }
+    await loadDayEntry(currentDate);
+    await loadLabSummary();
+    document.getElementById('lastSynced').textContent = 'Synced ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  }catch(err){
+    showError(err.message || String(err));
+  }finally{
+    showLoading(false);
+  }
+}
+
+/* The desktop app maintains settings/entries-index.json — every PAST day's
+   entry in one file (today is excluded there by design, since it is still
+   being written). On a phone every Drive call is a round trip, so scrolling
+   back through the week used to cost two calls per day: a name lookup plus
+   a read. Now the whole history arrives once, is cached for the session,
+   and day-scrolling is instant. Today still reads its own file every time,
+   which is exactly right — it is the file that keeps changing.
+   If the index is missing (older desktop build, or a folder that has not
+   synced yet), everything falls back to the original per-day path. */
+let cachedEntriesIndex = null;      // { 'YYYY-MM-DD': entry } or null
+let entriesIndexTried = false;
+
+async function loadEntriesIndex(){
+  if(entriesIndexTried) return cachedEntriesIndex;
+  entriesIndexTried = true;
+  try{
+    const settingsId = await driveFindChild(driveFolderId, 'settings', true);
+    if(!settingsId) return null;
+    const fileId = await driveFindChild(settingsId, 'entries-index.json', false);
+    if(!fileId) return null;
+    const idx = await driveReadJson(fileId);
+    if(!idx || !Array.isArray(idx.entries)) return null;
+    const map = {};
+    idx.entries.forEach(e => { if(e && e.date) map[e.date] = e; });
+    cachedEntriesIndex = map;
+  }catch(err){
+    cachedEntriesIndex = null;      // never fatal: the per-day path still works
+  }
+  return cachedEntriesIndex;
+}
+
+async function loadDayEntry(dateStr){
+  renderDayNav(dateStr);
+  if(dateStr !== todayStr()){
+    const idx = await loadEntriesIndex();
+    if(idx){
+      const entry = idx[dateStr] || null;
+      renderPayments(entry, entry && Array.isArray(entry.items) ? entry.items : []);
+      return;
+    }
+  }
+  const fileId = await driveFindChild(cachedDataFolderId, dateStr + '.json', false);
+  if(!fileId){
+    renderPayments(null, []);
+    return;
+  }
+  const entry = await driveReadJson(fileId);
+  const items = Array.isArray(entry.items) ? entry.items : [];
+  renderPayments(entry, items);
+}
+
+async function loadLabSummary(){
+  if(!cachedLabFolderId){
+    cachedLabFolderId = await driveFindChild(driveFolderId, 'labcases', true);
+  }
+  if(!cachedLabFolderId){
+    document.getElementById('labActive').textContent = '—';
+    document.getElementById('labWaiting').textContent = '—';
+    document.getElementById('labDelivery').textContent = '—';
+    return;
+  }
+  const files = await driveListChildren(cachedLabFolderId);
+  const jsonFiles = files.filter(f => f.name.endsWith('.json'));
+  const cases = await Promise.all(jsonFiles.map(f => driveReadJson(f.id).catch(() => null)));
+  let active = 0, waiting = 0, delivery = 0, overdue = 0;
+  const now = Date.now();
+  cases.filter(Boolean).forEach(c => {
+    const delivered = !!c.dateDelivered;
+    if(!delivered) active++;
+    if(!c.dateSent && !delivered) waiting++;
+    if(c.dateSent && !c.dateReceived && !delivered) delivery++;
+    // Flag anything sitting more than 3 days in its current stage as overdue.
+    const lastTouch = c.dateReceived || c.dateSent || c.dateLogged;
+    if(!delivered && lastTouch){
+      const days = (now - new Date(lastTouch).getTime()) / 86400000;
+      if(days > 3) overdue++;
+    }
+  });
+  document.getElementById('labActive').textContent = active;
+  document.getElementById('labWaiting').textContent = waiting;
+  document.getElementById('labDelivery').textContent = delivery;
+  const banner = document.getElementById('overdueBanner');
+  if(overdue > 0){
+    banner.classList.remove('hidden');
+    document.getElementById('overdueText').textContent = overdue + ' lab case' + (overdue>1?'s':'') + ' need attention (3+ days with no update).';
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+/* ---------------- Rendering ---------------- */
+function renderDayNav(dateStr){
+  const isToday = dateStr === todayStr();
+  document.getElementById('dayEyebrow').textContent = isToday ? 'Today' : 'Viewing';
+  document.getElementById('dayDateLabel').textContent = fullDateLabel(dateStr);
+  document.getElementById('jumpTodayRow').classList.toggle('hidden', isToday);
+  document.getElementById('nextDayBtn').disabled = isToday;
+}
+
+function computeTotals(items){
+  const t = { cash:0, upi:0, card:0, bank:0 };
+  items.forEach(it => { if(t[it.method] !== undefined) t[it.method] += Number(it.amount)||0; });
+  t.total = t.cash + t.upi + t.card + t.bank;
+  return t;
+}
+
+function renderPayments(entry, items){
+  const t = entryModeTotals(entry);
+  t.total = t.cash + t.upi + t.card + t.bank;
+
+  document.getElementById('totalAmount').textContent = fmtINR(t.total);
+  document.getElementById('modeCash').textContent = fmtINR(t.cash);
+  document.getElementById('modeUpi').textContent = fmtINR(t.upi);
+  document.getElementById('modeCard').textContent = fmtINR(t.card);
+  document.getElementById('modeBank').textContent = fmtINR(t.bank);
+
+  // Group split payments (same groupId) into one row, same as the desktop app.
+  // Voided items are dropped first: the desktop strikes them through, and a
+  // phone glance has no room for that nuance — an erased payment must not
+  // read as a payment, nor inflate the count beside the total.
+  const live = (items||[]).filter(it => !isVoidedItem(it));
+  const groups = [];
+  const seen = new Set();
+  live.forEach(it => {
+    const key = it.groupId || it.id;
+    if(seen.has(key)) return;
+    seen.add(key);
+    groups.push(live.filter(x => (x.groupId||x.id) === key));
+  });
+
+  document.getElementById('payCount').textContent = groups.length;
+  const list = document.getElementById('payList');
+  if(groups.length === 0){
+    list.innerHTML = '<div class="empty-state">No payments recorded for this day.</div>';
+    return;
+  }
+  list.innerHTML = groups.map((group, i) => {
+    const first = group[0];
+    /* Signed like the totals above: a refund is money OUT, so it shows
+       negative rather than as another collection. A write-off moves no
+       money at all, and a same-day reversal never entered the day. */
+    const amount = group.reduce((s,x) => {
+      if(x.method === 'writeoff' || reversalExcludesFromDayTotals(x)) return s;
+      const v = Number(x.amount)||0;
+      return s + (x.method === 'refund' ? -v : v);
+    }, 0);
+    const tag = group.some(x => x.method === 'refund') ? 'refund'
+              : group.some(x => x.method === 'writeoff') ? 'writeoff'
+              : group.some(x => reversalExcludesFromDayTotals(x)) ? 'reversed' : '';
+    const modeLabel = group.length > 1
+      ? group.map(x => ITEM_MODE_LABELS[x.method]||x.method).join(' + ')
+      : (ITEM_MODE_LABELS[first.method]||first.method);
+    const modeClass = group.length > 1 ? '' : first.method;
+    return '<div class="pay-row' + (tag ? ' pay-row-' + tag : '') + '">'
+      + '<div class="pay-sr">'+(i+1)+'</div>'
+      + '<div class="pay-main">'
+        + '<div class="pay-name">'+escapeHtml(first.patientName||first.note||'—')+'</div>'
+        + '<div class="pay-sub">ID '+escapeHtml(first.patientId||'—')
+          + (tag === 'reversed' ? ' · reversed' : '') + '</div>'
+      + '</div>'
+      + '<div class="pay-right">'
+        + '<div class="pay-amt'+(amount < 0 ? ' pay-amt-out' : '')+'">'+fmtINR(amount)+'</div>'
+        + '<div class="pay-mode '+modeClass+'">'+escapeHtml(modeLabel)+'</div>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+}
+
+function showLoading(on){
+  document.getElementById('loadingScreen').classList.toggle('hidden', !on);
+  document.getElementById('mainScreen').style.opacity = on ? '0.35' : '1';
+}
+function showError(msg){
+  const bar = document.getElementById('loadErrorBar');
+  bar.textContent = '⚠ ' + msg;
+  bar.classList.remove('hidden');
+}
+function hideError(){
+  document.getElementById('loadErrorBar').classList.add('hidden');
+}
+
+/* ---------------- Day navigation + refresh ---------------- */
+document.getElementById('prevDayBtn').addEventListener('click', async () => {
+  currentDate = addDays(currentDate, -1);
+  showLoading(true);
+  try{ await loadDayEntry(currentDate); } catch(e){ showError(e.message); }
+  showLoading(false);
+});
+document.getElementById('nextDayBtn').addEventListener('click', async () => {
+  if(currentDate === todayStr()) return;
+  currentDate = addDays(currentDate, 1);
+  showLoading(true);
+  try{ await loadDayEntry(currentDate); } catch(e){ showError(e.message); }
+  showLoading(false);
+});
+document.getElementById('jumpTodayBtn').addEventListener('click', async () => {
+  currentDate = todayStr();
+  showLoading(true);
+  try{ await loadDayEntry(currentDate); } catch(e){ showError(e.message); }
+  showLoading(false);
+});
+document.getElementById('refreshBtn').addEventListener('click', () => {
+  /* Refresh means "go and look again", so the cached history index is
+     dropped as well — otherwise a correction made to a past day at the
+     clinic would stay invisible on the phone for the whole session. */
+  cachedEntriesIndex = null;
+  entriesIndexTried = false;
+  loadEverything();
+});
+
+/* ---------------- Boot ---------------- */
+window.addEventListener('load', () => {
+  setTimeout(initGoogleAuth, 300); // give the GIS script a moment to attach to window.google
+  if(driveFolderId){
+    // Returning visitor — still needs a fresh token (Google tokens expire),
+    // but we can skip straight to sign-in without re-asking for the folder.
+    document.getElementById('folderCard').classList.remove('hidden');
+    document.getElementById('folderIdInput').value = driveFolderId;
+  }
+});
+</script>
+</body>
+</html>
