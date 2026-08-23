@@ -91,9 +91,9 @@
     padding:12px 16px; display:flex; align-items:center; justify-content:center;
     position:sticky; top:0; z-index:20;
   }
-  /* Centred, and stacked: with nothing else in the bar there is no reason to
-     push the identity into a corner. */
-  .brand{ display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center; }
+  /* One line, centred: mark and wordmark side by side, the way a letterhead
+     reads, with the tagline tucked under the name rather than under both. */
+  .brand{ display:flex; flex-direction:row; align-items:center; gap:11px; text-align:left; }
   /* THE SHEEN, ported verbatim from the clinic app's wordmark: a highlight
      enters from the right, crosses the letters once, and leaves. Both ends
      of the gradient are the same flat bronze so nothing sits frozen on the
@@ -346,20 +346,8 @@
   }
   .period-label{ font-family:'Jost', sans-serif; font-size:0.76rem; letter-spacing:0.08em;
     text-transform:uppercase; color:#9a8362; text-align:center; margin-bottom:12px; }
-  /* Collected and billed side by side: the gap between them IS the story, so
-     they must be readable in one glance without scrolling between them. */
-  .stat-pair{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 16px 8px; }
-  .stat-box{ background:var(--white); border:1px solid var(--line); border-radius:16px;
-    padding:16px 12px; text-align:center; box-shadow:0 2px 8px rgba(74,59,40,0.05); }
-  .stat-box.collected{ border-color:rgba(62,125,90,0.35); background:rgba(62,125,90,0.05); }
-  .s-label{ font-family:'Jost', sans-serif; font-size:0.68rem; letter-spacing:0.12em;
-    text-transform:uppercase; color:#9a8362; margin-bottom:5px; }
-  .s-amt{ font-family:'Jost', sans-serif; font-weight:600; font-size:1.18rem; color:var(--ink);
-    font-variant-numeric:tabular-nums lining-nums; }
-  .gap-note{ font-family:'Jost', sans-serif; font-size:0.76rem; color:#9a8362;
-    text-align:center; margin-bottom:14px; min-height:1em; }
   .pending-hero{ background:linear-gradient(135deg, #B14A3D, #8f3a30); border-radius:18px;
-    padding:20px; text-align:center; color:#fff; margin:0 0 12px;
+    padding:22px 20px; text-align:center; color:#fff; margin:0 0 12px;
     box-shadow:0 12px 28px rgba(143,58,48,0.28); }
   .pending-hero .amount{ font-family:'Jost', sans-serif; font-weight:600; font-size:1.7rem;
     font-variant-numeric:tabular-nums lining-nums; }
@@ -522,7 +510,7 @@
   <div class="tabbar">
     <button class="tab-btn active" data-view="day">Day</button>
     <button class="tab-btn" data-view="month">Month</button>
-    <button class="tab-btn" data-view="report">Report</button>
+    <button class="tab-btn" data-view="report">Outstanding</button>
   </div>
 
   <!-- ---------------- DAY ---------------- -->
@@ -594,25 +582,10 @@
 
   <!-- ---------------- REPORT ---------------- -->
   <div id="viewReport" class="hidden">
-    <!-- One period only. The Day and Month tabs already answer "how did this
-         month go"; a Report that also offered month-sized windows was the
-         same question in a third place. What it uniquely answers is the
-         lifetime picture — total billed, total collected, and who still
-         owes. -->
-    <div class="period-label" id="reportPeriodLabel">All time</div>
-
-    <div class="stat-pair">
-      <div class="stat-box collected">
-        <div class="s-label">Collected</div>
-        <div class="s-amt" id="repCollected">&#8377;0</div>
-      </div>
-      <div class="stat-box billed">
-        <div class="s-label">Billed</div>
-        <div class="s-amt" id="repBilled">&#8377;0</div>
-      </div>
-    </div>
-    <div class="gap-note" id="repGapNote"></div>
-
+    <!-- One question only: who still owes, and who is in credit. Collected vs
+         Billed lived here and was removed — over a lifetime those two
+         figures only ever restate the balance below them, and the Day and
+         Month tabs already carry the period money. -->
     <div class="section-title">
       <h3>&#9203; Outstanding</h3>
       <div class="count" id="pendingCount">0</div>
@@ -1285,46 +1258,8 @@ async function renderMonthView(){
 }
 
 /* ---------------- Report ---------------- */
-/* The Report covers everything, always. Month-sized windows lived here once
-   and were removed: Day and Month already answer that question, and a third
-   place to ask it only invited "which of these three is right?". */
-function reportRange(){
-  return { from: '0000-01-01', to: '9999-12-31', label: 'All time' };
-}
-
 async function renderReportView(){
   const [entries, bills] = await Promise.all([loadAllEntries(), loadBills()]);
-  const r = reportRange();
-  document.getElementById('reportPeriodLabel').textContent = r.label;
-
-  const inRange = entries.filter(e => e && e.date >= r.from && e.date <= r.to);
-  /* The mode split is deliberately NOT shown here. Over a lifetime, "how
-     much of everything ever came as cash" answers no question anyone at
-     this clinic asks — the split matters for reconciling a DAY against the
-     drawer, which is where it lives. Still summed through the same doctrine
-     so the collected figure stays identical to the Day and Month tabs. */
-  let collected = 0;
-  inRange.forEach(e => {
-    const m = entryModeTotals(e);
-    collected += m.cash + m.upi + m.card + m.bank;
-  });
-  /* Billed counts finalized, non-cancelled documents; credit notes are stored
-     negative, so summing grandTotal subtracts them automatically. */
-  const billed = bills.filter(b => billCountsAsMoney(b) && b.date >= r.from && b.date <= r.to)
-                      .reduce((s,b) => s + (Number(b.grandTotal) || 0), 0);
-
-  document.getElementById('repCollected').textContent = fmtINR(collected);
-  document.getElementById('repBilled').textContent = fmtINR(billed);
-
-  /* The gap is the point of showing both, but it is NOT the outstanding
-     figure — collections in this period may settle bills raised earlier.
-     Said plainly, because a wrong reading here would be an expensive one. */
-  const gapEl = document.getElementById('repGapNote');
-  const gap = billed - collected;
-  gapEl.textContent = Math.abs(gap) < 1 ? 'Billed and collected match for this period.'
-    : (gap > 0 ? fmtINR(gap) + ' more billed than collected in this period'
-               : fmtINR(-gap) + ' more collected than billed in this period');
-
   renderPending(computePendingFromData(bills, entries));
 }
 
