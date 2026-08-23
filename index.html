@@ -8,6 +8,15 @@
      desktop app embeds them. The Google Fonts links that used to sit here
      were also why the phone looked wrong on a weak connection: the page
      rendered in a system font first and only sometimes caught up. -->
+<!-- Installable app: the manifest gives Android the proper name and the
+     Nexus mark instead of a screenshot of the page, and lets Chrome offer
+     to install rather than hiding it in a menu. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FDFAF3">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Echo Nexus">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   /* The clinic's own faces, lifted byte-for-byte from the desktop app so the
@@ -405,6 +414,48 @@
     border-top:1px solid var(--line); margin-top:6px; padding-top:9px; }
   .pay-row.tappable{ cursor:pointer; }
   .pay-row.tappable:active{ background:var(--gold-pale); }
+  .app-banner{
+    display:none; margin:0 16px 12px; padding:10px 13px; border-radius:10px;
+    font-family:'Jost', sans-serif; font-size:0.82rem; font-weight:500;
+    color:var(--danger); background:var(--danger-bg);
+    border:1px solid rgba(203,72,49,0.3);
+  }
+  .app-banner.app-banner-info{
+    color:var(--gold-deep); background:var(--gold-pale); border-color:var(--gold-light);
+  }
+  /* Stale data is the one footer line that must not read as a footnote. */
+  /* ---------- Patient lookup ---------- */
+  .patient-search{ padding:0 16px 12px; }
+  .patient-search input{
+    width:100%; box-sizing:border-box; padding:13px 15px;
+    font-family:'Poppins', sans-serif; font-size:0.95rem; color:var(--ink);
+    background:var(--white); border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 1px 2px rgba(74,59,40,0.05); outline:none;
+  }
+  .patient-search input:focus{ border-color:var(--gold-light); box-shadow:0 0 0 3px var(--gold-pale); }
+  .pd-head{ padding:0 16px 10px; }
+  .pd-back{
+    border:none; background:none; padding:6px 0; cursor:pointer;
+    font-family:'Jost', sans-serif; font-size:0.86rem; color:var(--gold-deep);
+  }
+  .pd-name{
+    font-family:'Cinzel', serif; font-weight:600; font-size:1rem; color:var(--brown);
+    text-align:center; padding:0 16px;
+  }
+  .pd-sub{
+    font-family:'Jost', sans-serif; font-size:0.78rem; color:var(--muted);
+    text-align:center; padding:4px 16px 4px;
+  }
+  /* An advance is good news and must not wear the red of a debt. */
+  .total-hero.in-credit .amount{ color:var(--success); }
+  .search-hint{
+    font-family:'Jost', sans-serif; font-size:0.84rem; color:var(--muted);
+    text-align:center; padding:26px 24px;
+  }
+  .footnote.stale-warning{
+    color:var(--danger); background:var(--danger-bg); border:1px solid rgba(203,72,49,0.3);
+    border-radius:10px; padding:10px 12px; margin:0 16px; font-weight:500;
+  }
   .bill-credit .pay-amt{ color:var(--danger); }
   /* Money leaving, or never really arriving: on a phone these get read in a
      half-second between patients, so they must not look like collections. */
@@ -510,6 +561,7 @@
   <div class="tabbar">
     <button class="tab-btn active" data-view="day">Day</button>
     <button class="tab-btn" data-view="month">Month</button>
+    <button class="tab-btn" data-view="patient">Patient</button>
     <button class="tab-btn" data-view="report">Outstanding</button>
   </div>
 
@@ -578,6 +630,41 @@
       <div class="count" id="monthDayCount">0</div>
     </div>
     <div class="pay-list" id="monthDayList"></div>
+  </div>
+
+  <!-- ---------------- PATIENT ----------------
+       The question the phone could not answer before: a patient rings while
+       you are out and asks what they owe. Everything needed is already
+       fetched for the other tabs, so this costs no extra Drive traffic. -->
+  <div id="viewPatient" class="hidden">
+    <div class="patient-search">
+      <input type="search" id="patientSearchInput" placeholder="Name or patient ID"
+             autocomplete="off" enterkeyhint="search">
+    </div>
+    <div id="patientResults"></div>
+    <div id="patientDetail" class="hidden">
+      <div class="pd-head">
+        <button class="pd-back" id="patientBackBtn">&lsaquo; Back</button>
+      </div>
+      <div class="total-hero">
+        <div class="amount" id="pdBalance">&#8377;0</div>
+        <div class="label" id="pdBalanceLabel">Outstanding</div>
+      </div>
+      <div class="pd-name" id="pdName">&mdash;</div>
+      <div class="pd-sub" id="pdSub">&mdash;</div>
+
+      <div class="section-title">
+        <h3>&#129534; Bills</h3>
+        <div class="count" id="pdBillCount">0</div>
+      </div>
+      <div class="pay-list" id="pdBillList"></div>
+
+      <div class="section-title">
+        <h3>&#128176; Payments</h3>
+        <div class="count" id="pdPayCount">0</div>
+      </div>
+      <div class="pay-list" id="pdPayList"></div>
+    </div>
   </div>
 
   <!-- ---------------- REPORT ---------------- -->
@@ -840,13 +927,19 @@ async function driveFetch(url, whatFailed){
   if(!res.ok) throw new Error(whatFailed + ' (' + res.status + ')');
   return res;
 }
+/* modifiedTime comes back in the same request as the id — one extra field,
+   no extra round trip — and it is what tells us how old the CLINIC's data
+   is, as opposed to how recently this phone fetched it. */
+let lastFoundModifiedTime = null;
 async function driveFindChild(parentId, name, isFolder){
   const mimeQ = isFolder ? " and mimeType='application/vnd.google-apps.folder'" : "";
   const q = encodeURIComponent(`'${parentId}' in parents and name='${name}'${mimeQ} and trashed=false`);
-  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)`,
                                'Drive lookup failed');
   const data = await res.json();
-  return (data.files && data.files[0]) ? data.files[0].id : null;
+  const hit = data.files && data.files[0];
+  lastFoundModifiedTime = hit ? (hit.modifiedTime || null) : null;
+  return hit ? hit.id : null;
 }
 async function driveReadJson(fileId){
   const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
@@ -890,7 +983,7 @@ async function loadEverything(){
       throw new Error('Could not find a "data" folder inside the folder you connected — double check the Folder ID matches the same folder the desktop app backs up to.');
     }
     await renderCurrentView();
-    document.getElementById('lastSynced').textContent = 'Synced ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+    await paintFreshness();
   }catch(err){
     /* The hour ran out mid-use. Ask Google for a fresh token WITHOUT any tap
        and carry on — the person never learns this happened. Only if that
@@ -1055,6 +1148,64 @@ async function loadAllEntries(){
   return out.filter(Boolean);
 }
 
+/* ---------------- How old is this data, really? ----------------
+   The footer used to say "Synced 3:42 PM", meaning the moment this PHONE
+   fetched. That is the least useful of the two timestamps: if the clinic PC
+   stopped backing up on Friday, a Sunday glance still read "Synced 11:20 AM"
+   over three-day-old money. What matters is when the CLINIC last wrote, so
+   that is what is shown — and when it is more than a day behind, the line
+   says so loudly rather than in passing.
+
+   The date file for today is the honest witness: the desktop app rewrites it
+   on every payment, so its modifiedTime is effectively "when the clinic last
+   recorded anything". If today's file does not exist yet (a quiet morning,
+   or a sync that has stopped), the newest day file that does exist answers
+   the same question. */
+async function clinicDataAge(){
+  try{
+    const today = todayStr();
+    await driveFindChild(cachedDataFolderId, today + '.json', false);
+    if(lastFoundModifiedTime) return { iso: lastFoundModifiedTime, date: today };
+    // No file for today — fall back to the newest day the index knows about.
+    const idx = await loadEntriesIndex();
+    const days = idx ? Object.keys(idx).sort() : [];
+    const newest = days.length ? days[days.length - 1] : null;
+    if(!newest) return null;
+    await driveFindChild(cachedDataFolderId, newest + '.json', false);
+    return lastFoundModifiedTime ? { iso: lastFoundModifiedTime, date: newest } : null;
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    return null;   // never let a timestamp lookup break the screen
+  }
+}
+
+async function paintFreshness(){
+  const el = document.getElementById('lastSynced');
+  if(!el) return;
+  const age = await clinicDataAge();
+  if(!age){
+    el.className = 'footnote';
+    el.textContent = 'Checked just now';
+    return;
+  }
+  const when = new Date(age.iso);
+  const hours = (Date.now() - when.getTime()) / 36e5;
+  const timeLabel = when.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  const dayLabel = age.date === todayStr() ? 'today'
+    : (age.date === addDays(todayStr(), -1) ? 'yesterday' : fullDateLabel(age.date));
+  /* 30 hours, not 24: a clinic that closes at 8pm and opens at 10am leaves a
+     natural 14-hour gap, and a Sunday leaves longer. The warning is for a
+     sync that has actually stopped, not for a normal night. */
+  if(hours > 30){
+    el.className = 'footnote stale-warning';
+    el.textContent = '\u26A0\uFE0F Clinic data last updated ' + dayLabel + ' at ' + timeLabel
+      + ' — the backup may have stopped. These figures are not current.';
+  } else {
+    el.className = 'footnote';
+    el.textContent = 'Clinic data as of ' + dayLabel + ' ' + timeLabel;
+  }
+}
+
 /* ---------------- Bill detail sheet ----------------
    Read-only, and it says so. Shows what the printed bill shows — the lines,
    their quantities and rates, the discounts, the total — grouped by category
@@ -1137,9 +1288,11 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 async function renderCurrentView(){
   document.getElementById('viewDay').classList.toggle('hidden', currentView !== 'day');
   document.getElementById('viewMonth').classList.toggle('hidden', currentView !== 'month');
+  document.getElementById('viewPatient').classList.toggle('hidden', currentView !== 'patient');
   document.getElementById('viewReport').classList.toggle('hidden', currentView !== 'report');
-  if(currentView === 'day')    return await renderDayView();
-  if(currentView === 'month')  return await renderMonthView();
+  if(currentView === 'day')     return await renderDayView();
+  if(currentView === 'month')   return await renderMonthView();
+  if(currentView === 'patient') return await renderPatientView();
   return await renderReportView();
 }
 
@@ -1257,7 +1410,161 @@ async function renderMonthView(){
   });
 }
 
-/* ---------------- Report ---------------- */
+/* ---------------- Patient lookup ----------------
+   The question the phone could not answer before: someone rings while you
+   are out and asks what they owe. It searches the bills and payments already
+   in memory rather than the patient directory file — a patient with no money
+   history has nothing to show here anyway — so the tab costs no extra Drive
+   traffic at all.
+
+   The balance comes from computePendingFromData, the same function the
+   Outstanding tab uses and which is itself cross-checked against the
+   desktop's own calculation. One rule in three places: the phone can never
+   quote a figure the clinic screen disagrees with. */
+let patientSearchTimer = null;
+let selectedPatientId = null;
+
+async function patientIndex(){
+  const [entries, bills] = await Promise.all([loadAllEntries(), loadBills()]);
+  const people = {};
+  const note = (id, name, date) => {
+    if(!id) return;
+    if(!people[id]) people[id] = { id, name: '', lastDate: '' };
+    if(name) people[id].name = name;
+    if(date && date > people[id].lastDate) people[id].lastDate = date;
+  };
+  bills.forEach(b => { if(billCountsAsMoney(b)) note(b.patientId, b.patientName, b.date); });
+  entries.forEach(e => {
+    (Array.isArray(e.items) ? e.items : []).forEach(it => {
+      if(it && !isVoidedItem(it)) note(it.patientId, it.patientName, e.date);
+    });
+  });
+  return { people, entries, bills };
+}
+
+async function runPatientSearch(q){
+  const box = document.getElementById('patientResults');
+  const query = (q || '').trim().toLowerCase();
+  if(query.length < 2){
+    box.innerHTML = '<div class="search-hint">Type at least two letters of a name, or a patient ID.</div>';
+    return;
+  }
+  const { people } = await patientIndex();
+  const hits = Object.keys(people).map(id => people[id])
+    .filter(p => (p.name || '').toLowerCase().includes(query) || String(p.id).includes(query))
+    .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
+    .slice(0, 20);
+  if(hits.length === 0){
+    box.innerHTML = '<div class="search-hint">No patient found with money on record for that.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="pay-list">' + hits.map(p =>
+    '<div class="pay-row tappable" data-pid="' + escapeHtml(p.id) + '">'
+    + '<div class="pay-main">'
+      + '<div class="pay-name">' + escapeHtml(p.name || 'Unknown') + '</div>'
+      + '<div class="pay-sub">ID ' + escapeHtml(p.id)
+        + (p.lastDate ? ' \u00b7 last seen ' + escapeHtml(fullDateLabel(p.lastDate)) : '') + '</div>'
+    + '</div>'
+    + '<div class="pay-right"><div class="bill-status">view</div></div>'
+  + '</div>').join('') + '</div>';
+  box.querySelectorAll('.pay-row[data-pid]').forEach(row => {
+    row.addEventListener('click', () => openPatientDetail(row.getAttribute('data-pid')));
+  });
+}
+
+async function openPatientDetail(patientId){
+  selectedPatientId = patientId;
+  const { people, entries, bills } = await patientIndex();
+  const person = people[patientId] || { id: patientId, name: 'Unknown' };
+  const rec = computePendingFromData(bills, entries)[patientId]
+           || { pending: 0, totalBilled: 0, totalPayments: 0 };
+
+  document.getElementById('patientResults').classList.add('hidden');
+  document.querySelector('.patient-search').classList.add('hidden');
+  document.getElementById('patientDetail').classList.remove('hidden');
+  /* Android's Back should step out of the patient, not out of the app. */
+  try{ if(!(history.state && history.state.patient)) history.pushState({ patient:true }, ''); }
+  catch(e){ /* history blocked — the Back button on screen still works */ }
+  document.getElementById('pdName').textContent = person.name || 'Unknown';
+  document.getElementById('pdSub').textContent = 'ID ' + patientId
+    + ' \u00b7 billed ' + fmtINR(rec.totalBilled) + ' \u00b7 paid ' + fmtINR(rec.totalPayments);
+
+  /* Owed, in credit, or square — said in words, never as a bare negative. */
+  const p = rec.pending;
+  const hero = document.getElementById('pdBalance').parentElement;
+  hero.classList.toggle('in-credit', p < -0.5);
+  document.getElementById('pdBalance').textContent = fmtINR(Math.abs(p) < 0.5 ? 0 : Math.abs(p));
+  document.getElementById('pdBalanceLabel').textContent =
+    p > 0.5 ? 'Outstanding' : (p < -0.5 ? 'Advance with clinic' : 'Settled');
+
+  const mine = bills.filter(b => b && String(b.patientId) === String(patientId) && b.status !== 'draft')
+                    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  document.getElementById('pdBillCount').textContent = mine.length;
+  const bl = document.getElementById('pdBillList');
+  bl.innerHTML = mine.length === 0
+    ? '<div class="empty-state">No bills on record.</div>'
+    : mine.map((b, i) => {
+        const cancelled = isCancelledBill(b), credit = isCreditNote(b);
+        return '<div class="pay-row tappable' + (cancelled ? ' bill-cancelled' : (credit ? ' bill-credit' : ''))
+          + '" data-bill="' + escapeHtml(b.billId || '') + '">'
+          + '<div class="pay-sr">' + (i+1) + '</div>'
+          + '<div class="pay-main">'
+            + '<div class="pay-name">' + escapeHtml(b.billNumber || 'No number') + '</div>'
+            + '<div class="pay-sub">' + escapeHtml(fullDateLabel(b.date)) + '</div>'
+          + '</div>'
+          + '<div class="pay-right">'
+            + '<div class="pay-amt">' + fmtINR(Number(b.grandTotal) || 0) + '</div>'
+            + '<div class="bill-status">' + (cancelled ? 'Cancelled' : (credit ? 'Credit note' : 'Bill')) + '</div>'
+          + '</div>'
+        + '</div>';
+      }).join('');
+  bl.querySelectorAll('.pay-row[data-bill]').forEach(row => {
+    row.addEventListener('click', () =>
+      openBillSheet(mine.find(b => String(b.billId) === row.getAttribute('data-bill'))));
+  });
+
+  const pays = [];
+  entries.forEach(e => {
+    (Array.isArray(e.items) ? e.items : []).forEach(it => {
+      if(!it || String(it.patientId) !== String(patientId)) return;
+      if(isVoidedItem(it) || isReversedItem(it)) return;
+      pays.push({ date: e.date, method: it.method || 'cash', note: it.note || '',
+                  amount: it.method === 'refund' ? -(Number(it.amount)||0) : (Number(it.amount)||0),
+                  writeoff: it.method === 'writeoff' });
+    });
+  });
+  pays.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  document.getElementById('pdPayCount').textContent = pays.length;
+  const LBL = { cash:'Cash', upi:'UPI', card:'Card', bank:'Bank', refund:'Refund', writeoff:'Written off' };
+  document.getElementById('pdPayList').innerHTML = pays.length === 0
+    ? '<div class="empty-state">No payments on record.</div>'
+    : pays.map((r, i) =>
+        '<div class="pay-row' + (r.amount < 0 ? ' pay-row-refund' : (r.writeoff ? ' pay-row-writeoff' : '')) + '">'
+        + '<div class="pay-sr">' + (i+1) + '</div>'
+        + '<div class="pay-main">'
+          + '<div class="pay-name">' + escapeHtml(LBL[r.method] || r.method) + '</div>'
+          + '<div class="pay-sub">' + escapeHtml(fullDateLabel(r.date))
+            + (r.note ? ' \u00b7 ' + escapeHtml(r.note) : '') + '</div>'
+        + '</div>'
+        + '<div class="pay-right"><div class="pay-amt' + (r.amount < 0 ? ' pay-amt-out' : '') + '">'
+          + fmtINR(r.amount) + '</div></div>'
+      + '</div>').join('');
+}
+
+function closePatientDetail(){
+  selectedPatientId = null;
+  document.getElementById('patientDetail').classList.add('hidden');
+  document.getElementById('patientResults').classList.remove('hidden');
+  document.querySelector('.patient-search').classList.remove('hidden');
+}
+
+async function renderPatientView(){
+  if(selectedPatientId) return await openPatientDetail(selectedPatientId);
+  closePatientDetail();
+  await runPatientSearch(document.getElementById('patientSearchInput').value);
+}
+
+/* ---------------- Outstanding ---------------- */
 async function renderReportView(){
   const [entries, bills] = await Promise.all([loadAllEntries(), loadBills()]);
   renderPending(computePendingFromData(bills, entries));
@@ -1410,6 +1717,26 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchView(btn.getAttribute('data-view')));
 });
 
+/* Search as you type, but not on every keystroke: each search walks the
+   whole billing history in memory, and 180ms of quiet is the difference
+   between "instant" and a phone that stutters while you type a name. */
+const _psInput = document.getElementById('patientSearchInput');
+if(_psInput){
+  _psInput.addEventListener('input', () => {
+    clearTimeout(patientSearchTimer);
+    patientSearchTimer = setTimeout(() => {
+      runPatientSearch(_psInput.value).catch(err => {
+        if(err && err.name === 'TokenExpiredError'){ requestTokenSilently(); return; }
+        showError(err.message || String(err));
+      });
+    }, 180);
+  });
+}
+document.getElementById('patientBackBtn').addEventListener('click', () => {
+  if(history.state && history.state.patient){ history.back(); return; }
+  closePatientDetail();
+});
+
 /* Closing the bill sheet: the ✕, a tap on the dark backdrop, and — the one
    people actually use on Android — the system Back button. A history entry
    is pushed when the sheet opens so Back closes the sheet instead of leaving
@@ -1420,7 +1747,13 @@ document.getElementById('billModal').addEventListener('click', (e) => {
     history.state && history.state.sheet ? history.back() : closeBillSheet();
   }
 });
-window.addEventListener('popstate', () => closeBillSheet());
+window.addEventListener('popstate', () => {
+  /* One handler, two layers: the bill sheet sits ON TOP of the patient view,
+     so Back must dismiss the sheet first and only then leave the patient. */
+  const sheetOpen = !document.getElementById('billModal').classList.contains('hidden');
+  if(sheetOpen){ closeBillSheet(); return; }
+  if(selectedPatientId) closePatientDetail();
+});
 
 document.getElementById('prevDayBtn').addEventListener('click',
   () => navigate(() => { currentDate = addDays(currentDate, -1); }));
@@ -1448,8 +1781,65 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   loadEverything();
 });
 
+/* ---------------- Installable app / offline shell ----------------
+   The service worker stores the page itself so the app opens instantly and
+   opens at all with no signal. It never caches clinic data: figures always
+   come from Drive, live, so nothing on screen is quietly out of date.
+
+   Registered AFTER load so it never competes with the first paint or the
+   first Drive call — an app that installs itself faster but shows the day's
+   money slower is a bad trade. */
+function registerServiceWorker(){
+  if(!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    /* When a new build is picked up, say so rather than silently swapping
+       under the person's hands mid-read. */
+    reg.addEventListener('updatefound', () => {
+      const sw = reg.installing;
+      if(!sw) return;
+      sw.addEventListener('statechange', () => {
+        if(sw.state === 'installed' && navigator.serviceWorker.controller){
+          showBanner('A new version is ready — pull down to refresh.', 'info');
+        }
+      });
+    });
+  }).catch(() => { /* no offline support; the app still works normally */ });
+}
+
+/* One small line under the header for states that are true of the whole app
+   rather than of one figure: no connection, or a new build waiting. */
+function showBanner(text, kind){
+  let el = document.getElementById('appBanner');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'appBanner';
+    const main = document.getElementById('mainScreen');
+    if(!main) return;
+    main.insertBefore(el, main.firstChild);
+  }
+  el.className = 'app-banner' + (kind === 'info' ? ' app-banner-info' : '');
+  el.textContent = text;
+  el.style.display = 'block';
+}
+function hideBanner(){
+  const el = document.getElementById('appBanner');
+  if(el) el.style.display = 'none';
+}
+
+/* Offline is worth saying plainly: the app shell will still open from the
+   phone's own copy, but the FIGURES cannot refresh without a connection,
+   and a stale number read as a live one is the whole risk here. */
+window.addEventListener('offline', () => {
+  showBanner('\u26A0\uFE0F No connection — showing the last figures loaded. They may have changed.');
+});
+window.addEventListener('online', () => {
+  hideBanner();
+  if(accessToken && driveFolderId) loadEverything();
+});
+
 /* ---------------- Boot ---------------- */
 window.addEventListener('load', () => {
+  registerServiceWorker();
   setTimeout(initGoogleAuth, 300); // give the GIS script a moment to attach to window.google
   if(driveFolderId){
     // Returning visitor — still needs a fresh token (Google tokens expire),
