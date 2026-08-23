@@ -120,17 +120,36 @@
     background-position: 0% 0;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: nexusSheen 3.4s cubic-bezier(.32,.06,.24,1) 1 forwards;
+    /* Recurring, not once-on-load. On a read-only page nothing else moves,
+       so this is the app's only sign of life — a page that never flickers
+       reads as a page that has stopped. The sweep is compressed into the
+       first quarter of the cycle and the rest is still, so it lands as a
+       slow pulse rather than a constant shimmer. */
+    animation: nexusSheenLoop 11s cubic-bezier(.32,.06,.24,1) infinite;
   }
+  @keyframes nexusSheenLoop{
+    0%   { background-position: 100% 0; filter:none; }
+    14%  { filter: drop-shadow(0 0 8px rgba(232,193,124,0.6)); }
+    /* Both ends of the gradient are the same flat bronze, so the jump back
+       to the start at 100% is invisible — no flash between passes. */
+    29%  { background-position: 0% 0;   filter:none; }
+    100% { background-position: 0% 0;   filter:none; }
+  }
+  /* The original single pass, kept for the tap: asking for it should give a
+     quick sweep, not a wait for the cycle to come round. */
   @keyframes nexusSheen{
     0%   { background-position: 100% 0; filter:none; }
     50%  { filter: drop-shadow(0 0 8px rgba(232,193,124,0.6)); }
     100% { background-position: 0% 0;   filter:none; }
   }
-  /* A tap asks for it again — the phone equivalent of the desktop's hover. */
-  .brand:active .name{ animation: nexusSheen 1.8s ease-in-out 1 forwards; }
+  /* A tap asks for one straight away — the phone equivalent of the desktop's
+     hover, and quicker than the cycle. */
+  .brand:active .name{ animation: nexusSheen 1.4s ease-in-out 1 forwards; }
+  /* Someone who has asked their phone for less movement gets none of it —
+     more important now that this repeats rather than running once. */
   @media (prefers-reduced-motion: reduce){
-    .brand .name{ animation:none; background-position:0% 0;
+    .brand .name, .brand:active .name{
+      animation:none; background-position:0% 0;
       -webkit-text-fill-color:#7A3C01; background-image:none; }
   }
   .brand .tag{
