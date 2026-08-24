@@ -1235,6 +1235,15 @@ async function driveListChildren(parentId){
 
 /* ---------------- Data loading ---------------- */
 let cachedDataFolderId = null;
+/* The settings folder was looked up separately by bills, entries and ortho —
+   three identical round trips per refresh cycle, while the data folder next
+   to it was cached. Folder ids do not change. */
+let cachedSettingsFolderId = null;
+async function getSettingsFolderId(){
+  if(cachedSettingsFolderId) return cachedSettingsFolderId;
+  cachedSettingsFolderId = await driveFindChild(driveFolderId, 'settings', true);
+  return cachedSettingsFolderId;
+}
 let cachedLabFolderId = null;
 
 async function connectAndLoad(){
@@ -1284,17 +1293,23 @@ async function loadEverything(){
    If the index is missing (older desktop build, or a folder that has not
    synced yet), everything falls back to the original per-day path. */
 let cachedEntriesIndex = null;      // { 'YYYY-MM-DD': entry } or null
-let entriesIndexTried = false;
+let entriesIndexTried = false;      // a completed attempt, even one that found nothing
+let entriesIndexInFlight = null;    // the fetch itself, shared by concurrent callers
 
+let entriesSeenModified = null;
 async function loadEntriesIndex(){
-  if(entriesIndexTried) return cachedEntriesIndex;
-  entriesIndexTried = true;
+  if(entriesIndexTried && !entriesRevalidate) return cachedEntriesIndex;
+  if(entriesIndexInFlight) return await entriesIndexInFlight;
+  entriesIndexInFlight = (async () => {
   try{
-    const settingsId = await driveFindChild(driveFolderId, 'settings', true);
+    const settingsId = await getSettingsFolderId();
     if(!settingsId) return null;
     const fileId = await driveFindChild(settingsId, 'entries-index.json', false);
+    const seenAt = lastFoundModifiedTime;
     if(!fileId) return null;
+    if(cachedEntriesIndex && seenAt && seenAt === entriesSeenModified) return cachedEntriesIndex;
     const idx = await driveReadJson(fileId);
+    entriesSeenModified = seenAt;
     if(!idx || !Array.isArray(idx.entries)) return null;
     const map = {};
     idx.entries.forEach(e => { if(e && e.date) map[e.date] = e; });
@@ -1302,10 +1317,23 @@ async function loadEntriesIndex(){
   }catch(err){
     cachedEntriesIndex = null;      // never fatal: the per-day path still works
   }
+  /* Set only once the attempt has actually FINISHED — the whole point of the
+     fix. A missing index legitimately caches null here, and the per-day
+     fallback covers it. */
+  entriesIndexTried = true;
+  entriesRevalidate = false;
   return cachedEntriesIndex;
+  })();
+  try{
+    return await entriesIndexInFlight;
+  }finally{
+    entriesIndexInFlight = null;
+  }
 }
 
-async function loadDayEntry(dateStr){
+let todaySeenModified = null;   // modifiedTime of today's file we already hold
+let todayEntryCache = null;
+async function loadDayEntry(dateStr, token){
   renderDayNav(dateStr);
   if(dateStr !== todayStr()){
     const idx = await loadEntriesIndex();
@@ -1318,17 +1346,30 @@ async function loadDayEntry(dateStr){
        go and read the day's own file. */
     if(idx && Object.prototype.hasOwnProperty.call(idx, dateStr)){
       const entry = idx[dateStr] || null;
+      if(token !== undefined && !paintAllowed(token)) return;
       renderPayments(entry, entry && Array.isArray(entry.items) ? entry.items : []);
       return;
     }
   }
   const fileId = await driveFindChild(cachedDataFolderId, dateStr + '.json', false);
+  const seenAt = lastFoundModifiedTime;
   if(!fileId){
+    if(token !== undefined && !paintAllowed(token)) return;
     renderPayments(null, []);
     return;
   }
-  const entry = await driveReadJson(fileId);
+  /* Today's file is re-checked on every render, as it must be — it is the
+     one that keeps changing. But an unchanged file need not be downloaded
+     again, and between two taps it usually has not changed. */
+  let entry;
+  if(dateStr === todayStr() && todayEntryCache && seenAt && seenAt === todaySeenModified){
+    entry = todayEntryCache;
+  } else {
+    entry = await driveReadJson(fileId);
+    if(dateStr === todayStr()){ todayEntryCache = entry; todaySeenModified = seenAt; }
+  }
   const items = Array.isArray(entry.items) ? entry.items : [];
+  if(token !== undefined && !paintAllowed(token)) return;
   renderPayments(entry, items);
 }
 
@@ -1338,19 +1379,42 @@ async function loadDayEntry(dateStr){
    Falling back to listing the bills folder would cost one Drive call per
    bill, which on a phone is unusable once the clinic has a few hundred.
    ====================================================================== */
+/* THE CRASH THIS FIXES: "Cannot read properties of null (reading 'forEach')".
+   The flag was set BEFORE the fetch finished, so a second caller arriving
+   mid-fetch was told "already tried" and handed back cachedBills — still
+   null — which every caller then iterates. It used to be a startup-only
+   window, because after one successful load the value never went back to
+   null. The 90-second freshness rule reopens that window on every cycle,
+   which is what turned a latent race into a crash on the phone.
+
+   Now the PROMISE is cached, not a boolean: whoever asks second waits on
+   the same fetch and gets the same answer. One Drive call either way. */
 let cachedBills = null;
-let billsTried = false;
+let billsInFlight = null;
+let billsSeenModified = null;   // modifiedTime of the index we already hold
 
 async function loadBills(){
-  if(billsTried) return cachedBills;
-  billsTried = true;
+  if(cachedBills && !billsRevalidate) return cachedBills;
+  if(billsInFlight) return await billsInFlight;
+  billsInFlight = (async () => {
   try{
-    const settingsId = await driveFindChild(driveFolderId, 'settings', true);
+    const settingsId = await getSettingsFolderId();
     if(settingsId){
       const fileId = await driveFindChild(settingsId, 'bills-index.json', false);
+      const seenAt = lastFoundModifiedTime;
       if(fileId){
+        /* The whole point: unchanged file, no download. */
+        if(cachedBills && seenAt && seenAt === billsSeenModified){
+          billsRevalidate = false;
+          return cachedBills;
+        }
         const idx = await driveReadJson(fileId);
-        if(idx && Array.isArray(idx.bills)){ cachedBills = idx.bills; return cachedBills; }
+        if(idx && Array.isArray(idx.bills)){
+          cachedBills = idx.bills;
+          billsSeenModified = seenAt;
+          billsRevalidate = false;
+          return cachedBills;
+        }
       }
     }
     // No index (older desktop build): read the bills folder itself. Slow, but
@@ -1362,9 +1426,18 @@ async function loadBills(){
     cachedBills = all.filter(Boolean);
   }catch(err){
     if(err && err.name === 'TokenExpiredError') throw err;
-    cachedBills = [];
+    cachedBills = cachedBills || [];
   }
+  billsRevalidate = false;
   return cachedBills;
+  })();
+  try{
+    return await billsInFlight;
+  }finally{
+    /* Cleared either way. A failed fetch must not leave a poisoned promise
+       that every later caller keeps awaiting. */
+    billsInFlight = null;
+  }
 }
 
 /* The desktop's rules, ported verbatim — a bill's status decides whether it
@@ -1613,15 +1686,64 @@ try{
 let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 
 
+/* ---- One age for all money on screen --------------------------------------
+   THE MISMATCH THIS FIXES: today's day file is fetched fresh on every
+   render (it is the file that keeps changing), but bills and the entries
+   index were latched ONCE per session. So a phone open since morning showed
+   this by 11am: the desktop finalises a bill and takes the payment; the
+   payment appears on the phone (fresh file), the bill does not (9am cache).
+   The Day view contradicted itself, patient balances went low or negative,
+   and the Refresh button "fixed" it — which was the tell: nothing was
+   wrong with the data, only with mixing two ages of it.
+
+   The rule: before ANY view renders, money caches older than 90 seconds
+   are dropped TOGETHER, so bills and entries always come from the same
+   moment. During active use that costs at most one index refetch per
+   90s — a few Drive calls — and bounds any mismatch to a window shorter
+   than a conversation, instead of the whole session.
+
+   What this cannot fix, honestly: the desktop writes its files one after
+   another, so a read landing exactly between two writes can still catch
+   one file newer than the other for a few seconds. No polling client can
+   close that gap; 90 seconds later it heals by itself. */
+const MONEY_MAX_AGE_MS = 90 * 1000;
+let moneyEpochAt = 0;
+/* REVALIDATE, do not discard. The first version of this rule threw the
+   caches away, which meant every cycle re-DOWNLOADED the entire billing
+   history and every past day — on mobile data, every 90 seconds. That is
+   what made the app feel heavy.
+   Drive returns each file's modifiedTime in the same lookup that returns
+   its id, at no extra cost. So a cycle now asks "has it changed?" (one
+   small lookup) and re-reads only when the answer is yes. Freshness is
+   identical; the traffic is a fraction. */
+let billsRevalidate = true;
+let entriesRevalidate = true;
+function ensureFreshMoneyData(force){
+  if(!force && (Date.now() - moneyEpochAt) < MONEY_MAX_AGE_MS) return false;
+  billsRevalidate = true;
+  entriesRevalidate = true;
+  moneyEpochAt = Date.now();
+  return true;
+}
+/* Tap Day, Month, Report quickly and three renders are in the air at once.
+   Whichever Drive response lands LAST used to paint — even if it belonged
+   to the first tap. That is the "wrong figures for a second" feeling, and
+   it is separate from any caching question: it is a race between answers.
+   Every render takes a ticket; a paint whose ticket is no longer the
+   current one is dropped on the floor. */
+let renderGen = 0;
+function paintAllowed(token){ return token === renderGen; }
 async function renderCurrentView(){
+  ensureFreshMoneyData();
+  const token = ++renderGen;
   document.getElementById('viewDay').classList.toggle('hidden', currentView !== 'day');
   document.getElementById('viewMonth').classList.toggle('hidden', currentView !== 'month');
   document.getElementById('viewPatient').classList.toggle('hidden', currentView !== 'patient');
   document.getElementById('viewReport').classList.toggle('hidden', currentView !== 'report');
-  if(currentView === 'day')     return await renderDayView();
-  if(currentView === 'month')   return await renderMonthView();
-  if(currentView === 'patient') return await renderPatientView();
-  return await renderReportView();
+  if(currentView === 'day')     return await renderDayView(token);
+  if(currentView === 'month')   return await renderMonthView(token);
+  if(currentView === 'patient') return await renderPatientView(token);
+  return await renderReportView(token);
 }
 
 function switchView(view){
@@ -1644,13 +1766,15 @@ function switchView(view){
 }
 
 /* ---------------- Day ---------------- */
-async function renderDayView(){
-  await loadDayEntry(currentDate);
-  await renderDayBills(currentDate);
+async function renderDayView(token){
+  /* Two independent reads that used to run one after the other, so the
+     screen you open most often waited for the sum of both. */
+  await Promise.all([loadDayEntry(currentDate, token), renderDayBills(currentDate, token)]);
 }
 
-async function renderDayBills(dateStr){
+async function renderDayBills(dateStr, token){
   const bills = (await loadBills()).filter(b => b && b.date === dateStr && b.status !== 'draft');
+  if(token !== undefined && !paintAllowed(token)) return;
   const list = document.getElementById('dayBillList');
   rollCount('dayBillCount', bills.length);
   if(bills.length === 0){
@@ -1714,6 +1838,10 @@ function monthCompareRange(ym){
 }
 /* Sums a month, optionally only up to a day-of-month. */
 function sumMonth(entries, bills, ym, uptoDay){
+  /* Defensive by policy, not by hope: money views must degrade to "nothing
+     to show" rather than throw a red banner over the whole screen. */
+  entries = entries || [];
+  bills = bills || [];
   let collected = 0;
   entries.forEach(e => {
     if(!e || (e.date||'').slice(0,7) !== ym) return;
@@ -1742,8 +1870,9 @@ function trendHtml(now, before){
   return '<span class="' + cls + '">' + arrow + ' ' + Math.abs(pct) + '%</span>';
 }
 
-async function renderMonthView(){
+async function renderMonthView(token){
   const entries = (await loadAllEntries()).filter(e => e && (e.date||'').slice(0,7) === monthAnchor);
+  if(token !== undefined && !paintAllowed(token)) return;
   document.getElementById('monthLabel').textContent = monthLabelOf(monthAnchor);
   document.getElementById('nextMonthBtn').disabled = (monthAnchor >= todayStr().slice(0,7));
 
@@ -1824,7 +1953,7 @@ async function loadOrthoIds(){
   if(orthoTried) return orthoIdsCache;
   orthoTried = true;
   try{
-    const settingsId = await driveFindChild(driveFolderId, 'settings', true);
+    const settingsId = await getSettingsFolderId();
     if(!settingsId) return (orthoIdsCache = new Set());
     const fileId = await driveFindChild(settingsId, 'ortho-patients.json', false);
     if(!fileId) return (orthoIdsCache = new Set());
@@ -1870,7 +1999,7 @@ async function patientIndex(){
   return { people, entries, bills };
 }
 
-async function runPatientSearch(q){
+async function runPatientSearch(q, token){
   const box = document.getElementById('patientResults');
   const query = (q || '').trim().toLowerCase();
   if(query.length < 2){
@@ -1878,6 +2007,7 @@ async function runPatientSearch(q){
     return;
   }
   const { people } = await patientIndex();
+  if(token !== undefined && !paintAllowed(token)) return;
   const hits = Object.keys(people).map(id => people[id])
     .filter(p => (p.name || '').toLowerCase().includes(query) || String(p.id).includes(query))
     .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
@@ -1900,9 +2030,10 @@ async function runPatientSearch(q){
   });
 }
 
-async function openPatientDetail(patientId){
+async function openPatientDetail(patientId, token){
   selectedPatientId = patientId;
   const { people, entries, bills } = await patientIndex();
+  if(token !== undefined && !paintAllowed(token)) return;
   const person = people[patientId] || { id: patientId, name: 'Unknown' };
   const rec = computePendingFromData(bills, entries)[patientId]
            || { pending: 0, totalBilled: 0, totalPayments: 0 };
@@ -1986,17 +2117,18 @@ function closePatientDetail(){
   document.querySelector('.patient-search').classList.remove('hidden');
 }
 
-async function renderPatientView(){
-  if(selectedPatientId) return await openPatientDetail(selectedPatientId);
+async function renderPatientView(token){
+  if(selectedPatientId) return await openPatientDetail(selectedPatientId, token);
   closePatientDetail();
-  await runPatientSearch(document.getElementById('patientSearchInput').value);
+  await runPatientSearch(document.getElementById('patientSearchInput').value, token);
 }
 
 /* ---------------- Outstanding ---------------- */
-async function renderReportView(){
+async function renderReportView(token){
   const [entries, bills, orthoIds] = await Promise.all([
     loadAllEntries(), loadBills(), loadOrthoIds()
   ]);
+  if(token !== undefined && !paintAllowed(token)) return;
   renderPending(computePendingFromData(bills, entries), orthoIds);
 }
 
@@ -2260,12 +2392,25 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   /* Refresh means "go and look again", so every cached fetch is dropped —
      the day index, the bills, and the folder lookups. Otherwise a
      correction made at the clinic stays invisible for the whole session. */
-  cachedEntriesIndex = null;
-  entriesIndexTried = false;
-  cachedBills = null;
-  billsTried = false;
+  ensureFreshMoneyData(true);
   orthoIdsCache = null;
   orthoTried = false;
+  loadEverything();
+});
+
+/* A phone that comes back from the pocket has been asleep, not watching.
+   Whatever the clinic did meanwhile, the first thing shown must be current
+   — the desktop refreshes on refocus for the same reason. Guarded so it
+   does nothing on the sign-in screen or before setup. */
+/* Coming back from the pocket should show current figures — but glancing at
+   a message and returning five seconds later should not reload the whole
+   app. Below the window, the data on screen is still current by definition,
+   so the cheapest correct thing is to leave it alone. */
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState !== 'visible') return;
+  if(document.getElementById('mainScreen').classList.contains('hidden')) return;
+  if((Date.now() - moneyEpochAt) < MONEY_MAX_AGE_MS) return;
+  ensureFreshMoneyData(true);
   loadEverything();
 });
 
