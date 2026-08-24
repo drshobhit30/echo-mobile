@@ -334,6 +334,17 @@
     background:var(--gold-pale); color:var(--gold-deep); font-size:0.72rem; font-weight:700;
     padding:2px 9px; border-radius:20px;
   }
+  /* Payments and Bills fold away — the head stays tappable, the count badge
+     stays visible, so a folded section still says how much it is hiding. */
+  .section-title.collapsible{
+    justify-content:flex-start; gap:10px;
+    cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none;
+  }
+  .section-title.collapsible h3{ margin-right:auto; }
+  .sec-chev{ color:var(--gold-deep); font-size:0.78rem; line-height:1;
+    transition:transform 0.18s ease; }
+  .section-title.sec-closed .sec-chev{ transform:rotate(-90deg); }
+  .pay-list.sec-hidden{ display:none; }
 
   /* ---------------- Payment rows ---------------- */
   .pay-list{ padding:0 16px; }
@@ -693,15 +704,17 @@
       <div class="mode-chip bank"><div class="m-label">Bank</div><div class="m-amt" id="modeBank">&#8377;0</div></div>
     </div>
 
-    <div class="section-title">
+    <div class="section-title collapsible" id="paySecHead" role="button" aria-expanded="true">
       <h3>&#128176; Payments</h3>
       <div class="count" id="payCount">0</div>
+      <span class="sec-chev" aria-hidden="true">&#9662;</span>
     </div>
     <div class="pay-list" id="payList"></div>
 
-    <div class="section-title">
+    <div class="section-title collapsible" id="billSecHead" role="button" aria-expanded="true">
       <h3>&#129534; Bills</h3>
       <div class="count" id="dayBillCount">0</div>
+      <span class="sec-chev" aria-hidden="true">&#9662;</span>
     </div>
     <div class="pay-list" id="dayBillList"></div>
   </div>
@@ -2043,6 +2056,31 @@ window.addEventListener('popstate', () => {
   if(sheetOpen){ closeBillSheet(); return; }
   if(selectedPatientId) closePatientDetail();
 });
+
+/* The Day lists fold. On a phone the mode tiles answer most opens, and two
+   long lists below them are a scroll past everything else. The choice is
+   remembered per section (this device only), and re-renders leave it alone
+   because the class lives on the list container, which is never rebuilt. */
+function wireCollapsibleSection(headId, listId, storeKey){
+  const head = document.getElementById(headId);
+  const list = document.getElementById(listId);
+  if(!head || !list) return;
+  const apply = (closed) => {
+    head.classList.toggle('sec-closed', closed);
+    list.classList.toggle('sec-hidden', closed);
+    head.setAttribute('aria-expanded', closed ? 'false' : 'true');
+  };
+  let closed = false;
+  try{ closed = localStorage.getItem(storeKey) === '1'; }catch(e){}
+  apply(closed);
+  head.addEventListener('click', () => {
+    closed = !closed;
+    apply(closed);
+    try{ localStorage.setItem(storeKey, closed ? '1' : '0'); }catch(e){}
+  });
+}
+wireCollapsibleSection('paySecHead',  'payList',     'echoDental_dayPayFolded');
+wireCollapsibleSection('billSecHead', 'dayBillList', 'echoDental_dayBillFolded');
 
 document.getElementById('prevDayBtn').addEventListener('click',
   () => navigate(() => { currentDate = addDays(currentDate, -1); }));
