@@ -316,10 +316,19 @@
     font-variant-numeric:tabular-nums lining-nums;
     font-feature-settings:'tnum' 1, 'lnum' 1;
   }
-  .mode-chip.cash{ color:#3E7D5A; }
-  .mode-chip.upi{ color:#3B5FB8; }
-  .mode-chip.card{ color:#6B4AA8; }
-  .mode-chip.bank{ color:#B5691C; }
+  /* Each mode owns a colour. The tile is tinted and the FIGURE carries the
+     colour too, not just a hairline bar — on a phone held at arm's length
+     the colour is what you read first, so the four totals are told apart
+     before the labels are read at all. Tints are pale enough that four of
+     them side by side still look calm rather than like a toy. */
+  .mode-chip.cash{ color:#2F6B4A; background:#EAF3ED; border-color:#CBE0D5; }
+  .mode-chip.upi{ color:#3151A6; background:#E9EEFA; border-color:#CCD8F0; }
+  .mode-chip.card{ color:#5E3E9C; background:#F0EAF9; border-color:#D9CDEF; }
+  .mode-chip.bank{ color:#A25A12; background:#FBF0E3; border-color:#F0DBBF; }
+  /* The figure inherits its tile's colour — currentColor, so one line does
+     all four and a future fifth mode needs no rule here. */
+  .mode-chip .m-amt{ color:currentColor; }
+  .mode-chip::before{ width:4px; opacity:0.85; }
 
   /* ---------------- Section ---------------- */
   .section-title{
@@ -606,6 +615,58 @@
     border-top-color:var(--gold-deep); animation:spin 0.7s linear infinite; margin:40px auto;
   }
   @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* ---- Loading overlay, ported from the desktop app ----------------------
+     Blurs the screen you are on rather than replacing it with a spinner on
+     a blank page: what is underneath is still valid, just stale for another
+     moment, and keeping it visible means the page never appears to restart.
+     Held off for a moment in JS (see showLoading) so quick renders never
+     flash it. The dimming of the whole page it replaces is gone — the blur
+     says the same thing without making text unreadable mid-read. */
+  .loading-overlay{
+    position:fixed; inset:0; z-index:9999;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(251,247,239,0.55);
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    opacity:0; pointer-events:none;
+    transition:opacity 0.15s ease;
+  }
+  .loading-overlay.visible{ opacity:1; pointer-events:all; }
+  .loading-overlay-inner{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+  }
+  .loading-overlay-text{
+    font-family:'Jost', sans-serif; font-size:0.78rem; font-weight:600;
+    letter-spacing:0.04em; color:var(--gold-deep); min-height:1em;
+    font-variant-numeric:tabular-nums;
+  }
+  /* The clinic mark sits still at the centre while the gold arc sweeps
+     around it — built as a ::before so the logo itself doesn't tumble. */
+  .loading-overlay-badge{
+    position:relative; width:66px; height:66px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .loading-overlay-badge::before{
+    content:""; position:absolute; inset:0; border-radius:50%;
+    border:3px solid var(--gold-pale);
+    border-top-color:var(--gold-deep);
+    animation:loading-overlay-spin 0.7s linear infinite;
+  }
+  .loading-overlay-logo{
+    width:46px; height:46px; border-radius:50%; overflow:hidden;
+    background:var(--white); display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 2px 10px rgba(74,59,40,0.16);
+    animation: loading-overlay-pulse 1.4s ease-in-out infinite;
+  }
+  .loading-overlay-logo img{ width:100%; height:100%; object-fit:cover; display:block; }
+  @keyframes loading-overlay-spin{ to{ transform:rotate(360deg); } }
+  @keyframes loading-overlay-pulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(0.94); } }
+  /* Reduced motion: keep the blur and the mark, drop the spinning and the
+     pulse — the overlay still says "working", it just stops moving. */
+  @media (prefers-reduced-motion: reduce){
+    .loading-overlay-badge::before{ animation:none; border-top-color:var(--gold-deep); }
+    .loading-overlay-logo{ animation:none; }
+  }
   .refresh-fab{
     box-shadow:0 8px 22px rgba(138,95,38,0.34);
     position:fixed; bottom:18px; right:18px; width:48px; height:48px; border-radius:50%;
@@ -856,7 +917,14 @@
   </div>
 </div>
 
-<div id="loadingScreen" class="hidden"><div class="spinner"></div></div>
+<div id="loadingScreen" class="loading-overlay">
+  <div class="loading-overlay-inner">
+    <div class="loading-overlay-badge">
+      <div class="loading-overlay-logo"><img src="icon-192.png" alt=""></div>
+    </div>
+    <div class="loading-overlay-text" id="loadingOverlayText">Loading</div>
+  </div>
+</div>
 <div id="loadErrorBar" class="status-bar err hidden"></div>
 
 <button class="refresh-fab hidden" id="refreshBtn" title="Refresh">↻</button>
@@ -885,6 +953,55 @@ function fmtINR(n){
   n = Number(n) || 0;
   return new Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits: (n % 1 === 0 ? 0 : 2) }).format(n);
 }
+/* ---- Rolling figures --------------------------------------------------
+   The desktop app counts its totals up rather than snapping them in, and
+   the phone should not feel more static than the machine at the desk. The
+   last value is kept ON the element (__rollVal) rather than parsed back
+   out of the text — ₹1,20,000 does not parse, and a re-render must roll
+   from what is actually on screen, not from zero.
+
+   Three deliberate guards: a cancelled frame if a second render lands
+   mid-roll (otherwise two animations fight over one element and the
+   figure flickers); an instant set when the value has not changed, so an
+   idle refresh does not re-animate the whole screen; and an instant set
+   when the phone asks for reduced motion or when there is no animation
+   frame to use at all — the number being RIGHT never depends on the
+   animation running. Intermediate frames are rounded to whole rupees so
+   paise do not flicker; the final frame prints the exact value. */
+function _reducedMotion(){
+  try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch(e){ return false; }
+}
+function rollTo(el, to, fmt){
+  if(!el) return;
+  to = Number(to) || 0;
+  const from = (typeof el.__rollVal === 'number') ? el.__rollVal : 0;
+  el.__rollVal = to;
+  if(el.__rollRAF && typeof cancelAnimationFrame === 'function'){
+    cancelAnimationFrame(el.__rollRAF); el.__rollRAF = null;
+  }
+  if(from === to || _reducedMotion() || typeof requestAnimationFrame !== 'function'){
+    el.textContent = fmt(to); return;
+  }
+  const dur = 620, t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const step = (now) => {
+    const p = Math.min(1, ((now || Date.now()) - t0) / dur);
+    const eased = 1 - Math.pow(1 - p, 3);   // ease-out: fast, then settles
+    if(p < 1){
+      el.textContent = fmt(Math.round(from + (to - from) * eased));
+      el.__rollRAF = requestAnimationFrame(step);
+    } else {
+      el.__rollRAF = null;
+      el.textContent = fmt(to);   // exact, paise and all
+    }
+  };
+  el.__rollRAF = requestAnimationFrame(step);
+}
+function rollMoney(id, value){ rollTo(document.getElementById(id), value, fmtINR); }
+function rollCount(id, value){
+  rollTo(document.getElementById(id), value, v => String(Math.round(v)));
+}
+
 function fullDateLabel(dateStr){
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
@@ -1471,7 +1588,23 @@ function closeBillSheet(){ document.getElementById('billModal').classList.add('h
 /* Which of the three money views is on screen. Each one renders from data
    already fetched wherever possible — the Drive round trip is the expensive
    thing on a phone, not the arithmetic. */
+const VIEW_KEY = 'echoDental_view';
+const KNOWN_VIEWS = ['day','month','patient','report'];
+/* Which tab is open, restored from this phone's own storage the moment the
+   state is declared — not later, beside the tab buttons, where it would
+   depend on whether boot happens to run before or after that line. By the
+   time anything can render, currentView is already right, so the opening
+   paint is the tab you left on rather than a flash of Day.
+   An unknown or missing value falls through to the 'day' default. */
 let currentView = 'day';
+try{
+  const _savedView = localStorage.getItem(VIEW_KEY);
+  if(_savedView && KNOWN_VIEWS.indexOf(_savedView) !== -1){
+    currentView = _savedView;
+    document.querySelectorAll('.tab-btn').forEach(b =>
+      b.classList.toggle('active', b.getAttribute('data-view') === _savedView));
+  }
+}catch(e){}
 let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 
 
@@ -1488,6 +1621,12 @@ async function renderCurrentView(){
 
 function switchView(view){
   currentView = view;
+  /* Remembered per phone, so a refresh — or the PWA being killed in the
+     background and reopened — comes back to the tab that was open instead
+     of jumping to Day. Only the TAB is remembered, deliberately: the date
+     resets to today, because a phone reopened tomorrow quietly showing
+     yesterday is a subtler wrong than a lost tab. */
+  try{ localStorage.setItem(VIEW_KEY, view); }catch(e){}
   document.querySelectorAll('.tab-btn').forEach(b =>
     b.classList.toggle('active', b.getAttribute('data-view') === view));
   showLoading(true);
@@ -1508,7 +1647,7 @@ async function renderDayView(){
 async function renderDayBills(dateStr){
   const bills = (await loadBills()).filter(b => b && b.date === dateStr && b.status !== 'draft');
   const list = document.getElementById('dayBillList');
-  document.getElementById('dayBillCount').textContent = bills.length;
+  rollCount('dayBillCount', bills.length);
   if(bills.length === 0){
     list.innerHTML = '<div class="empty-state">No bills raised on this day.</div>';
     return;
@@ -1613,7 +1752,7 @@ async function renderMonthView(){
     perDay.push({ date: e.date, total: dayTotal, count: live.length });
   });
   const total = t.cash + t.upi + t.card + t.bank;
-  document.getElementById('monthTotal').textContent = fmtINR(total);
+  rollMoney('monthTotal', total);
 
   /* Billed and the month-on-month comparison. Both read from data already
      loaded for the list above, so this costs no extra Drive traffic. */
@@ -1623,8 +1762,8 @@ async function renderMonthView(){
   const nowSums = sumMonth(allEntries, allBills, monthAnchor, cmp.isCurrent ? cmp.dayOfMonth : 0);
   const prevSums = sumMonth(allEntries, allBills, cmp.prev, cmp.isCurrent ? cmp.dayOfMonth : 0);
 
-  document.getElementById('monthBilled').textContent = fmtINR(nowSums.billed);
-  document.getElementById('monthCollected').textContent = fmtINR(nowSums.collected);
+  rollMoney('monthBilled', nowSums.billed);
+  rollMoney('monthCollected', nowSums.collected);
   document.getElementById('monthBilledTrend').innerHTML = trendHtml(nowSums.billed, prevSums.billed);
   document.getElementById('monthCollectedTrend').innerHTML = trendHtml(nowSums.collected, prevSums.collected);
 
@@ -1634,10 +1773,10 @@ async function renderMonthView(){
   document.getElementById('monthTrend').innerHTML =
     trendHtml(nowSums.collected, prevSums.collected)
     + ' <span class="muted">' + escapeHtml(basis) + '</span>';
-  document.getElementById('monthCash').textContent = fmtINR(t.cash);
-  document.getElementById('monthUpi').textContent  = fmtINR(t.upi);
-  document.getElementById('monthCard').textContent = fmtINR(t.card);
-  document.getElementById('monthBank').textContent = fmtINR(t.bank);
+  rollMoney('monthCash', t.cash);
+  rollMoney('monthUpi', t.upi);
+  rollMoney('monthCard', t.card);
+  rollMoney('monthBank', t.bank);
 
   perDay.sort((a,b) => b.date.localeCompare(a.date));   // newest first, like a passbook
   document.getElementById('monthDayCount').textContent = perDay.length;
@@ -1777,13 +1916,13 @@ async function openPatientDetail(patientId){
   const p = rec.pending;
   const hero = document.getElementById('pdBalance').parentElement;
   hero.classList.toggle('in-credit', p < -0.5);
-  document.getElementById('pdBalance').textContent = fmtINR(Math.abs(p) < 0.5 ? 0 : Math.abs(p));
+  rollMoney('pdBalance', Math.abs(p) < 0.5 ? 0 : Math.abs(p));
   document.getElementById('pdBalanceLabel').textContent =
     p > 0.5 ? 'Outstanding' : (p < -0.5 ? 'Advance with clinic' : 'Settled');
 
   const mine = bills.filter(b => b && String(b.patientId) === String(patientId) && b.status !== 'draft')
                     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  document.getElementById('pdBillCount').textContent = mine.length;
+  rollCount('pdBillCount', mine.length);
   const bl = document.getElementById('pdBillList');
   bl.innerHTML = mine.length === 0
     ? '<div class="empty-state">No bills on record.</div>'
@@ -1869,7 +2008,7 @@ function renderPending(map, orthoIds){
   advance.sort((a,b) => a.pending - b.pending);
 
   const total = owed.reduce((s,o) => s + o.pending, 0);
-  document.getElementById('pendingTotal').textContent = fmtINR(total);
+  rollMoney('pendingTotal', total);
   document.getElementById('pendingCount').textContent = owed.length;
 
   /* The split. Only the OWED side is divided — an advance is money the
@@ -1878,8 +2017,8 @@ function renderPending(map, orthoIds){
   const orthoOwed = owed.filter(o => o.isOrtho);
   const regularOwed = owed.filter(o => !o.isOrtho);
   const sum = list => list.reduce((s,o) => s + o.pending, 0);
-  document.getElementById('pendingOrtho').textContent = fmtINR(sum(orthoOwed));
-  document.getElementById('pendingRegular').textContent = fmtINR(sum(regularOwed));
+  rollMoney('pendingOrtho', sum(orthoOwed));
+  rollMoney('pendingRegular', sum(regularOwed));
   document.getElementById('pendingOrthoCount').textContent =
     orthoOwed.length + ' patient' + (orthoOwed.length === 1 ? '' : 's');
   document.getElementById('pendingRegularCount').textContent =
@@ -1930,11 +2069,11 @@ function renderPayments(entry, items){
   const t = entryModeTotals(entry);
   t.total = t.cash + t.upi + t.card + t.bank;
 
-  document.getElementById('totalAmount').textContent = fmtINR(t.total);
-  document.getElementById('modeCash').textContent = fmtINR(t.cash);
-  document.getElementById('modeUpi').textContent = fmtINR(t.upi);
-  document.getElementById('modeCard').textContent = fmtINR(t.card);
-  document.getElementById('modeBank').textContent = fmtINR(t.bank);
+  rollMoney('totalAmount', t.total);
+  rollMoney('modeCash', t.cash);
+  rollMoney('modeUpi', t.upi);
+  rollMoney('modeCard', t.card);
+  rollMoney('modeBank', t.bank);
 
   // Group split payments (same groupId) into one row, same as the desktop app.
   // Voided items are dropped first: the desktop strikes them through, and a
@@ -1950,7 +2089,7 @@ function renderPayments(entry, items){
     groups.push(live.filter(x => (x.groupId||x.id) === key));
   });
 
-  document.getElementById('payCount').textContent = groups.length;
+  rollCount('payCount', groups.length);
   const list = document.getElementById('payList');
   if(groups.length === 0){
     list.innerHTML = '<div class="empty-state">No payments recorded for this day.</div>';
@@ -1988,9 +2127,24 @@ function renderPayments(entry, items){
   }).join('');
 }
 
-function showLoading(on){
-  document.getElementById('loadingScreen').classList.toggle('hidden', !on);
-  document.getElementById('mainScreen').style.opacity = on ? '0.35' : '1';
+/* A render that finishes quickly should show nothing at all: flashing an
+   overlay for 120ms reads as a stutter, not as feedback. So the overlay is
+   ARMED here and only appears if the work is still going a moment later —
+   and hiding always cancels a pending appearance, so a fast render can
+   never be followed by an overlay for work that already finished. */
+const LOADING_DELAY_MS = 280;
+let _loadingTimer = null;
+function showLoading(on, label){
+  const el = document.getElementById('loadingScreen');
+  if(!el) return;
+  if(_loadingTimer){ clearTimeout(_loadingTimer); _loadingTimer = null; }
+  if(!on){ el.classList.remove('visible'); return; }
+  const txt = document.getElementById('loadingOverlayText');
+  if(txt) txt.textContent = label || 'Loading';
+  _loadingTimer = setTimeout(() => {
+    _loadingTimer = null;
+    el.classList.add('visible');
+  }, LOADING_DELAY_MS);
 }
 function showError(msg){
   const bar = document.getElementById('loadErrorBar');
