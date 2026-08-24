@@ -1132,7 +1132,14 @@ async function loadDayEntry(dateStr){
   renderDayNav(dateStr);
   if(dateStr !== todayStr()){
     const idx = await loadEntriesIndex();
-    if(idx){
+    /* Only trust the index for a day it actually CONTAINS.
+       THE BUG THIS FIXES: the desktop adds a day to the index the next time
+       it runs, so a day that has just ended is not in it yet. With the
+       clinic PC shut overnight, yesterday was missing — and treating
+       "absent from the index" as "no money that day" showed ₹0 over a full
+       day's takings. Absent from the index means UNKNOWN, not zero, so we
+       go and read the day's own file. */
+    if(idx && Object.prototype.hasOwnProperty.call(idx, dateStr)){
       const entry = idx[dateStr] || null;
       renderPayments(entry, entry && Array.isArray(entry.items) ? entry.items : []);
       return;
@@ -1230,15 +1237,48 @@ function computePendingFromData(bills, entries){
 
 /* Every past day in one array (index + today), so Month and Report are pure
    arithmetic over data already in hand rather than fresh Drive traffic. */
+/* Every day's money: the index, PLUS any day the index has not caught up
+   with yet.
+
+   The index only gains a day when the desktop app next runs. If the clinic
+   PC was shut overnight, yesterday is missing from it — which made the
+   month total short and every patient balance overstated, because their
+   payments simply were not there. Opening the desktop in the morning
+   "fixed" it, which is the tell: the phone was reading an index that had
+   not caught up.
+
+   So after the index, we read the day files for the days it does not cover,
+   up to today. In practice that is nought to two files. It is capped at a
+   week so a long-dead sync can never turn one screen into thirty fetches —
+   past that, the freshness warning in the footer is the honest answer. */
+const CATCHUP_DAY_LIMIT = 7;
 async function loadAllEntries(){
   const idx = await loadEntriesIndex();
   const out = idx ? Object.keys(idx).map(d => idx[d]) : [];
+  const have = new Set(out.filter(Boolean).map(e => e.date));
   const today = todayStr();
-  if(!out.some(e => e && e.date === today)){
+
+  /* Walk back from today until the index takes over, so the newest days —
+     the ones that matter most — are always fetched first. */
+  const missing = [];
+  let cursor = today;
+  for(let i = 0; i < CATCHUP_DAY_LIMIT; i++){
+    if(have.has(cursor)) break;
+    missing.push(cursor);
+    cursor = addDays(cursor, -1);
+  }
+  for(const d of missing){
     try{
-      const fileId = await driveFindChild(cachedDataFolderId, today + '.json', false);
-      if(fileId) out.push(await driveReadJson(fileId));
-    }catch(err){ if(err && err.name === 'TokenExpiredError') throw err; }
+      const fileId = await driveFindChild(cachedDataFolderId, d + '.json', false);
+      if(fileId){
+        const entry = await driveReadJson(fileId);
+        if(entry) out.push(entry);
+      }
+    }catch(err){
+      if(err && err.name === 'TokenExpiredError') throw err;
+      /* A day that cannot be read is left out rather than counted as zero —
+         the same distinction as above. */
+    }
   }
   return out.filter(Boolean);
 }
