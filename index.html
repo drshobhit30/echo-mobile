@@ -357,6 +357,32 @@
   .pay-amt{ font-family:'Jost', sans-serif; font-weight:600; font-size:0.95rem; color:var(--ink);
     font-variant-numeric:tabular-nums lining-nums; }
 
+  /* ---------- Outstanding, split by kind ---------- */
+  .split-pair{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 16px 14px; }
+  .split-box{
+    background:var(--white); border:1px solid var(--line); border-radius:14px;
+    padding:13px 14px; border-left-width:3px;
+  }
+  .split-box.ortho{ border-left-color:#6B4AA8; }
+  .split-box.regular{ border-left-color:var(--gold-light); }
+  .s-lab{
+    font-family:'Jost', sans-serif; font-size:0.62rem; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--muted);
+  }
+  .s-val{
+    font-family:'Jost', sans-serif; font-weight:600; font-size:1.05rem; color:var(--ink);
+    margin-top:7px; white-space:nowrap;
+    font-variant-numeric:tabular-nums lining-nums;
+  }
+  .s-sub{ font-family:'Jost', sans-serif; font-size:0.7rem; color:var(--muted); margin-top:3px; }
+  /* The same purple marks a long-treatment patient in the list below, so the
+     two tiles and the rows read as one idea. */
+  .ortho-chip{
+    display:inline-block; font-size:0.6rem; font-weight:600; letter-spacing:0.08em;
+    text-transform:uppercase; color:#6B4AA8; background:rgba(107,74,168,0.12);
+    padding:2px 6px; border-radius:999px; margin-left:6px; vertical-align:middle;
+  }
+
   /* ---------- Month-on-month ---------- */
   .trend{
     font-family:'Jost', sans-serif; font-size:0.78rem; margin-top:8px;
@@ -775,6 +801,22 @@
     <div class="pending-hero">
       <div class="amount" id="pendingTotal">&#8377;0</div>
       <div class="label">Total owed by patients &middot; lifetime</div>
+    </div>
+
+    <!-- Money owed mid-treatment is a different thing from money simply
+         unpaid: one is expected and arrives with the next visit, the other
+         is a debt to chase. -->
+    <div class="split-pair">
+      <div class="split-box ortho">
+        <div class="s-lab">Long treatment</div>
+        <div class="s-val" id="pendingOrtho">&#8377;0</div>
+        <div class="s-sub" id="pendingOrthoCount">0 patients</div>
+      </div>
+      <div class="split-box regular">
+        <div class="s-lab">Regular</div>
+        <div class="s-val" id="pendingRegular">&#8377;0</div>
+        <div class="s-sub" id="pendingRegularCount">0 patients</div>
+      </div>
     </div>
     <div class="pay-list" id="pendingList"></div>
     <div class="footnote">Advances (patients in credit) are listed separately at the end.</div>
@@ -1610,6 +1652,35 @@ async function renderMonthView(){
   });
 }
 
+/* ---------------- Who is on a long treatment ----------------
+   The clinic app keeps an explicit list (settings/ortho-patients.json), which
+   is the honest source. The alternative — guessing from what was billed —
+   would misread a single ortho consultation as a whole treatment course and
+   quietly put the wrong patients in the wrong column.
+
+   A missing list is not an error: a clinic that has never tagged anyone
+   simply has no long treatments, and the split then shows everything as
+   regular rather than refusing to draw. */
+let orthoIdsCache = null;
+let orthoTried = false;
+async function loadOrthoIds(){
+  if(orthoTried) return orthoIdsCache;
+  orthoTried = true;
+  try{
+    const settingsId = await driveFindChild(driveFolderId, 'settings', true);
+    if(!settingsId) return (orthoIdsCache = new Set());
+    const fileId = await driveFindChild(settingsId, 'ortho-patients.json', false);
+    if(!fileId) return (orthoIdsCache = new Set());
+    const list = await driveReadJson(fileId);
+    orthoIdsCache = new Set((Array.isArray(list) ? list : [])
+      .map(o => o && o.patientId).filter(Boolean).map(String));
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    orthoIdsCache = new Set();
+  }
+  return orthoIdsCache;
+}
+
 /* ---------------- Patient lookup ----------------
    The question the phone could not answer before: someone rings while you
    are out and asks what they owe. It searches the bills and payments already
@@ -1766,16 +1837,20 @@ async function renderPatientView(){
 
 /* ---------------- Outstanding ---------------- */
 async function renderReportView(){
-  const [entries, bills] = await Promise.all([loadAllEntries(), loadBills()]);
-  renderPending(computePendingFromData(bills, entries));
+  const [entries, bills, orthoIds] = await Promise.all([
+    loadAllEntries(), loadBills(), loadOrthoIds()
+  ]);
+  renderPending(computePendingFromData(bills, entries), orthoIds);
 }
 
-function renderPending(map){
+function renderPending(map, orthoIds){
+  const ortho = orthoIds || new Set();
   const owed = [], advance = [];
   Object.keys(map).forEach(id => {
     const rec = map[id];
-    if(rec.pending > 0.5) owed.push({ id, ...rec });
-    else if(rec.pending < -0.5) advance.push({ id, ...rec });
+    const row = Object.assign({ id, isOrtho: ortho.has(String(id)) }, rec);
+    if(rec.pending > 0.5) owed.push(row);
+    else if(rec.pending < -0.5) advance.push(row);
   });
   owed.sort((a,b) => b.pending - a.pending);          // biggest debt first
   advance.sort((a,b) => a.pending - b.pending);
@@ -1783,6 +1858,19 @@ function renderPending(map){
   const total = owed.reduce((s,o) => s + o.pending, 0);
   document.getElementById('pendingTotal').textContent = fmtINR(total);
   document.getElementById('pendingCount').textContent = owed.length;
+
+  /* The split. Only the OWED side is divided — an advance is money the
+     clinic already holds, and splitting that by treatment kind answers no
+     question anyone asks. The two figures always sum to the total above. */
+  const orthoOwed = owed.filter(o => o.isOrtho);
+  const regularOwed = owed.filter(o => !o.isOrtho);
+  const sum = list => list.reduce((s,o) => s + o.pending, 0);
+  document.getElementById('pendingOrtho').textContent = fmtINR(sum(orthoOwed));
+  document.getElementById('pendingRegular').textContent = fmtINR(sum(regularOwed));
+  document.getElementById('pendingOrthoCount').textContent =
+    orthoOwed.length + ' patient' + (orthoOwed.length === 1 ? '' : 's');
+  document.getElementById('pendingRegularCount').textContent =
+    regularOwed.length + ' patient' + (regularOwed.length === 1 ? '' : 's');
 
   const list = document.getElementById('pendingList');
   if(owed.length === 0 && advance.length === 0){
@@ -1792,7 +1880,8 @@ function renderPending(map){
   const row = (p, isAdvance) =>
     '<div class="pay-row' + (isAdvance ? ' pay-row-advance' : '') + '">'
       + '<div class="pay-main">'
-        + '<div class="pay-name">' + escapeHtml(p.name || 'Unknown patient') + '</div>'
+        + '<div class="pay-name">' + escapeHtml(p.name || 'Unknown patient')
+          + (p.isOrtho ? '<span class="ortho-chip">Long</span>' : '') + '</div>'
         + '<div class="pay-sub">ID ' + escapeHtml(p.id) + ' · billed ' + fmtINR(p.totalBilled)
           + ' · paid ' + fmtINR(p.totalPayments) + '</div>'
       + '</div>'
@@ -1978,6 +2067,8 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   entriesIndexTried = false;
   cachedBills = null;
   billsTried = false;
+  orthoIdsCache = null;
+  orthoTried = false;
   loadEverything();
 });
 
