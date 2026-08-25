@@ -1,6 +1,6 @@
 {
   "name": "Echo Nexus",
-  "short_name": "Echo Nexus",
+  "short_name": "Nexus",
   "description": "Clinic Operations Platform — read-only view of Echo Dental Clinic's collections, bills and outstanding balances.",
   "start_url": "./index.html",
   "scope": "./",
