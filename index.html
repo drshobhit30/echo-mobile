@@ -1611,6 +1611,7 @@ function openBillSheet(bill){
   if(!bill) return;
   document.getElementById('bmPatient').textContent = bill.patientName || 'Walk-in';
   const bits = [];
+  if(bill.status === 'draft' && bill.estimate) bits.push('Estimate');
   if(bill.billNumber) bits.push(bill.billNumber);
   if(bill.date) bits.push(fullDateLabel(bill.date));
   if(bill.patientId) bits.push('ID ' + bill.patientId);
@@ -1624,6 +1625,14 @@ function openBillSheet(bill){
   } else if(isCreditNote(bill)){
     banner.className = 'bm-banner credit';
     banner.textContent = 'Credit note — this reduces what the patient owes.';
+  } else if(bill.status === 'draft' && bill.estimate){
+    /* Named for what it is. "Draft" is true but unhelpful here — this is a
+       proposal the patient was given, and the phone is where it gets looked
+       up when they ring. */
+    banner.className = 'bm-banner credit';
+    banner.textContent = 'Treatment estimate — proposed treatment, not billed and not owed'
+      + (bill.estimate.postedOn ? ' (given ' + fullDateLabel(bill.estimate.postedOn) + ')' : '')
+      + (bill.estimate.note ? ' \u00b7 ' + bill.estimate.note : '') + '.';
   } else if(bill.status === 'draft'){
     banner.className = 'bm-banner credit';
     banner.textContent = 'Draft — not finalized, so it is not counted as billed.';
@@ -2116,7 +2125,7 @@ async function openPatientDetail(patientId, token){
       const days = Math.max(0, Math.round(
         (Date.parse(todayStr() + 'T00:00:00') - Date.parse(on + 'T00:00:00')) / 86400000));
       const waited = days <= 0 ? 'today' : (days === 1 ? 'yesterday' : days + ' days ago');
-      return '<div class="pay-row">'
+      return '<div class="pay-row tappable" data-estimate="' + escapeHtml(b.billId || '') + '">'
         + '<div class="row-icon">\u{1F4CB}</div>'
         + '<div class="pay-main">'
           + '<div class="pay-name">Given ' + escapeHtml(waited) + '</div>'
@@ -2129,6 +2138,16 @@ async function openPatientDetail(patientId, token){
         + '</div>'
       + '</div>';
     }).join('');
+    /* Wired the same way the bill rows below are — they were built to look
+       identical and then left inert, which reads as broken rather than as
+       read-only. */
+    eList.querySelectorAll('.pay-row[data-estimate]').forEach(row => {
+      row.addEventListener('click', () => {
+        const id = row.getAttribute('data-estimate');
+        const rec = estimates.find(x => x && String(x.billId) === String(id));
+        if(rec) openBillSheet(rec);
+      });
+    });
   }
 
   const mine = bills.filter(b => b && String(b.patientId) === String(patientId) && b.status !== 'draft')
