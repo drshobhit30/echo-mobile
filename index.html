@@ -1270,6 +1270,75 @@ async function driveFindChild(parentId, name, isFolder){
   lastFoundModifiedTime = hit ? (hit.modifiedTime || null) : null;
   return hit ? hit.id : null;
 }
+/* ONE listing instead of a lookup per file.
+
+   Day files are named YYYY-MM-DD.json, so sorting by name descending is
+   sorting by date descending: a single request returns the newest N days
+   with their ids AND modifiedTimes. Everything that used to cost a
+   round-trip-per-day now reads from this — today's file, the catch-up
+   sweep, and the freshness footer.
+
+   Before: the catch-up loop alone made 14 sequential requests (a lookup
+   then a read, seven times) to fetch at most seven small files. On mobile
+   data that was seconds of blur before anything was readable.
+
+   Revalidated on the same rule as the money caches: the listing is how we
+   learn that today's file changed, so it cannot be cached for the session. */
+const DAY_LIST_SIZE = 40;
+let dayListCache = null;          // { 'YYYY-MM-DD': {id, modifiedTime} }
+let dayListOldest = null;         // the earliest date the listing covers
+let dayListInFlight = null;
+let dayListRevalidate = true;
+async function listRecentDays(){
+  if(dayListCache && !dayListRevalidate) return dayListCache;
+  if(dayListInFlight) return await dayListInFlight;
+  dayListInFlight = (async () => {
+    try{
+      const q = encodeURIComponent("'" + cachedDataFolderId + "' in parents and trashed=false");
+      const res = await driveFetch('https://www.googleapis.com/drive/v3/files?q=' + q
+        + '&orderBy=name desc&pageSize=' + DAY_LIST_SIZE
+        + '&fields=files(id,name,modifiedTime)', 'Drive listing failed');
+      const data = await res.json();
+      const map = {};
+      let oldest = null;
+      (data.files || []).forEach(f => {
+        const m = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name || '');
+        if(!m) return;
+        map[m[1]] = { id: f.id, modifiedTime: f.modifiedTime || null };
+        if(!oldest || m[1] < oldest) oldest = m[1];
+      });
+      dayListCache = map;
+      dayListOldest = oldest;
+      dayListRevalidate = false;
+      return map;
+    }catch(err){
+      if(err && err.name === 'TokenExpiredError') throw err;
+      /* A failed listing must not break the app: callers fall back to the
+         per-name lookup they used before. */
+      return null;
+    }
+  })();
+  try{ return await dayListInFlight; }
+  finally{ dayListInFlight = null; }
+}
+/* One place to ask "where is this day's file?", listing first, lookup only
+   for dates older than the listing reaches. */
+async function findDayFile(dateStr){
+  const list = await listRecentDays();
+  if(list){
+    if(Object.prototype.hasOwnProperty.call(list, dateStr)){
+      lastFoundModifiedTime = list[dateStr].modifiedTime;
+      return list[dateStr].id;
+    }
+    /* Inside the listed range and absent means it genuinely does not exist
+       — no request needed to confirm that. */
+    if(dayListOldest && dateStr >= dayListOldest){
+      lastFoundModifiedTime = null;
+      return null;
+    }
+  }
+  return await driveFindChild(cachedDataFolderId, dateStr + '.json', false);
+}
 async function driveReadJson(fileId){
   const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
                                'File read failed');
@@ -1320,8 +1389,12 @@ async function loadEverything(){
     if(!cachedDataFolderId){
       throw new Error('Could not find a "data" folder inside the folder you connected — double check the Folder ID matches the same folder the desktop app backs up to.');
     }
-    await renderCurrentView();
-    await paintFreshness();
+    /* Together, not one after the other. The footer's "clinic last wrote at"
+       line needs nothing the view needs, and making it wait for the whole
+       render added its round trip to the end of the queue — after the fix
+       above it usually costs nothing at all, because the listing it reads
+       has already been fetched. */
+    await Promise.all([renderCurrentView(), paintFreshness()]);
   }catch(err){
     /* The hour ran out mid-use. Ask Google for a fresh token WITHOUT any tap
        and carry on — the person never learns this happened. Only if that
@@ -1408,7 +1481,7 @@ async function loadDayEntry(dateStr, token){
       return;
     }
   }
-  const fileId = await driveFindChild(cachedDataFolderId, dateStr + '.json', false);
+  const fileId = await findDayFile(dateStr);
   const seenAt = lastFoundModifiedTime;
   if(!fileId){
     if(token !== undefined && !paintAllowed(token)) return;
@@ -1574,19 +1647,27 @@ async function loadAllEntries(){
     missing.push(cursor);
     cursor = addDays(cursor, -1);
   }
-  for(const d of missing){
+  /* One listing tells us which of these days exist and where they are, so
+     the seven lookups are gone. The reads that remain run TOGETHER rather
+     than one after another — they are independent, and waiting for each in
+     turn was most of the cold-open delay. */
+  const list = await listRecentDays();
+  const fetches = missing.map(async (d) => {
     try{
-      const fileId = await driveFindChild(cachedDataFolderId, d + '.json', false);
-      if(fileId){
-        const entry = await driveReadJson(fileId);
-        if(entry) out.push(entry);
-      }
+      const fileId = list
+        ? (Object.prototype.hasOwnProperty.call(list, d) ? list[d].id : null)
+        : await driveFindChild(cachedDataFolderId, d + '.json', false);
+      if(!fileId) return null;
+      return await driveReadJson(fileId);
     }catch(err){
       if(err && err.name === 'TokenExpiredError') throw err;
       /* A day that cannot be read is left out rather than counted as zero —
          the same distinction as above. */
+      return null;
     }
-  }
+  });
+  const fetched = await Promise.all(fetches);
+  fetched.forEach(e => { if(e) out.push(e); });
   return out.filter(Boolean);
 }
 
@@ -1606,14 +1687,14 @@ async function loadAllEntries(){
 async function clinicDataAge(){
   try{
     const today = todayStr();
-    await driveFindChild(cachedDataFolderId, today + '.json', false);
+    await findDayFile(today);
     if(lastFoundModifiedTime) return { iso: lastFoundModifiedTime, date: today };
     // No file for today — fall back to the newest day the index knows about.
     const idx = await loadEntriesIndex();
     const days = idx ? Object.keys(idx).sort() : [];
     const newest = days.length ? days[days.length - 1] : null;
     if(!newest) return null;
-    await driveFindChild(cachedDataFolderId, newest + '.json', false);
+    await findDayFile(newest);
     return lastFoundModifiedTime ? { iso: lastFoundModifiedTime, date: newest } : null;
   }catch(err){
     if(err && err.name === 'TokenExpiredError') throw err;
@@ -1796,6 +1877,7 @@ function ensureFreshMoneyData(force){
   if(!force && (Date.now() - moneyEpochAt) < MONEY_MAX_AGE_MS) return false;
   billsRevalidate = true;
   entriesRevalidate = true;
+  dayListRevalidate = true;
   moneyEpochAt = Date.now();
   return true;
 }
