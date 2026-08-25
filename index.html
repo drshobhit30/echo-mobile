@@ -1005,11 +1005,40 @@ function _reducedMotion(){
   try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   catch(e){ return false; }
 }
+/* Figures roll AFTER the screen clears, not behind the blur.
+
+   A render paints its numbers and the overlay is still up, so the count-up
+   happened underneath it: by the time the blur lifted the roll was over or
+   most of the way through, and what the eye caught was a smear of digits
+   settling. The animation existed and nobody ever saw it.
+
+   Deferred rolls queue here and are released the moment loading ends. The
+   element still gets its FINAL value immediately, so nothing is left blank
+   or stale if the release never comes — the roll is decoration, the figure
+   is not. */
+let _loadingUp = false;
+let _pendingRolls = [];
+function releasePendingRolls(){
+  const queued = _pendingRolls;
+  _pendingRolls = [];
+  queued.forEach(fn => { try{ fn(); }catch(e){} });
+}
 function rollTo(el, to, fmt){
   if(!el) return;
   to = Number(to) || 0;
   const from = (typeof el.__rollVal === 'number') ? el.__rollVal : 0;
   el.__rollVal = to;
+  if(_loadingUp){
+    /* Show the destination now, roll from the old value once the screen is
+       clear. Queued per element: a second render before the release
+       replaces the first, so the number never rolls twice. */
+    el.textContent = fmt(to);
+    _pendingRolls = _pendingRolls.filter(f => f.__el !== el);
+    const run = () => { el.__rollVal = from; rollTo(el, to, fmt); };
+    run.__el = el;
+    _pendingRolls.push(run);
+    return;
+  }
   if(el.__rollRAF && typeof cancelAnimationFrame === 'function'){
     cancelAnimationFrame(el.__rollRAF); el.__rollRAF = null;
   }
@@ -2389,7 +2418,16 @@ function showLoading(on, label){
   const el = document.getElementById('loadingScreen');
   if(!el) return;
   if(_loadingTimer){ clearTimeout(_loadingTimer); _loadingTimer = null; }
-  if(!on){ el.classList.remove('visible'); return; }
+  _loadingUp = !!on;
+  if(!on){
+    el.classList.remove('visible');
+    /* Next frame, so the blur is actually gone before the digits start
+       moving — releasing in the same frame puts the first few steps of the
+       roll under the overlay again. */
+    if(typeof requestAnimationFrame === 'function') requestAnimationFrame(releasePendingRolls);
+    else releasePendingRolls();
+    return;
+  }
   const txt = document.getElementById('loadingOverlayText');
   if(txt) txt.textContent = label || 'Loading';
   _loadingTimer = setTimeout(() => {
