@@ -1861,6 +1861,10 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
    another, so a read landing exactly between two writes can still catch
    one file newer than the other for a few seconds. No polling client can
    close that gap; 90 seconds later it heals by itself. */
+/* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
+   its own running number — it exists to force phones to refetch and must
+   change on every deploy, which a release name must not. */
+const APP_VERSION = 'v1.0';
 const MONEY_MAX_AGE_MS = 90 * 1000;
 let moneyEpochAt = 0;
 /* REVALIDATE, do not discard. The first version of this rule threw the
