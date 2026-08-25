@@ -2010,6 +2010,19 @@ async function patientIndex(){
     if(date && date > people[id].lastDate) people[id].lastDate = date;
   };
   bills.forEach(b => { if(billCountsAsMoney(b)) note(b.patientId, b.patientName, b.date); });
+  /* A patient whose ONLY record is a treatment estimate was invisible here.
+     billCountsAsMoney is a MONEY test — it rightly excludes drafts — and the
+     patient list was being built from it, so someone who has been given an
+     estimate and nothing else could not be found by name at all, and the
+     estimates section added to their page could never be reached. They are
+     listed for SEARCH only; nothing about the money changes, because the
+     balance is still computed from billCountsAsMoney elsewhere.
+     Dated by the day the estimate was given, so "last seen" reads true. */
+  bills.forEach(b => {
+    if(b && b.status === 'draft' && b.estimate){
+      note(b.patientId, b.patientName, (b.estimate && b.estimate.postedOn) || b.date);
+    }
+  });
   entries.forEach(e => {
     (Array.isArray(e.items) ? e.items : []).forEach(it => {
       if(it && !isVoidedItem(it)) note(it.patientId, it.patientName, e.date);
@@ -2084,7 +2097,10 @@ async function openPatientDetail(patientId, token){
      on a phone next to a patient's name looks like money owed unless it is
      told otherwise. The block hides itself entirely when there are none. */
   const estimates = bills.filter(b => b && String(b.patientId) === String(patientId)
-                     && b.status === 'draft' && b.estimate)
+                     && b.status === 'draft' && b.estimate
+                     /* Declined ones are history on the desktop record, not
+                        something to raise with the patient on the phone. */
+                     && !(b.estimate && b.estimate.declinedAt))
                     .sort((a, b) => String((a.estimate && a.estimate.postedOn) || a.date || '')
                       .localeCompare(String((b.estimate && b.estimate.postedOn) || b.date || '')));
   const eBlock = document.getElementById('pdEstimateBlock');
