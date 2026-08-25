@@ -848,6 +848,14 @@
       <div class="pd-name" id="pdName">&mdash;</div>
       <div class="pd-sub" id="pdSub">&mdash;</div>
 
+      <div id="pdEstimateBlock" class="hidden">
+        <div class="section-title">
+          <h3>&#128203; Treatment estimates</h3>
+          <div class="count" id="pdEstimateCount">0</div>
+        </div>
+        <div class="pay-list" id="pdEstimateList"></div>
+      </div>
+
       <div class="section-title">
         <h3>&#129534; Bills</h3>
         <div class="count" id="pdBillCount">0</div>
@@ -1667,6 +1675,12 @@ function closeBillSheet(){ document.getElementById('billModal').classList.add('h
    already fetched wherever possible — the Drive round trip is the expensive
    thing on a phone, not the arithmetic. */
 const VIEW_KEY = 'echoDental_view';
+const VIEW_AT_KEY = 'echoDental_view_at';
+/* Remembering the tab is only kind for a SHORT absence. Coming back to the
+   phone an hour later — or the next morning — and landing on last night's
+   Outstanding list is disorienting: it looks like today's screen and is
+   not. Past this, the app opens where it should open, on today. */
+const VIEW_MEMORY_MS = 20 * 60 * 1000;
 const KNOWN_VIEWS = ['day','month','patient','report'];
 /* Which tab is open, restored from this phone's own storage the moment the
    state is declared — not later, beside the tab buttons, where it would
@@ -1677,7 +1691,9 @@ const KNOWN_VIEWS = ['day','month','patient','report'];
 let currentView = 'day';
 try{
   const _savedView = localStorage.getItem(VIEW_KEY);
-  if(_savedView && KNOWN_VIEWS.indexOf(_savedView) !== -1){
+  const _savedAt = Number(localStorage.getItem(VIEW_AT_KEY) || 0);
+  const _recent = _savedAt && (Date.now() - _savedAt) < VIEW_MEMORY_MS;
+  if(_recent && _savedView && KNOWN_VIEWS.indexOf(_savedView) !== -1){
     currentView = _savedView;
     document.querySelectorAll('.tab-btn').forEach(b =>
       b.classList.toggle('active', b.getAttribute('data-view') === _savedView));
@@ -1753,7 +1769,10 @@ function switchView(view){
      of jumping to Day. Only the TAB is remembered, deliberately: the date
      resets to today, because a phone reopened tomorrow quietly showing
      yesterday is a subtler wrong than a lost tab. */
-  try{ localStorage.setItem(VIEW_KEY, view); }catch(e){}
+  try{
+    localStorage.setItem(VIEW_KEY, view);
+    localStorage.setItem(VIEW_AT_KEY, String(Date.now()));
+  }catch(e){}
   document.querySelectorAll('.tab-btn').forEach(b =>
     b.classList.toggle('active', b.getAttribute('data-view') === view));
   showLoading(true);
@@ -2055,6 +2074,46 @@ async function openPatientDetail(patientId, token){
   rollMoney('pdBalance', Math.abs(p) < 0.5 ? 0 : Math.abs(p));
   document.getElementById('pdBalanceLabel').textContent =
     p > 0.5 ? 'Outstanding' : (p < -0.5 ? 'Advance with clinic' : 'Settled');
+
+  /* Treatment estimates: proposed treatment this patient is still deciding
+     on. Shown here because the question they ring up with — "what did the
+     doctor say it would cost?" — is asked away from the desk as often as at
+     it. Deliberately NOT counted anywhere: an estimate is a draft, so it is
+     absent from the balance above, from the bills list below, and from
+     every figure on every other screen. The label says so, because a number
+     on a phone next to a patient's name looks like money owed unless it is
+     told otherwise. The block hides itself entirely when there are none. */
+  const estimates = bills.filter(b => b && String(b.patientId) === String(patientId)
+                     && b.status === 'draft' && b.estimate)
+                    .sort((a, b) => String((a.estimate && a.estimate.postedOn) || a.date || '')
+                      .localeCompare(String((b.estimate && b.estimate.postedOn) || b.date || '')));
+  const eBlock = document.getElementById('pdEstimateBlock');
+  const eList = document.getElementById('pdEstimateList');
+  if(eBlock && eList){
+    eBlock.classList.toggle('hidden', estimates.length === 0);
+    rollCount('pdEstimateCount', estimates.length);
+    eList.innerHTML = estimates.map(b => {
+      const on = (b.estimate && b.estimate.postedOn) || b.date;
+      /* Computed here rather than borrowed: the desktop has a daysBetween
+         helper, this file does not, and calling one that is not there
+         throws inside a render — a blank patient screen, not an error. */
+      const days = Math.max(0, Math.round(
+        (Date.parse(todayStr() + 'T00:00:00') - Date.parse(on + 'T00:00:00')) / 86400000));
+      const waited = days <= 0 ? 'today' : (days === 1 ? 'yesterday' : days + ' days ago');
+      return '<div class="pay-row">'
+        + '<div class="row-icon">\u{1F4CB}</div>'
+        + '<div class="pay-main">'
+          + '<div class="pay-name">Given ' + escapeHtml(waited) + '</div>'
+          + '<div class="pay-sub">' + escapeHtml(fullDateLabel(on))
+          + ((b.estimate && b.estimate.note) ? ' \u00b7 ' + escapeHtml(b.estimate.note) : '') + '</div>'
+        + '</div>'
+        + '<div class="pay-right">'
+          + '<div class="pay-amt">' + fmtINR(Number(b.grandTotal) || 0) + '</div>'
+          + '<div class="bill-status">not billed</div>'
+        + '</div>'
+      + '</div>';
+    }).join('');
+  }
 
   const mine = bills.filter(b => b && String(b.patientId) === String(patientId) && b.status !== 'draft')
                     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
