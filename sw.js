@@ -22,7 +22,7 @@
    Bump CACHE_VERSION whenever the shell changes. The old cache is deleted on
    activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-v21';  // v14: clinic mark in the loading overlay
+const CACHE_VERSION = 'echo-nexus-v22';  // v14: clinic mark in the loading overlay
 
 const SHELL = [
   './',
