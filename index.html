@@ -2034,7 +2034,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v1.6';   // four tabs; Outstanding lives on the Patient tab. Bump WITH the worker's cache.
+const APP_VERSION = 'v1.7';   // a visit opens what was written that day. Bump WITH the worker's cache.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -2937,6 +2937,9 @@ function closePatientDetail(){
      person's name. */
   closeRxSheet();
   rxOpenList = null;
+  /* The visit rows belong to the patient being left. Kept, the next patient's
+     first tap would open a prescription from the previous one's record. */
+  visitRxRows = [];
   selectedPatientId = null;
   document.getElementById('patientDetail').classList.add('hidden');
   document.getElementById('patientResults').classList.remove('hidden');
@@ -3231,19 +3234,93 @@ async function expandVisits(patientId, days){
     list.innerHTML = '<div class="pd-unknown">Those days no longer list this patient.</div>';
     return;
   }
-  list.innerHTML = rows.map(r =>
-    '<div class="pay-row"><div class="pay-main">'
-    + '<div class="pay-name">' + escapeHtml(fullDateLabel(r.date)) + '</div>'
-    + '<div class="pay-sub">'
-    + escapeHtml(r.v.status ? String(r.v.status) : 'Visit')
-    + (r.v.chair ? ' \u00b7 chair ' + escapeHtml(String(r.v.chair)) : '')
-    + '</div></div></div>'
-  ).join('')
+  /* THE SAME READING AS THE DAY TAB. This list was left printing the raw
+     status key and ignoring removedAt when that was fixed on the Day tab —
+     one fix, two lists, and only one of them got it. So a visit removed at
+     the desk still read "ongoing" here, on the patient's own record. */
+  visitRxRows = rows;
+  list.innerHTML = rows.map((r, i) => {
+    const gone = visitWasRemoved(r.v);
+    const eff = effectiveVisitStatusM(r.v, r.date);
+    const said = gone
+      ? 'Removed' + (r.v.removedReason ? ' \u2014 ' + r.v.removedReason : '')
+      : visitStatusLabel(eff.status) + (eff.auto ? ' (day ended)' : '');
+    return '<div class="pay-row tappable' + (gone ? ' visit-removed' : '') + '"'
+      + ' data-visitrx="' + i + '"><div class="pay-main">'
+      + '<div class="pay-name">' + escapeHtml(fullDateLabel(r.date)) + '</div>'
+      + '<div class="pay-sub">' + escapeHtml(said)
+      + (r.v.chair ? ' \u00b7 chair ' + escapeHtml(String(r.v.chair)) : '')
+      + '</div></div>'
+      + '<div class="pay-right"><div class="bill-status" id="vrx' + i + '">\u211e</div></div>'
+    + '</div>';
+  }).join('')
   + (days.length > wanted.length
       ? '<div class="pd-unknown">' + (days.length - wanted.length)
         + ' earlier visit' + (days.length - wanted.length === 1 ? '' : 's')
         + ' not shown.</div>'
       : '');
+  list.querySelectorAll('.pay-row[data-visitrx]').forEach(row => {
+    row.addEventListener('click', () => openVisitRx(Number(row.getAttribute('data-visitrx'))));
+  });
+}
+
+/* WHAT WAS WRITTEN THAT DAY. A visit on the record is a day the patient came
+   in; the question that follows is what the doctor wrote, and until now that
+   meant going back up to Prescriptions and matching dates by eye.
+
+   The index is fetched on this tap rather than when the patient opens — it
+   carries full records and is the largest file this page can pull, so
+   somebody checking a balance should not pay for it. Once fetched it is
+   cached, so the second visit tapped is instant. */
+let visitRxRows = [];
+async function openVisitRx(i){
+  const r = visitRxRows[i];
+  if(!r) return;
+  const mark = document.getElementById('vrx' + i);
+  if(mark) mark.textContent = '\u2026';
+  let all = null;
+  try{ all = await loadPrescriptions(); }
+  catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    all = null;
+  }
+  if(all === null){
+    if(mark) mark.textContent = '\u2014';
+    return;
+  }
+  /* rec.date is the day the prescription CLAIMS, which is the day it belongs
+     to. createdAt is a wall-clock instant and disagrees with it across
+     midnight — the same rule the desktop uses to decide what "today's
+     prescription" means. */
+  const mine = all.filter(x => x
+    && String(x.patientId) === String(r.v.patientId)
+    && String(x.date || (x.createdAt || '').slice(0, 10)) === r.date);
+  if(!mine.length){
+    if(mark) mark.textContent = '\u2014';
+    return;
+  }
+  mine.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  if(mark) mark.textContent = '\u211e';
+  /* One is opened straight away; several are listed, because picking the
+     wrong one of two and having to go back is worse than one extra tap. */
+  rxOpenList = mine;
+  if(mine.length === 1){ openRxSheet(0); return; }
+  const el = document.getElementById('pdRxSheet');
+  if(!el) return;
+  el.innerHTML = '<div class="rxs-h">' + escapeHtml(fullDateLabel(r.date)) + '</div>'
+    + '<div class="rxs-k">' + mine.length + ' prescriptions that day</div>'
+    + mine.map((x, k) =>
+        '<div class="pay-row tappable" data-dayrx="' + k + '"><div class="pay-main">'
+        + '<div class="pay-name">' + escapeHtml(rxWhat(x)) + '</div>'
+        + '<div class="pay-sub">' + escapeHtml(rxMedCount(x))
+        + (rxIsStruck(x) ? ' \u00b7 struck' : '') + '</div></div></div>').join('')
+    + '<button type="button" class="rxs-close" id="pdRxClose">Close</button>';
+  el.classList.remove('hidden');
+  el.querySelectorAll('.pay-row[data-dayrx]').forEach(row => {
+    row.addEventListener('click', () => openRxSheet(Number(row.getAttribute('data-dayrx'))));
+  });
+  const c = document.getElementById('pdRxClose');
+  if(c) c.onclick = closeRxSheet;
 }
 
 async function renderPatientView(token){
