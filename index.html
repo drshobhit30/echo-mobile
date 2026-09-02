@@ -385,7 +385,12 @@
   .sec-chev{ color:var(--gold-deep); font-size:0.78rem; line-height:1;
     transition:transform 0.18s ease; }
   .section-title.sec-closed .sec-chev{ transform:rotate(-90deg); }
-  .pay-list.sec-hidden{ display:none; }
+  /* SCOPED TO .pay-list ONCE, which was fine while every folding section WAS
+     a pay-list. The Outstanding fold wraps a hero, two tiles and a list in a
+     plain div, so it took the class and nothing happened — the arrow turned,
+     because that rule is unscoped, and the content stayed put. A fold helper
+     that works on some elements and not others is worse than none. */
+  .sec-hidden{ display:none !important; }
 
   /* ---------------- Payment rows ---------------- */
   .pay-list{ padding:0 16px; }
@@ -1108,9 +1113,20 @@
       <div class="count" id="labOutCount">0</div>
     </div>
     <div class="pay-list" id="labOutList"></div>
+    <!-- BACK AT THE CLINIC, not at the lab. A received case is waiting to be
+         fitted, and it is the one somebody would otherwise ring the lab
+         about for no reason. -->
     <div class="section-title">
+      <h3>&#128230; Back, waiting to fit</h3>
+      <div class="count" id="labBackCount">0</div>
+    </div>
+    <div class="pay-list" id="labBackList"></div>
+    <!-- Folded by default: delivered is history, and it is the longest list
+         of the three. -->
+    <div class="section-title collapsible" id="labDoneHead" role="button" aria-expanded="true">
       <h3>&#9989; Recently delivered</h3>
       <div class="count" id="labDoneCount">0</div>
+      <span class="sec-chev" aria-hidden="true">&#9662;</span>
     </div>
     <div class="pay-list" id="labDoneList"></div>
   </div>
@@ -2066,7 +2082,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v2.1';   // the period chips work and look right; Year stops showing month money.
+const APP_VERSION = 'v2.2';   // folds actually fold; Received is its own place.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -3525,11 +3541,19 @@ async function renderLabView(token){
   try{ dir = (await loadPatientDirectory()) || {}; }catch(e){ dir = {}; }
   if(token !== undefined && !paintAllowed(token)) return;
 
-  const open = [], done = [];
+  /* THREE PLACES A CASE CAN BE, not two. "Received" means it has come BACK
+     from the lab and is sitting at the clinic waiting to be fitted — listing
+     it under "At the lab" said the opposite of the truth, and those are the
+     ones somebody would ring the lab about for no reason. */
+  const out = [], back = [], done = [];
   labs.forEach(c => {
     if(!c) return;
-    (labStageOf(c).key === 'delivered' ? done : open).push(c);
+    const k = labStageOf(c).key;
+    if(k === 'delivered') done.push(c);
+    else if(k === 'received') back.push(c);
+    else out.push(c);
   });
+  const open = out;
   /* Longest away first. A case sent three weeks ago is the one to ask about,
      not the one sent yesterday. */
   open.sort((a, b) => String(a.dateSent || a.dateLogged || '')
@@ -3540,14 +3564,21 @@ async function renderLabView(token){
   const waiting = open.filter(c => labStageOf(c).key === 'logged').length;
   document.getElementById('labSub').textContent = open.length
     ? (waiting ? waiting + ' still waiting to be picked up' : 'all of them are with the lab')
-    : 'nothing is out';
+      + (back.length ? ' \u00b7 ' + back.length + ' back to fit' : '')
+    : (back.length ? 'nothing out \u00b7 ' + back.length + ' back to fit' : 'nothing is out');
   document.getElementById('labOutCount').textContent = String(open.length);
+  document.getElementById('labBackCount').textContent = String(back.length);
   document.getElementById('labDoneCount').textContent = String(Math.min(done.length, LAB_RECENT_DONE));
 
   const nameOf = c => (dir && dir[String(c.patientId)]) || c.patientName || 'Unknown patient';
   const row = (c, showAge) => {
     const st = labStageOf(c);
-    const since = c.dateSent || c.dateLogged || '';
+    /* A case that is BACK is measured from when it returned, not from when it
+       was sent — "27 days" beside something that came back yesterday reads
+       as a lab that is late. */
+    const since = (labStageOf(c).key === 'received')
+      ? (c.dateReceived || c.dateSent || c.dateLogged || '')
+      : (c.dateSent || c.dateLogged || '');
     const days = since ? daysBetweenMobile(since, todayStr()) : null;
     return '<div class="pay-row"><div class="pay-main">'
       + '<div class="pay-name">' + escapeHtml(nameOf(c)) + '</div>'
@@ -3562,6 +3593,15 @@ async function renderLabView(token){
   outList.innerHTML = open.length
     ? open.map(c => row(c, true)).join('')
     : '<div class="empty-state">Nothing is at the lab.</div>';
+  const backList = document.getElementById('labBackList');
+  if(backList){
+    /* Longest back first — a case that came back three weeks ago and has not
+       been fitted is the one to chase. */
+    back.sort((a, b) => String(a.dateReceived || '').localeCompare(String(b.dateReceived || '')));
+    backList.innerHTML = back.length
+      ? back.map(c => row(c, true)).join('')
+      : '<div class="empty-state">Nothing waiting to be fitted.</div>';
+  }
   doneList.innerHTML = done.length
     ? done.slice(0, LAB_RECENT_DONE).map(c => row(c, false)).join('')
       + (done.length > LAB_RECENT_DONE
@@ -3824,7 +3864,7 @@ window.addEventListener('popstate', () => {
    long lists below them are a scroll past everything else. The choice is
    remembered per section (this device only), and re-renders leave it alone
    because the class lives on the list container, which is never rebuilt. */
-function wireCollapsibleSection(headId, listId, storeKey){
+function wireCollapsibleSection(headId, listId, storeKey, startClosed){
   const head = document.getElementById(headId);
   const list = document.getElementById(listId);
   if(!head || !list) return;
@@ -3833,8 +3873,13 @@ function wireCollapsibleSection(headId, listId, storeKey){
     list.classList.toggle('sec-hidden', closed);
     head.setAttribute('aria-expanded', closed ? 'false' : 'true');
   };
-  let closed = false;
-  try{ closed = localStorage.getItem(storeKey) === '1'; }catch(e){}
+  /* startClosed applies only when this phone has never chosen — once
+     somebody opens it, their choice is theirs and outlives the default. */
+  let closed = !!startClosed;
+  try{
+    const saved = localStorage.getItem(storeKey);
+    if(saved !== null) closed = (saved === '1');
+  }catch(e){}
   apply(closed);
   head.addEventListener('click', () => {
     closed = !closed;
@@ -3852,6 +3897,9 @@ wireCollapsibleSection('visitSecHead', 'dayVisitList', 'echoDental_dayVisitFolde
    the search box sits above it, so folding leaves the tab usable rather than
    empty. */
 wireCollapsibleSection('pendSecHead', 'pendingFold', 'echoDental_pendingFolded');
+/* Delivered starts CLOSED. It is history and the longest of the three, and
+   the two lists above it are the ones opened for. */
+wireCollapsibleSection('labDoneHead', 'labDoneList', 'echoDental_labDoneFolded', true);
 
 document.getElementById('prevDayBtn').addEventListener('click',
   () => navigate(() => { currentDate = addDays(currentDate, -1); }));
