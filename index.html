@@ -483,13 +483,19 @@
   .pay-row.row-payment.pay-row-writeoff .row-icon.pay,
   .pay-row.row-payment.pay-row-reversed .row-icon.pay{ background:var(--line); color:var(--muted); }
   /* ---------- Admin money view: tabs, month, report, outstanding ---------- */
+  /* FIVE tabs do not fit a phone at equal widths — "Outstanding" alone is a
+     sixth of a 360px screen. Rather than shorten labels the clinic already
+     knows, the bar scrolls: each tab keeps its natural width, and the active
+     one is scrolled into view when it changes. */
   .tabbar{
     display:flex; gap:4px; background:var(--white); border:1px solid var(--line);
     border-radius:14px; padding:4px; margin:14px 16px; position:sticky; top:8px; z-index:5;
     box-shadow:0 4px 14px rgba(74,59,40,0.07);
+    overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
   }
+  .tabbar::-webkit-scrollbar{ display:none; }
   .tab-btn{
-    flex:1; border:none; background:none; padding:10px 4px; border-radius:11px;
+    flex:0 0 auto; white-space:nowrap; border:none; background:none; padding:10px 12px; border-radius:11px;
     font-family:'Jost', sans-serif; font-size:0.84rem; font-weight:500; letter-spacing:0.09em;
     text-transform:uppercase; color:var(--muted); cursor:pointer;
     transition:background .18s ease, color .18s ease;
@@ -619,6 +625,47 @@
   .pd-unknown{
     font-family:'Jost', sans-serif; font-size:0.76rem; color:var(--muted);
     padding:10px 16px; text-align:center;
+  }
+  /* A note is a line of somebody's handwriting, so it reads as prose rather
+     than as a row of figures. */
+  /* Only the alarm state is coloured — the desktop's rule. Tinting the due
+     rows too put two near-identical states side by side and made neither
+     read. */
+  .task-slipping .pay-sub{ color:#A32D2D; }
+  .note-body{
+    font-family:'Jost', sans-serif; font-size:0.84rem; color:var(--ink);
+    line-height:1.45; white-space:pre-wrap;
+  }
+  .note-meta{ font-family:'Jost', sans-serif; font-size:0.7rem; color:var(--muted); margin-top:3px; }
+  .note-bell{ color:#BA7517; }
+  /* STRUCK, NOT HIDDEN — the desktop strikes history rather than erasing it,
+     and a phone that quietly dropped these would show a cleaner record than
+     the screen at the desk. */
+  .note-struck .note-body{ text-decoration:line-through; color:var(--muted); }
+  .rx-struck .pay-name{ text-decoration:line-through; color:var(--muted); }
+  .rx-sheet{
+    position:fixed; inset:0; background:var(--cream, #FBF7EF); z-index:60;
+    overflow-y:auto; padding:16px; -webkit-overflow-scrolling:touch;
+  }
+  .rx-sheet .rxs-close{
+    display:block; width:100%; margin-top:14px; border:1px solid rgba(138,95,38,0.25);
+    background:rgba(255,255,255,0.7); color:var(--gold-deep); border-radius:999px;
+    padding:11px; font-family:'Jost', sans-serif; font-size:0.82rem; cursor:pointer;
+  }
+  .rxs-h{ font-family:'Cinzel', serif; font-size:1rem; color:var(--brown); }
+  .rxs-k{
+    font-family:'Jost', sans-serif; font-size:0.66rem; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--muted); margin-top:12px;
+  }
+  .rxs-v{ font-family:'Jost', sans-serif; font-size:0.86rem; color:var(--ink); line-height:1.45; white-space:pre-wrap; }
+  .rxs-med{
+    font-family:'Jost', sans-serif; font-size:0.84rem; color:var(--ink);
+    padding:7px 0; border-bottom:1px solid rgba(138,95,38,0.10);
+  }
+  .rxs-med .rxs-dose{ font-size:0.72rem; color:var(--muted); }
+  .rxs-ro{
+    font-family:'Jost', sans-serif; font-size:0.7rem; color:var(--muted);
+    text-align:center; margin-top:14px;
   }
   .pd-more{
     display:block; width:calc(100% - 32px); margin:8px 16px 0;
@@ -795,6 +842,7 @@
     <button class="tab-btn" data-view="month">Month</button>
     <button class="tab-btn" data-view="patient">Patient</button>
     <button class="tab-btn" data-view="report">Outstanding</button>
+    <button class="tab-btn" data-view="tasks">Tasks</button>
   </div>
 
   <!-- ---------------- DAY ---------------- -->
@@ -834,6 +882,17 @@
       <span class="sec-chev" aria-hidden="true">&#9662;</span>
     </div>
     <div class="pay-list" id="dayBillList"></div>
+
+    <!-- WHO CAME. Phase 2 was planned as a tab of its own; it lives here
+         instead, because attendance is day-scoped and this tab already has
+         the date navigator — so stepping back a day steps the arrivals back
+         with it, for free. A sixth tab would also not have fitted the bar. -->
+    <div class="section-title collapsible" id="visitSecHead" role="button" aria-expanded="true">
+      <h3>&#128100; Who came</h3>
+      <div class="count" id="dayVisitCount">0</div>
+      <span class="sec-chev" aria-hidden="true">&#9662;</span>
+    </div>
+    <div class="pay-list" id="dayVisitList"></div>
   </div>
 
   <!-- ---------------- MONTH ---------------- -->
@@ -926,6 +985,17 @@
       </div>
       <div class="pay-list" id="pdLabList"></div>
       <div class="section-title">
+        <h3>&#8478; Prescriptions</h3>
+        <div class="count" id="pdRxCount">&mdash;</div>
+      </div>
+      <div class="pay-list" id="pdRxList"></div>
+      <div class="section-title">
+        <h3>&#128221; Notes</h3>
+        <div class="count" id="pdNoteCount">0</div>
+      </div>
+      <div class="pay-list" id="pdNoteList"></div>
+      <div class="rx-sheet hidden" id="pdRxSheet"></div>
+      <div class="section-title">
         <h3>&#129534; Bills</h3>
         <div class="count" id="pdBillCount">0</div>
       </div>
@@ -973,6 +1043,33 @@
     <div class="footnote">Advances (patients in credit) are listed separately at the end.</div>
   </div>
 
+  <!-- ---------------- TASKS ----------------
+       What is outstanding that is NOT money. Three small settings files, so
+       the whole tab is three reads: treatment the patient was advised and has
+       not had, recalls that have come round, and follow-up calls waiting.
+       Read only, like everything here — nothing is ticked off from a phone. -->
+  <div id="viewTasks" class="hidden">
+    <div class="total-hero">
+      <div class="amount" id="tasksDueCount">0</div>
+      <div class="label">Due now</div>
+    </div>
+    <div class="pd-sub" id="tasksSub">&mdash;</div>
+    <div class="section-title">
+      <h3>&#9203; Due, oldest first</h3>
+      <div class="count" id="tasksOpenCount">0</div>
+    </div>
+    <div class="pay-list" id="tasksDueList"></div>
+    <div class="section-title">
+      <h3>&#128222; Follow-up calls</h3>
+      <div class="count" id="tasksFollowCount">0</div>
+    </div>
+    <div class="pay-list" id="tasksFollowList"></div>
+    <div class="section-title">
+      <h3>&#128197; Coming up</h3>
+      <div class="count" id="tasksLaterCount">0</div>
+    </div>
+    <div class="pay-list" id="tasksLaterList"></div>
+
   <div class="footnote" id="lastSynced"></div>
 </div>
 
@@ -1007,7 +1104,8 @@
     <div class="loading-overlay-text" id="loadingOverlayText">Loading</div>
   </div>
 </div>
-<div id="loadErrorBar" class="status-bar err hidden"></div>
+<div id="loadErrorBar" class="status-bar err hidden">  </div>
+</div>
 
 <button class="refresh-fab hidden" id="refreshBtn" title="Refresh">↻</button>
 
@@ -1869,7 +1967,7 @@ const VIEW_AT_KEY = 'echoDental_view_at';
    Outstanding list is disorienting: it looks like today's screen and is
    not. Past this, the app opens where it should open, on today. */
 const VIEW_MEMORY_MS = 20 * 60 * 1000;
-const KNOWN_VIEWS = ['day','month','patient','report'];
+const KNOWN_VIEWS = ['day','month','patient','report','tasks'];
 /* Which tab is open, restored from this phone's own storage the moment the
    state is declared — not later, beside the tab buttons, where it would
    depend on whether boot happens to run before or after that line. By the
@@ -1913,7 +2011,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v1.2';   // v1.1 plus a search that finds every patient. Bump WITH the worker's cache, or the phone keeps the old page.
+const APP_VERSION = 'v1.3';   // prescriptions, notes, Tasks, who-came. Bump WITH the worker's cache, or the phone keeps the old page.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -1959,9 +2057,11 @@ async function renderCurrentView(){
   document.getElementById('viewMonth').classList.toggle('hidden', currentView !== 'month');
   document.getElementById('viewPatient').classList.toggle('hidden', currentView !== 'patient');
   document.getElementById('viewReport').classList.toggle('hidden', currentView !== 'report');
+  document.getElementById('viewTasks').classList.toggle('hidden', currentView !== 'tasks');
   if(currentView === 'day')     return await renderDayView(token);
   if(currentView === 'month')   return await renderMonthView(token);
   if(currentView === 'patient') return await renderPatientView(token);
+  if(currentView === 'tasks')   return await renderTasksView(token);
   return await renderReportView(token);
 }
 
@@ -1976,8 +2076,13 @@ function switchView(view){
     localStorage.setItem(VIEW_KEY, view);
     localStorage.setItem(VIEW_AT_KEY, String(Date.now()));
   }catch(e){}
-  document.querySelectorAll('.tab-btn').forEach(b =>
-    b.classList.toggle('active', b.getAttribute('data-view') === view));
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    const on = b.getAttribute('data-view') === view;
+    b.classList.toggle('active', on);
+    /* The bar scrolls, so a tab chosen at one end must not stay half off the
+       screen after it becomes the active one. */
+    if(on && b.scrollIntoView) try{ b.scrollIntoView({ inline:'center', block:'nearest' }); }catch(e){}
+  });
   showLoading(true);
   renderCurrentView()
     .catch(err => {
@@ -1991,7 +2096,50 @@ function switchView(view){
 async function renderDayView(token){
   /* Two independent reads that used to run one after the other, so the
      screen you open most often waited for the sum of both. */
-  await Promise.all([loadDayEntry(currentDate, token), renderDayBills(currentDate, token)]);
+  await Promise.all([loadDayEntry(currentDate, token), renderDayBills(currentDate, token),
+                     renderDayVisits(currentDate, token)]);
+}
+
+/* Who attended on the chosen day. ONE file — visits/<date>.json — and no
+   index needed: the day is already known, so there is nothing to look up.
+   Chairs and the live queue stay out by decision; away from the clinic the
+   useful thing is the record of who came, not what is happening now. */
+async function renderDayVisits(dateStr, token){
+  let rows = [];
+  try{
+    if(!cachedVisitsFolderId) cachedVisitsFolderId = await driveFindChild(driveFolderId, 'visits', true);
+    if(cachedVisitsFolderId){
+      const fileId = await driveFindChild(cachedVisitsFolderId, dateStr + '.json', false);
+      if(fileId){
+        const list = await driveReadJson(fileId);
+        rows = Array.isArray(list) ? list : [];
+      }
+    }
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    rows = [];
+  }
+  if(token !== undefined && !paintAllowed(token)) return;
+  const dir = await loadPatientDirectory();
+  if(token !== undefined && !paintAllowed(token)) return;
+  const list = document.getElementById('dayVisitList');
+  rollCount('dayVisitCount', rows.length);
+  if(rows.length === 0){
+    list.innerHTML = '<div class="empty-state">Nobody recorded as arriving on this day.</div>';
+    return;
+  }
+  rows.sort((a, b) => String(a.arrivedAt || '').localeCompare(String(b.arrivedAt || '')));
+  list.innerHTML = rows.map(v => {
+    const nm = (dir && dir[String(v.patientId)]) || v.patientName || 'Unknown patient';
+    const t = v.arrivedAt ? new Date(v.arrivedAt) : null;
+    const stamp = (t && !isNaN(t.getTime()))
+      ? t.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) : '';
+    return '<div class="pay-row"><div class="pay-main">'
+      + '<div class="pay-name">' + escapeHtml(nm) + '</div>'
+      + '<div class="pay-sub">' + escapeHtml(stamp)
+      + (v.status ? (stamp ? ' \u00b7 ' : '') + escapeHtml(String(v.status)) : '')
+      + '</div></div></div>';
+  }).join('');
 }
 
 async function renderDayBills(dateStr, token){
@@ -2344,6 +2492,94 @@ async function loadVisitDay(dateStr){
   }
 }
 
+/* ---- Prescriptions and notes (Phase 4) ---------------------------------
+   The first CLINICAL content on this page. Everything above it is money and
+   logistics; this is what the doctor wrote.
+
+   prescriptions-index.json holds FULL records, like the bills and lab-case
+   indexes, so a tapped prescription needs no second fetch. It is also the
+   largest file this page can pull, which is why it is fetched on a TAP and
+   not when a patient is opened \u2014 somebody looking up a balance should not
+   pay for a megabyte they did not ask for.
+
+   Same key-set contract as the other two: verified against the folder, and
+   a disagreement says so rather than showing fewer prescriptions than exist.
+   Showing three of a patient's four is worse than showing none. */
+let rxIndexCache = null, rxIndexTried = false;
+let cachedRxFolderId = null;
+async function loadPrescriptions(){
+  if(rxIndexTried) return rxIndexCache;
+  rxIndexTried = true;
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return (rxIndexCache = null);
+    const fileId = await driveFindChild(settingsId, 'prescriptions-index.json', false);
+    if(!fileId) return (rxIndexCache = null);
+    const idx = await driveReadJson(fileId);
+    if(!idx || !Array.isArray(idx.list) || !Array.isArray(idx.keys)) return (rxIndexCache = null);
+    if(!cachedRxFolderId) cachedRxFolderId = await driveFindChild(driveFolderId, 'prescriptions', true);
+    if(!cachedRxFolderId) return (rxIndexCache = null);
+    const files = await driveListChildren(cachedRxFolderId);
+    const onDisk = files.map(f => String(f.name || '').replace(/\.json$/, ''))
+                        .filter(Boolean).map(x => 'rx:' + x).sort();
+    const inIndex = idx.keys.slice().sort();
+    if(onDisk.length !== inIndex.length) return (rxIndexCache = null);
+    for(let i = 0; i < onDisk.length; i++) if(onDisk[i] !== inIndex[i]) return (rxIndexCache = null);
+    rxIndexCache = idx.list;
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    rxIndexCache = null;
+  }
+  return rxIndexCache;
+}
+/* The clinic's own words for a prescription, taken from the chair screen so
+   the two read-only surfaces cannot describe the same record differently. */
+function rxIsStruck(rec){ return !!(rec && rec.struckAt); }
+function rxDayLabel(rec){
+  const d = String((rec && (rec.date || rec.createdAt)) || '').slice(0, 10);
+  const [y, m, dd] = d.split('-').map(Number);
+  if(!y || !m || !dd) return '\u2014';
+  return new Date(y, m - 1, dd).toLocaleDateString('en-IN',
+    { day:'2-digit', month:'short', year:'numeric' });
+}
+/* The treatment leads, the advice if none was recorded, the medicines only
+   when there is neither \u2014 the chair screen's order, kept. */
+function rxWhat(rec){
+  const said = String((rec && rec.treatment) || '').trim()
+            || String((rec && rec.advice) || '').trim();
+  if(said) return said;
+  const meds = ((rec && rec.medicines) || []).map(m => m && m.name).filter(Boolean);
+  if(meds.length) return meds.join(', ');
+  return String((rec && rec.complaints) || '').trim() || 'Consultation';
+}
+function rxMedCount(rec){
+  const n = ((rec && rec.medicines) || []).filter(m => m && m.name).length;
+  return n ? (n + (n === 1 ? ' medicine' : ' medicines')) : 'no medicines';
+}
+
+/* Notes are one small settings file \u2014 an ARRAY, not a map, so it does not
+   go through loadSettingsMap. Struck notes are kept and shown struck rather
+   than hidden: this app strikes history, it does not erase it, and a phone
+   that quietly dropped them would show a cleaner record than the desk does. */
+let notesCache = null, notesTried = false;
+async function loadPatientNotes(){
+  if(notesTried) return notesCache;
+  notesTried = true;
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return (notesCache = []);
+    const fileId = await driveFindChild(settingsId, 'patient-notes-log.json', false);
+    if(!fileId) return (notesCache = []);
+    const list = await driveReadJson(fileId);
+    notesCache = Array.isArray(list) ? list : [];
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    notesCache = [];
+  }
+  return notesCache;
+}
+function noteIsStruck(n){ return !!(n && n.struckAt); }
+
 /* ---- Lab cases ---------------------------------------------------------
    labcases-index.json holds the FULL records, so one read covers the whole
    clinic and this patient is filtered out of it here. Same key-set contract
@@ -2636,6 +2872,11 @@ async function openPatientDetail(patientId, token){
 }
 
 function closePatientDetail(){
+  /* A prescription left open would sit over the search results of the NEXT
+     patient looked up, showing one person's clinical record above another
+     person's name. */
+  closeRxSheet();
+  rxOpenList = null;
   selectedPatientId = null;
   document.getElementById('patientDetail').classList.add('hidden');
   document.getElementById('patientResults').classList.remove('hidden');
@@ -2653,11 +2894,11 @@ async function paintPatientExtras(patientId, token){
     const c = document.getElementById(countId);
     if(c) c.textContent = '\u2014';
   };
-  let crm = {}, contacts = {}, created = {}, ortho = new Set(), visitsIdx = null, labs = null;
+  let crm = {}, contacts = {}, created = {}, ortho = new Set(), visitsIdx = null, labs = null, notes = [];
   try{
-    [crm, contacts, created, ortho, visitsIdx, labs] = await Promise.all([
+    [crm, contacts, created, ortho, visitsIdx, labs, notes] = await Promise.all([
       loadPatientCrm(), loadPatientContacts(), loadPatientCreated(),
-      loadOrthoIds(), loadVisitsIndex(), loadLabCases()
+      loadOrthoIds(), loadVisitsIndex(), loadLabCases(), loadPatientNotes()
     ]);
   }catch(err){
     if(err && err.name === 'TokenExpiredError') throw err;
@@ -2765,6 +3006,135 @@ async function paintPatientExtras(patientId, token){
       }).join('');
     }
   }
+
+  /* ---- Notes. One small file for the whole clinic, filtered here. Struck
+     notes are kept and shown struck, at the bottom — the desk strikes
+     history rather than erasing it, and the phone must not show a tidier
+     record than the desk does. The bell means what it means there: raise
+     this when the patient next arrives. */
+  const nCount = document.getElementById('pdNoteCount');
+  const nList = document.getElementById('pdNoteList');
+  if(nList && nCount){
+    const mine = (notes || []).filter(x => x && String(x.patientId) === pid);
+    const live = mine.filter(x => !noteIsStruck(x));
+    nCount.textContent = String(live.length);
+    if(mine.length === 0){
+      nList.innerHTML = '<div class="empty-state">No notes.</div>';
+    } else {
+      const byTime = (a, b) => String(b.time || '').localeCompare(String(a.time || ''));
+      const rows = live.slice().sort(byTime)
+        .concat(mine.filter(noteIsStruck).sort(byTime));
+      nList.innerHTML = rows.map(x => {
+        const when = x.time ? new Date(x.time) : null;
+        const stamp = (when && !isNaN(when.getTime()))
+          ? when.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+          : '';
+        return '<div class="pay-row' + (noteIsStruck(x) ? ' note-struck' : '') + '">'
+          + '<div class="pay-main">'
+          + '<div class="note-body">'
+          + (x.reviewNext && !noteIsStruck(x) ? '<span class="note-bell">\u{1F514} </span>' : '')
+          + escapeHtml(x.text || '') + '</div>'
+          + '<div class="note-meta">' + escapeHtml(stamp)
+          + (x.by ? ' \u00b7 ' + escapeHtml(x.by) : '')
+          + (noteIsStruck(x) ? ' \u00b7 struck' : '') + '</div>'
+          + '</div></div>';
+      }).join('');
+    }
+  }
+
+  /* ---- Prescriptions are NOT fetched here. The index carries full records,
+     which makes it the largest file this page can pull, and somebody opening
+     a patient to check a balance should not pay for it. */
+  const rxCount = document.getElementById('pdRxCount');
+  const rxList = document.getElementById('pdRxList');
+  if(rxList && rxCount){
+    rxCount.textContent = '\u2014';
+    rxList.innerHTML = '<button type="button" class="pd-more" id="pdRxMore">'
+      + 'Show prescriptions</button>';
+    const b = document.getElementById('pdRxMore');
+    if(b) b.onclick = () => expandPrescriptions(pid);
+  }
+}
+
+async function expandPrescriptions(patientId){
+  const list = document.getElementById('pdRxList');
+  const count = document.getElementById('pdRxCount');
+  if(!list) return;
+  const btn = document.getElementById('pdRxMore');
+  if(btn){ btn.disabled = true; btn.textContent = 'Reading\u2026'; }
+  let all = null;
+  try{ all = await loadPrescriptions(); }
+  catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    all = null;
+  }
+  if(all === null){
+    list.innerHTML = '<div class="pd-unknown">Prescriptions cannot be shown right now'
+      + ' \u2014 the clinic PC has not written its index since the last change.</div>';
+    if(count) count.textContent = '\u2014';
+    return;
+  }
+  const mine = all.filter(r => r && String(r.patientId) === String(patientId));
+  /* Struck ones sink rather than disappear, newest first within each group —
+     the same rule the notes above follow. */
+  const byDate = (a, b) => String(b.date || b.createdAt || '')
+    .localeCompare(String(a.date || a.createdAt || ''));
+  mine.sort((a, b) => (rxIsStruck(a) ? 1 : 0) - (rxIsStruck(b) ? 1 : 0) || byDate(a, b));
+  if(count) count.textContent = String(mine.filter(r => !rxIsStruck(r)).length);
+  if(mine.length === 0){
+    list.innerHTML = '<div class="empty-state">No prescriptions on record.</div>';
+    return;
+  }
+  rxOpenList = mine;
+  list.innerHTML = mine.map((r, i) =>
+    '<div class="pay-row tappable' + (rxIsStruck(r) ? ' rx-struck' : '') + '" data-rx="' + i + '">'
+    + '<div class="pay-main">'
+      + '<div class="pay-name">' + escapeHtml(rxWhat(r)) + '</div>'
+      + '<div class="pay-sub">' + escapeHtml(rxDayLabel(r)) + ' \u00b7 '
+      + escapeHtml(rxMedCount(r)) + (rxIsStruck(r) ? ' \u00b7 struck' : '') + '</div>'
+    + '</div>'
+    + '<div class="pay-right"><div class="bill-status">read</div></div>'
+  + '</div>').join('');
+  list.querySelectorAll('.pay-row[data-rx]').forEach(row => {
+    row.addEventListener('click', () => openRxSheet(Number(row.getAttribute('data-rx'))));
+  });
+}
+
+let rxOpenList = null;
+/* The whole prescription, from the record already in hand — the index holds
+   full records, so opening one costs no second fetch. */
+function openRxSheet(i){
+  const rec = rxOpenList && rxOpenList[i];
+  const el = document.getElementById('pdRxSheet');
+  if(!rec || !el) return;
+  const row = (k, v) => v ? '<div class="rxs-k">' + k + '</div>'
+    + '<div class="rxs-v">' + escapeHtml(v) + '</div>' : '';
+  const meds = ((rec.medicines) || []).filter(m => m && m.name);
+  el.innerHTML =
+      '<div class="rxs-h">' + escapeHtml(rxDayLabel(rec)) + '</div>'
+    + (rxIsStruck(rec) ? '<div class="note-meta">Struck'
+        + (rec.struckReason ? ' \u00b7 ' + escapeHtml(rec.struckReason) : '') + '</div>' : '')
+    + row('Complaints', rec.complaints)
+    + row('Investigations', rec.investigations)
+    + row('Treatment', rec.treatment)
+    + (meds.length
+        ? '<div class="rxs-k">Medicines</div>' + meds.map(m =>
+            '<div class="rxs-med">' + escapeHtml(m.name)
+            + '<div class="rxs-dose">'
+            + escapeHtml([m.dose, m.duration, m.food ? m.food + ' food' : '']
+                .filter(Boolean).join(' \u00b7 ') || '\u2014')
+            + '</div></div>').join('')
+        : '')
+    + row('Advice', rec.advice)
+    + '<div class="rxs-ro">Read only \u2014 this is the clinic\u2019s record</div>'
+    + '<button type="button" class="rxs-close" id="pdRxClose">Close</button>';
+  el.classList.remove('hidden');
+  const c = document.getElementById('pdRxClose');
+  if(c) c.onclick = closeRxSheet;
+}
+function closeRxSheet(){
+  const el = document.getElementById('pdRxSheet');
+  if(el){ el.classList.add('hidden'); el.innerHTML = ''; }
 }
 const VISIT_DAYS_ON_TAP = 10;
 const PATIENT_HITS_SHOWN = 25;
@@ -2820,6 +3190,150 @@ async function renderPatientView(token){
   if(selectedPatientId) return await openPatientDetail(selectedPatientId, token);
   closePatientDetail();
   await runPatientSearch(document.getElementById('patientSearchInput').value, token);
+}
+
+/* ---------------- Tasks (Phase 3) ----------------
+   What is outstanding that is NOT money: treatment somebody was advised and
+   has not had, recall check-ups that have come round, and follow-up calls
+   waiting to be made. Three small settings files, so the whole tab is three
+   reads and no per-record traffic at all.
+
+   The rules below are the desktop's, ported rather than re-derived. Which
+   tasks are OPEN, which are DUE, and which are SLIPPING is decided by
+   txoStatusDef / txoIsDue / txoIsSlipping there, and by the same words here
+   \u2014 a phone that disagreed with the desk about what is overdue would be
+   worse than a phone that showed nothing. */
+const TXO_OPEN_STATUSES = { advised:true, considering:true, booked:true };
+const TXO_SLIPPING_DAYS = 30;
+function txoIsOpenM(o){
+  const s = (o && o.status) || 'advised';
+  return TXO_OPEN_STATUSES[s] === true;
+}
+/* A task HELD while a course of treatment runs is not due, whatever its date
+   says \u2014 the desktop's rule, and the reason it exists is that the patient
+   otherwise appeared as on-hold and due-today on the same morning. */
+function txoIsDueM(o, today){
+  if(!txoIsOpenM(o)) return false;
+  if(o.verifyHeldFrom) return false;
+  if(!o.nextActionDate) return true;
+  return o.nextActionDate <= today;
+}
+function daysBetweenM(a, b){
+  const pa = String(a || '').split('-').map(Number);
+  const pb = String(b || '').split('-').map(Number);
+  if(!pa[0] || !pb[0]) return 0;
+  const da = new Date(pa[0], pa[1] - 1, pa[2]);
+  const db = new Date(pb[0], pb[1] - 1, pb[2]);
+  return Math.round((db - da) / 86400000);
+}
+function txoDaysOverdueM(o, today){
+  if(!o.nextActionDate){
+    const made = o.createdAt ? String(o.createdAt).slice(0, 10) : today;
+    return daysBetweenM(made, today);
+  }
+  return daysBetweenM(o.nextActionDate, today);
+}
+function txoIsSlippingM(o, today){
+  return txoIsDueM(o, today) && txoDaysOverdueM(o, today) >= TXO_SLIPPING_DAYS;
+}
+const RECALL_LABELS = { '3m':'3 month', '6m':'6 month', '12m':'12 month', '1y':'12 month' };
+function txoWhatM(o){
+  if(o && o.kind === 'recall'){
+    return (RECALL_LABELS[o.recallCycle] || '6 month') + ' check up';
+  }
+  return (o && o.procedure) || 'Treatment';
+}
+
+let txoCache = null, txoTried = false;
+let followupsCache = null, followupsTried = false;
+async function loadSettingsList(fileName){
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return [];
+    const fileId = await driveFindChild(settingsId, fileName, false);
+    if(!fileId) return [];
+    const list = await driveReadJson(fileId);
+    return Array.isArray(list) ? list : [];
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    return [];
+  }
+}
+async function loadTreatmentTasks(){
+  if(txoTried) return txoCache;
+  txoCache = await loadSettingsList('treatment-opportunities.json'); txoTried = true; return txoCache;
+}
+async function loadFollowups(){
+  if(followupsTried) return followupsCache;
+  followupsCache = await loadSettingsList('followups.json'); followupsTried = true; return followupsCache;
+}
+
+async function renderTasksView(token){
+  const [tasks, follows, dir] = await Promise.all([
+    loadTreatmentTasks(), loadFollowups(), loadPatientDirectory()
+  ]);
+  if(token !== undefined && !paintAllowed(token)) return;
+  const today = todayStr();
+  const nameOf = id => (dir && dir[String(id)]) || '';
+
+  const open = (tasks || []).filter(txoIsOpenM);
+  const due = open.filter(o => txoIsDueM(o, today));
+  const later = open.filter(o => !txoIsDueM(o, today) && !o.verifyHeldFrom);
+
+  /* Longest waiting at the top. The desktop sorts its queue the same way, and
+     for the same reason: the task nobody has got to in five weeks is the one
+     that has stopped being a plan. */
+  due.sort((a, b) => txoDaysOverdueM(b, today) - txoDaysOverdueM(a, today));
+  later.sort((a, b) => String(a.nextActionDate || '').localeCompare(String(b.nextActionDate || '')));
+
+  rollCount('tasksDueCount', due.length);
+  const slipping = due.filter(o => txoIsSlippingM(o, today)).length;
+  document.getElementById('tasksSub').textContent = slipping
+    ? slipping + ' waiting more than a month'
+    : (due.length ? 'nothing waiting more than a month' : 'nothing due');
+  document.getElementById('tasksOpenCount').textContent = String(due.length);
+  document.getElementById('tasksLaterCount').textContent = String(later.length);
+
+  const taskRow = (o, showOverdue) => {
+    const over = txoDaysOverdueM(o, today);
+    const when = showOverdue
+      ? (over <= 0 ? 'due today' : over + (over === 1 ? ' day' : ' days') + ' overdue')
+      : (o.nextActionDate ? 'due ' + escapeHtml(o.nextActionDate) : 'no date');
+    const nm = nameOf(o.patientId) || o.patientName || 'Unknown patient';
+    return '<div class="pay-row' + (showOverdue && txoIsSlippingM(o, today) ? ' task-slipping' : '') + '">'
+      + '<div class="pay-main">'
+        + '<div class="pay-name">' + escapeHtml(nm) + '</div>'
+        + '<div class="pay-sub">' + escapeHtml(txoWhatM(o)) + ' \u00b7 ' + when + '</div>'
+      + '</div>'
+      + '<div class="pay-right"><div class="bill-status">'
+        + escapeHtml(String(o.status || 'advised')) + '</div></div>'
+    + '</div>';
+  };
+  document.getElementById('tasksDueList').innerHTML = due.length
+    ? due.map(o => taskRow(o, true)).join('')
+    : '<div class="empty-state">Nothing due \u2014 the list is clear.</div>';
+  document.getElementById('tasksLaterList').innerHTML = later.length
+    ? later.map(o => taskRow(o, false)).join('')
+    : '<div class="empty-state">Nothing dated ahead.</div>';
+
+  /* Follow-up calls. Struck ones are gone from this list because a struck
+     follow-up is a call somebody decided not to make \u2014 unlike a struck note,
+     which is a correction to the record and stays visible. */
+  const liveFollows = (follows || []).filter(f => f && !f.doneAt && !f.struckAt);
+  liveFollows.sort((a, b) => String(a.dueDate || a.date || '')
+    .localeCompare(String(b.dueDate || b.date || '')));
+  document.getElementById('tasksFollowCount').textContent = String(liveFollows.length);
+  document.getElementById('tasksFollowList').innerHTML = liveFollows.length
+    ? liveFollows.map(f => {
+        const nm = nameOf(f.patientId) || f.patientName || 'Unknown patient';
+        const when = f.dueDate || f.date || '';
+        return '<div class="pay-row"><div class="pay-main">'
+          + '<div class="pay-name">' + escapeHtml(nm) + '</div>'
+          + '<div class="pay-sub">' + escapeHtml(f.reason || f.note || 'Follow-up')
+          + (when ? ' \u00b7 ' + escapeHtml(when) : '') + '</div>'
+        + '</div></div>';
+      }).join('')
+    : '<div class="empty-state">No calls waiting.</div>';
 }
 
 /* ---------------- Outstanding ---------------- */
@@ -3053,6 +3567,12 @@ window.addEventListener('popstate', () => {
      so Back must dismiss the sheet first and only then leave the patient. */
   const sheetOpen = !document.getElementById('billModal').classList.contains('hidden');
   if(sheetOpen){ closeBillSheet(); return; }
+  /* THREE layers now: a prescription sits on top of the patient view too, and
+     Back must peel one at a time. Left OUT of the bill sheet's branch above
+     deliberately — the two never open together, and an else-if here would
+     make that an assumption rather than a fact. */
+  const rxOpen = !document.getElementById('pdRxSheet').classList.contains('hidden');
+  if(rxOpen){ closeRxSheet(); return; }
   if(selectedPatientId) closePatientDetail();
 });
 
@@ -3080,6 +3600,9 @@ function wireCollapsibleSection(headId, listId, storeKey){
 }
 wireCollapsibleSection('paySecHead',  'payList',     'echoDental_dayPayFolded');
 wireCollapsibleSection('billSecHead', 'dayBillList', 'echoDental_dayBillFolded');
+/* Folded by default is deliberate for this one: the Day tab is opened to see
+   the money, and a list of names above the fold pushes it down. */
+wireCollapsibleSection('visitSecHead', 'dayVisitList', 'echoDental_dayVisitFolded');
 
 document.getElementById('prevDayBtn').addEventListener('click',
   () => navigate(() => { currentDate = addDays(currentDate, -1); }));
