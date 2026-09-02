@@ -505,6 +505,24 @@
     overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
   }
   .tabbar::-webkit-scrollbar{ display:none; }
+  /* THE PERIOD CHIPS. They were given .cb-filter, a class this page does not
+     have — so they rendered as the browser's default buttons: grey, boxy,
+     and nothing like the tab bar above them. Built from the same tokens the
+     tabs use instead of borrowing a name from the desktop. */
+  .period-chips{
+    display:flex; gap:6px; margin:12px 16px 0;
+  }
+  .period-chip{
+    flex:1; border:1px solid var(--line); background:var(--white);
+    color:var(--muted); border-radius:999px; padding:8px 4px;
+    font-family:'Jost', sans-serif; font-size:0.74rem; font-weight:600;
+    letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;
+    transition:background .18s ease, color .18s ease, border-color .18s ease;
+  }
+  .period-chip.active{
+    background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+    color:#fff; border-color:transparent;
+  }
   .tab-btn{
     flex:0 0 auto; white-space:nowrap; border:none; background:none; padding:10px 12px; border-radius:11px;
     font-family:'Jost', sans-serif; font-size:0.84rem; font-weight:500; letter-spacing:0.09em;
@@ -863,10 +881,10 @@
        chosen above it. The two blocks below are the ORIGINAL Day and Month
        views, unchanged and simply shown one at a time — rewriting them into
        one would have been a second copy of money code for no gain. -->
-  <div class="cb-filters" id="collectionChips" style="margin:10px 16px 0;">
-    <button class="cb-filter active" data-cperiod="day" onclick="setCollectionPeriod('day')">Day</button>
-    <button class="cb-filter" data-cperiod="month" onclick="setCollectionPeriod('month')">Month</button>
-    <button class="cb-filter" data-cperiod="year" onclick="setCollectionPeriod('year')">Year</button>
+  <div class="period-chips" id="collectionChips">
+    <button class="period-chip active" data-cperiod="day" onclick="setCollectionPeriod('day')">Day</button>
+    <button class="period-chip" data-cperiod="month" onclick="setCollectionPeriod('month')">Month</button>
+    <button class="period-chip" data-cperiod="year" onclick="setCollectionPeriod('year')">Year</button>
   </div>
   <div id="viewDay">
     <div class="daynav">
@@ -2048,7 +2066,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v2.0';   // Collection: Day, Month and Year on one page.
+const APP_VERSION = 'v2.1';   // the period chips work and look right; Year stops showing month money.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -2147,10 +2165,19 @@ function setCollectionPeriod(mode){
      and then tapping Year should land on this year, not 2025. */
   if(mode === 'month') monthAnchor = todayStr().slice(0, 7);
   if(mode === 'year')  yearAnchor  = todayStr().slice(0, 4);
-  document.querySelectorAll('#collectionChips .cb-filter').forEach(b => {
+  document.querySelectorAll('#collectionChips .period-chip').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-cperiod') === mode);
   });
-  render();
+  /* renderCurrentView, not render — there is no render() on this page. The
+     chips threw on every tap and did nothing at all, which is why they
+     looked dead. */
+  showLoading(true);
+  renderCurrentView()
+    .catch(err => {
+      if(err && err.name === 'TokenExpiredError'){ requestTokenSilently(); return; }
+      showError(err.message || String(err));
+    })
+    .finally(() => showLoading(false));
 }
 
 async function renderDayView(token){
@@ -2369,21 +2396,42 @@ async function renderMonthView(token){
      loaded for the list above, so this costs no extra Drive traffic. */
   const allEntries = await loadAllEntries();
   const allBills = await loadBills();
-  const cmp = monthCompareRange(monthAnchor);
-  const nowSums = sumMonth(allEntries, allBills, monthAnchor, cmp.isCurrent ? cmp.dayOfMonth : 0);
-  const prevSums = sumMonth(allEntries, allBills, cmp.prev, cmp.isCurrent ? cmp.dayOfMonth : 0);
+  /* THE COMPARISON IS MONTH-ONLY, and putting a year inside it was showing
+     SEPTEMBER'S money under a 2026 heading — Billed ₹65,073, Collected
+     ₹21,896 and "vs 1–2 August" beside a year total of ₹19 lakh. Two
+     different spans in one card, and nothing said so.
 
-  rollMoney('monthBilled', nowSums.billed);
-  rollMoney('monthCollected', nowSums.collected);
-  document.getElementById('monthBilledTrend').innerHTML = trendHtml(nowSums.billed, prevSums.billed);
-  document.getElementById('monthCollectedTrend').innerHTML = trendHtml(nowSums.collected, prevSums.collected);
+     A year comparison would need its own basis (this year to date vs last
+     year to the same day) and monthCompareRange does not do that. Rather
+     than invent one on the way past, the row is HIDDEN on a year: an absent
+     figure asks a question, a wrong one answers it. */
+  const trendRow = document.getElementById('monthBilledRow');
+  const heroTrend = document.getElementById('monthTrend');
+  const heroLabel = document.getElementById('monthTotalLabel');
+  if(heroLabel) heroLabel.textContent = isYear ? 'Collected this year' : 'Collected this month';
+  if(isYear){
+    if(trendRow) trendRow.style.display = 'none';
+    if(heroTrend) heroTrend.innerHTML = '';
+  } else {
+    if(trendRow) trendRow.style.display = '';
+    const cmp = monthCompareRange(monthAnchor);
+    const nowSums  = sumMonth(allEntries, allBills, monthAnchor, cmp.isCurrent ? cmp.dayOfMonth : 0);
+    const prevSums = sumMonth(allEntries, allBills, cmp.prev,    cmp.isCurrent ? cmp.dayOfMonth : 0);
+    rollMoney('monthBilled', nowSums.billed);
+    rollMoney('monthCollected', nowSums.collected);
+    document.getElementById('monthBilledTrend').innerHTML =
+      trendHtml(nowSums.billed, prevSums.billed);
+    document.getElementById('monthCollectedTrend').innerHTML =
+      trendHtml(nowSums.collected, prevSums.collected);
+    /* Like for like: a month still running is compared against the same days
+       of the one before, not against its whole. */
+    const basis = cmp.isCurrent
+      ? 'vs 1\u2013' + cmp.dayOfMonth + ' ' + monthLabelOf(cmp.prev).split(' ')[0]
+      : 'vs ' + monthLabelOf(cmp.prev).split(' ')[0];
+    if(heroTrend) heroTrend.innerHTML = trendHtml(nowSums.collected, prevSums.collected)
+      + ' <span class="muted">' + escapeHtml(basis) + '</span>';
+  }
 
-  const basis = cmp.isCurrent
-    ? 'vs 1\u2013' + cmp.dayOfMonth + ' ' + monthLabelOf(cmp.prev).split(' ')[0]
-    : 'vs ' + monthLabelOf(cmp.prev).split(' ')[0];
-  document.getElementById('monthTrend').innerHTML =
-    trendHtml(nowSums.collected, prevSums.collected)
-    + ' <span class="muted">' + escapeHtml(basis) + '</span>';
   rollMoney('monthCash', t.cash);
   rollMoney('monthUpi', t.upi);
   rollMoney('monthCard', t.card);
