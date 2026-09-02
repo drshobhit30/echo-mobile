@@ -1913,7 +1913,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v1.1';   // v1.0 plus the patient's record. Bump WITH the worker's cache, or the phone keeps the old page.
+const APP_VERSION = 'v1.2';   // v1.1 plus a search that finds every patient. Bump WITH the worker's cache, or the phone keeps the old page.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -2233,6 +2233,23 @@ async function loadPatientCreated(){
   createdCache = await loadSettingsMap('patient-created-at.json'); createdTried = true; return createdCache;
 }
 
+/* THE PATIENT DIRECTORY \u2014 every patient the clinic has, id to name.
+   The search used to be built from bills and payments alone, on the
+   reasoning that a patient with no money history had nothing to show. That
+   was true while this page showed only money. It stopped being true the day
+   the patient screen grew visits, lab cases, a number to ring and a
+   registration date: somebody registered last week who has not been billed
+   yet has a whole record here and could not be found by name at all.
+
+   One small file, read once, and only on the Patient tab like the rest. */
+let directoryCache = null, directoryTried = false;
+async function loadPatientDirectory(){
+  if(directoryTried) return directoryCache;
+  directoryTried = true;
+  directoryCache = await loadSettingsMap('patients.json');
+  return directoryCache;
+}
+
 /* Ported from the desktop verbatim: a struck number is not a number, and the
    one number anything may use is the explicit primary, failing that the
    oldest live one — never an arbitrary one. */
@@ -2387,7 +2404,9 @@ let patientSearchTimer = null;
 let selectedPatientId = null;
 
 async function patientIndex(){
-  const [entries, bills] = await Promise.all([loadAllEntries(), loadBills()]);
+  const [entries, bills, dir] = await Promise.all([
+    loadAllEntries(), loadBills(), loadPatientDirectory()
+  ]);
   const people = {};
   const note = (id, name, date) => {
     if(!id) return;
@@ -2414,6 +2433,17 @@ async function patientIndex(){
       if(it && !isVoidedItem(it)) note(it.patientId, it.patientName, e.date);
     });
   });
+  /* THE DIRECTORY LAST, so its name wins. A bill carries the name as it was
+     typed on the day it was raised; patients.json carries the name the
+     clinic uses now. When those differ it is almost always because the name
+     was corrected, and the phone should agree with the screen at the desk.
+     lastDate is deliberately NOT set here — being in the directory is not a
+     visit, and "last seen" must keep meaning last seen. */
+  Object.keys(dir || {}).forEach(id => {
+    if(!id) return;
+    if(!people[id]) people[id] = { id, name: '', lastDate: '' };
+    if(dir[id]) people[id].name = String(dir[id]);
+  });
   return { people, entries, bills };
 }
 
@@ -2426,12 +2456,20 @@ async function runPatientSearch(q, token){
   }
   const { people } = await patientIndex();
   if(token !== undefined && !paintAllowed(token)) return;
-  const hits = Object.keys(people).map(id => people[id])
+  const found = Object.keys(people).map(id => people[id])
     .filter(p => (p.name || '').toLowerCase().includes(query) || String(p.id).includes(query))
-    .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
-    .slice(0, 20);
-  if(hits.length === 0){
-    box.innerHTML = '<div class="search-hint">No patient found with money on record for that.</div>';
+    /* Most recently seen first, then everyone the clinic has not billed or
+       taken money from — alphabetically among themselves rather than in
+       whatever order the directory file happens to list them. */
+    .sort((a, b) => {
+      const r = (b.lastDate || '').localeCompare(a.lastDate || '');
+      if(r !== 0) return r;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  const hits = found.slice(0, PATIENT_HITS_SHOWN);
+  const hidden = found.length - hits.length;
+  if(found.length === 0){
+    box.innerHTML = '<div class="search-hint">Nobody found for that name or ID.</div>';
     return;
   }
   box.innerHTML = '<div class="pay-list">' + hits.map(p =>
@@ -2442,7 +2480,15 @@ async function runPatientSearch(q, token){
         + (p.lastDate ? ' \u00b7 last seen ' + escapeHtml(fullDateLabel(p.lastDate)) : '') + '</div>'
     + '</div>'
     + '<div class="pay-right"><div class="bill-status">view</div></div>'
-  + '</div>').join('') + '</div>';
+  + '</div>').join('') + '</div>'
+  /* A LIST THAT STOPS MUST SAY SO. It was capped at twenty in silence, so a
+     common surname quietly dropped the rest and the phone looked as though
+     it simply did not have them. */
+  + (hidden > 0
+      ? '<div class="search-hint">' + hidden + ' more '
+        + (hidden === 1 ? 'patient matches' : 'patients match')
+        + ' — type more of the name, or the ID.</div>'
+      : '');
   box.querySelectorAll('.pay-row[data-pid]').forEach(row => {
     row.addEventListener('click', () => openPatientDetail(row.getAttribute('data-pid')));
   });
@@ -2721,6 +2767,7 @@ async function paintPatientExtras(patientId, token){
   }
 }
 const VISIT_DAYS_ON_TAP = 10;
+const PATIENT_HITS_SHOWN = 25;
 function shortDateMobile(dateStr){
   const [y, m, d] = String(dateStr).split('-').map(Number);
   if(!y || !m || !d) return String(dateStr);
