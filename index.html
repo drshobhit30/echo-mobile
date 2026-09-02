@@ -851,13 +851,23 @@
   <!-- Three views of the same money: a day, a month, a chosen period.
        Read-only throughout — this is the owner's pocket window, not a till. -->
   <div class="tabbar">
-    <button class="tab-btn active" data-view="day">Day</button>
-    <button class="tab-btn" data-view="month">Month</button>
+    <button class="tab-btn active" data-view="collection">Collection</button>
     <button class="tab-btn" data-view="patient">Patient</button>
-    <button class="tab-btn" data-view="tasks">Tasks</button>
+    <button class="tab-btn" data-view="lab">Lab</button>
   </div>
 
   <!-- ---------------- DAY ---------------- -->
+  <div id="viewCollection">
+  <!-- DAY AND MONTH WERE TWO TABS ASKING THE SAME QUESTION over different
+       spans, and Year was not asked at all. One page now, with the period
+       chosen above it. The two blocks below are the ORIGINAL Day and Month
+       views, unchanged and simply shown one at a time — rewriting them into
+       one would have been a second copy of money code for no gain. -->
+  <div class="cb-filters" id="collectionChips" style="margin:10px 16px 0;">
+    <button class="cb-filter active" data-cperiod="day" onclick="setCollectionPeriod('day')">Day</button>
+    <button class="cb-filter" data-cperiod="month" onclick="setCollectionPeriod('month')">Month</button>
+    <button class="cb-filter" data-cperiod="year" onclick="setCollectionPeriod('year')">Year</button>
+  </div>
   <div id="viewDay">
     <div class="daynav">
       <button class="daynav-btn" id="prevDayBtn">&lsaquo;</button>
@@ -912,7 +922,7 @@
     <div class="daynav">
       <button class="daynav-btn" id="prevMonthBtn">&lsaquo;</button>
       <div class="daynav-label">
-        <div class="eyebrow">Month</div>
+        <div class="eyebrow" id="monthLabelEyebrow">Month</div>
         <div class="date" id="monthLabel">&mdash;</div>
       </div>
       <button class="daynav-btn" id="nextMonthBtn">&rsaquo;</button>
@@ -948,7 +958,7 @@
     </div>
 
     <div class="section-title">
-      <h3>&#128197; Day by day</h3>
+      <h3 id="monthDayHead">&#128197; Day by day</h3>
       <div class="count" id="monthDayCount">0</div>
     </div>
     <div class="pay-list" id="monthDayList"></div>
@@ -958,6 +968,8 @@
        The question the phone could not answer before: a patient rings while
        you are out and asks what they owe. Everything needed is already
        fetched for the other tabs, so this costs no extra Drive traffic. -->
+  </div>
+
   <div id="viewPatient" class="hidden">
     <div class="patient-search">
       <input type="search" id="patientSearchInput" placeholder="Name or patient ID"
@@ -969,10 +981,15 @@
          Billed lived here and was removed — over a lifetime those two
          figures only ever restate the balance below them, and the Day and
          Month tabs already carry the period money. -->
-    <div class="section-title">
+    <div class="section-title collapsible" id="pendSecHead" role="button" aria-expanded="true">
       <h3>&#9203; Outstanding</h3>
       <div class="count" id="pendingCount">0</div>
+      <span class="sec-chev" aria-hidden="true">&#9662;</span>
     </div>
+    <!-- FOLDED AS ONE. The hero, the two kind tiles and the list are the same
+         answer at three depths; folding only the list would leave a total and
+         a split hanging over nothing. -->
+    <div id="pendingFold">
     <div class="pending-hero">
       <div class="amount" id="pendingTotal">&#8377;0</div>
       <div class="label">Total owed by patients &middot; lifetime</div>
@@ -995,6 +1012,7 @@
     </div>
     <div class="pay-list" id="pendingList"></div>
     <div class="footnote">Advances (patients in credit) are listed separately at the end.</div>
+    </div>
   </div>
     <div id="patientDetail" class="hidden">
       <div class="pd-head">
@@ -1056,32 +1074,28 @@
   <!-- ---------------- REPORT ---------------- -->
   
 
-  <!-- ---------------- TASKS ----------------
-       What is outstanding that is NOT money. Three small settings files, so
-       the whole tab is three reads: treatment the patient was advised and has
-       not had, recalls that have come round, and follow-up calls waiting.
-       Read only, like everything here — nothing is ticked off from a phone. -->
-  <div id="viewTasks" class="hidden">
+  <!-- ---------------- LAB ----------------
+       The lab tracker, read only. One fetch: labcases-index carries every
+       case, so this whole tab is a single file and no per-case traffic.
+       Open cases lead — a case still at the lab is the one worth knowing
+       about away from the clinic; a delivered one is history. -->
+  <div id="viewLab" class="hidden">
     <div class="total-hero">
-      <div class="amount" id="tasksDueCount">0</div>
-      <div class="label">Due now</div>
+      <div class="amount" id="labOpenCount">0</div>
+      <div class="label">Still out</div>
     </div>
-    <div class="pd-sub" id="tasksSub">&mdash;</div>
+    <div class="pd-sub" id="labSub">&mdash;</div>
     <div class="section-title">
-      <h3>&#9203; Due, oldest first</h3>
-      <div class="count" id="tasksOpenCount">0</div>
+      <h3>&#129529; At the lab</h3>
+      <div class="count" id="labOutCount">0</div>
     </div>
-    <div class="pay-list" id="tasksDueList"></div>
+    <div class="pay-list" id="labOutList"></div>
     <div class="section-title">
-      <h3>&#128222; Follow-up calls</h3>
-      <div class="count" id="tasksFollowCount">0</div>
+      <h3>&#9989; Recently delivered</h3>
+      <div class="count" id="labDoneCount">0</div>
     </div>
-    <div class="pay-list" id="tasksFollowList"></div>
-    <div class="section-title">
-      <h3>&#128197; Coming up</h3>
-      <div class="count" id="tasksLaterCount">0</div>
-    </div>
-    <div class="pay-list" id="tasksLaterList"></div>
+    <div class="pay-list" id="labDoneList"></div>
+  </div>
 
   <div class="footnote" id="lastSynced"></div>
 </div>
@@ -1990,14 +2004,14 @@ const VIEW_MEMORY_MS = 20 * 60 * 1000;
 /* 'report' is gone — Outstanding lives on the Patient tab now. A phone that
    remembered it falls through to 'day', which the guard below already does
    for any value it does not recognise. */
-const KNOWN_VIEWS = ['day','month','patient','tasks'];
+const KNOWN_VIEWS = ['collection','patient','lab'];
 /* Which tab is open, restored from this phone's own storage the moment the
    state is declared — not later, beside the tab buttons, where it would
    depend on whether boot happens to run before or after that line. By the
    time anything can render, currentView is already right, so the opening
    paint is the tab you left on rather than a flash of Day.
    An unknown or missing value falls through to the 'day' default. */
-let currentView = 'day';
+let currentView = 'collection';
 try{
   const _savedView = localStorage.getItem(VIEW_KEY);
   const _savedAt = Number(localStorage.getItem(VIEW_AT_KEY) || 0);
@@ -2034,7 +2048,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v1.7';   // a visit opens what was written that day. Bump WITH the worker's cache.
+const APP_VERSION = 'v2.0';   // Collection: Day, Month and Year on one page.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -2076,13 +2090,21 @@ function paintAllowed(token){ return token === renderGen; }
 async function renderCurrentView(){
   ensureFreshMoneyData();
   const token = ++renderGen;
-  document.getElementById('viewDay').classList.toggle('hidden', currentView !== 'day');
-  document.getElementById('viewMonth').classList.toggle('hidden', currentView !== 'month');
+  document.getElementById('viewCollection').classList.toggle('hidden', currentView !== 'collection');
+  /* Within Collection the period decides which block shows. Day keeps its
+     own; Month and Year share one, because they are the same summary over a
+     different span. */
+  document.getElementById('viewDay').classList.toggle('hidden',
+    currentView !== 'collection' || collectionPeriod !== 'day');
+  document.getElementById('viewMonth').classList.toggle('hidden',
+    currentView !== 'collection' || collectionPeriod === 'day');
   document.getElementById('viewPatient').classList.toggle('hidden', currentView !== 'patient');
-  document.getElementById('viewTasks').classList.toggle('hidden', currentView !== 'tasks');
-  if(currentView === 'day')     return await renderDayView(token);
-  if(currentView === 'month')   return await renderMonthView(token);
-  if(currentView === 'tasks')   return await renderTasksView(token);
+  document.getElementById('viewLab').classList.toggle('hidden', currentView !== 'lab');
+  if(currentView === 'collection'){
+    return collectionPeriod === 'day' ? await renderDayView(token)
+                                      : await renderMonthView(token);
+  }
+  if(currentView === 'lab')     return await renderLabView(token);
   return await renderPatientView(token);
 }
 
@@ -2114,6 +2136,23 @@ function switchView(view){
 }
 
 /* ---------------- Day ---------------- */
+/* The Collection page's period. Day is the default and stays it: this is the
+   tab opened to see today, and remembering the last period used would mean
+   coming back after a month-end review to August instead. */
+let collectionPeriod = 'day';
+let yearAnchor = todayStr().slice(0, 4);
+function setCollectionPeriod(mode){
+  collectionPeriod = mode;
+  /* Switching to a span returns to the CURRENT one. Stepping back to March
+     and then tapping Year should land on this year, not 2025. */
+  if(mode === 'month') monthAnchor = todayStr().slice(0, 7);
+  if(mode === 'year')  yearAnchor  = todayStr().slice(0, 4);
+  document.querySelectorAll('#collectionChips .cb-filter').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-cperiod') === mode);
+  });
+  render();
+}
+
 async function renderDayView(token){
   /* Two independent reads that used to run one after the other, so the
      screen you open most often waited for the sum of both. */
@@ -2301,10 +2340,18 @@ function trendHtml(now, before){
 }
 
 async function renderMonthView(token){
-  const entries = (await loadAllEntries()).filter(e => e && (e.date||'').slice(0,7) === monthAnchor);
+  /* ONE RENDERER FOR MONTH AND YEAR. The two ask the same question over a
+     different span, and a second copy would drift — the prefix is the only
+     difference, so it is the only thing parameterised. */
+  const anchor = (collectionPeriod === 'year') ? yearAnchor : monthAnchor;
+  const isYear = (collectionPeriod === 'year');
+  const entries = (await loadAllEntries())
+    .filter(e => e && (e.date||'').slice(0, anchor.length) === anchor);
   if(token !== undefined && !paintAllowed(token)) return;
-  document.getElementById('monthLabel').textContent = monthLabelOf(monthAnchor);
-  document.getElementById('nextMonthBtn').disabled = (monthAnchor >= todayStr().slice(0,7));
+  document.getElementById('monthLabel').textContent = isYear ? anchor : monthLabelOf(monthAnchor);
+  const eyebrow = document.getElementById('monthLabelEyebrow');
+  if(eyebrow) eyebrow.textContent = isYear ? 'Year' : 'Month';
+  document.getElementById('nextMonthBtn').disabled = (anchor >= todayStr().slice(0, anchor.length));
 
   const t = { cash:0, upi:0, card:0, bank:0 };
   const perDay = [];
@@ -2342,24 +2389,43 @@ async function renderMonthView(token){
   rollMoney('monthCard', t.card);
   rollMoney('monthBank', t.bank);
 
-  perDay.sort((a,b) => b.date.localeCompare(a.date));   // newest first, like a passbook
-  document.getElementById('monthDayCount').textContent = perDay.length;
+  /* ON A YEAR THE ROWS ARE MONTHS. Three hundred day rows on a phone is a
+     list nobody scrolls, and what a year asks is which months carried it. */
+  let rows = perDay;
+  if(isYear){
+    const byMonth = {};
+    perDay.forEach(d => {
+      const k = d.date.slice(0, 7);
+      const r = byMonth[k] || (byMonth[k] = { date: k, total: 0, count: 0 });
+      r.total += d.total; r.count += d.count;
+    });
+    rows = Object.keys(byMonth).map(k => byMonth[k]);
+  }
+  rows.sort((a,b) => b.date.localeCompare(a.date));   // newest first, like a passbook
+  document.getElementById('monthDayCount').textContent = rows.length;
+  const dayHead = document.getElementById('monthDayHead');
+  if(dayHead) dayHead.textContent = isYear ? '\uD83D\uDCC5 By month' : '\uD83D\uDCC5 By day';
   const list = document.getElementById('monthDayList');
-  if(perDay.length === 0){
-    list.innerHTML = '<div class="empty-state">No payments recorded this month.</div>';
+  if(rows.length === 0){
+    list.innerHTML = '<div class="empty-state">No payments recorded in this '
+      + (isYear ? 'year' : 'month') + '.</div>';
     return;
   }
-  list.innerHTML = perDay.map(d => {
-    const dd = new Date(d.date + 'T00:00:00');
+  list.innerHTML = rows.map(d => {
+    const dd = new Date((isYear ? d.date + '-01' : d.date) + 'T00:00:00');
     return '<div class="pay-row day-row" data-date="' + d.date + '">'
       + '<div class="pay-main">'
-        + '<div class="pay-name">' + dd.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' }) + '</div>'
+        + '<div class="pay-name">' + (isYear ? dd.toLocaleDateString('en-IN', { month:'long' })
+                  : dd.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' })) + '</div>'
         + '<div class="pay-sub">' + d.count + ' payment' + (d.count === 1 ? '' : 's') + '</div>'
       + '</div>'
       + '<div class="pay-right"><div class="pay-amt">' + fmtINR(d.total) + '</div></div>'
     + '</div>';
   }).join('');
   // Tapping a day opens it in the Day view — the obvious gesture must work.
+  /* Only a DAY row opens the day. A month row has no day to open, and
+     wiring it would jump to the 1st, which nobody asked for. */
+  if(isYear) return;
   list.querySelectorAll('.day-row').forEach(row => {
     row.addEventListener('click', () => {
       currentDate = row.getAttribute('data-date');
@@ -2517,11 +2583,25 @@ async function loadVisitsIndex(){
     if(!cachedVisitsFolderId) cachedVisitsFolderId = await driveFindChild(driveFolderId, 'visits', true);
     if(!cachedVisitsFolderId) return (visitsIdxCache = null);
     const files = await driveListChildren(cachedVisitsFolderId);
-    const onDisk = files.map(f => (/^(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name || '') || [])[1])
-                        .filter(Boolean).sort();
-    const inIndex = Object.keys(idx).sort();
-    if(onDisk.length !== inIndex.length) return (visitsIdxCache = null);
-    for(let i = 0; i < onDisk.length; i++) if(onDisk[i] !== inIndex[i]) return (visitsIdxCache = null);
+    const onDisk = new Set(files
+      .map(f => (/^(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name || '') || [])[1])
+      .filter(Boolean));
+    /* EVERY INDEXED DAY MUST HAVE A FILE, but not every file needs an entry.
+
+       The desktop DELETES a day from this index when it has no live visits
+       left — all removed, or the day emptied — while the day's file stays in
+       the folder. Demanding the two sets match exactly meant one such day
+       made them differ for ever, and the phone said it could not show visits
+       from then on, permanently, on every patient. That is the message the
+       clinic saw.
+
+       A file with no entry is therefore not a fault: it is a day the desktop
+       is telling us has nobody on it. An ENTRY WITH NO FILE still is — that
+       is an index describing a folder that has moved on, which is what this
+       check exists to catch. */
+    for(const day of Object.keys(idx)){
+      if(!onDisk.has(day)) return (visitsIdxCache = null);
+    }
     visitsFileIds = {};
     files.forEach(f => {
       const m = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name || '');
@@ -3356,148 +3436,96 @@ async function renderPendingBlock(token){
   renderPending(computePendingFromData(bills, entries), orthoIds);
 }
 
-/* ---------------- Tasks (Phase 3) ----------------
-   What is outstanding that is NOT money: treatment somebody was advised and
-   has not had, recall check-ups that have come round, and follow-up calls
-   waiting to be made. Three small settings files, so the whole tab is three
-   reads and no per-record traffic at all.
+/* ---------------- Lab ----------------
+   The lab tracker, read only. labcases-index carries the full records, so
+   the whole tab is ONE fetch and no per-case traffic — the same file the
+   patient screen already filters, and it is cached after either.
 
-   The rules below are the desktop's, ported rather than re-derived. Which
-   tasks are OPEN, which are DUE, and which are SLIPPING is decided by
-   txoStatusDef / txoIsDue / txoIsSlipping there, and by the same words here
-   \u2014 a phone that disagreed with the desk about what is overdue would be
-   worse than a phone that showed nothing. */
-const TXO_OPEN_STATUSES = { advised:true, considering:true, booked:true };
-const TXO_SLIPPING_DAYS = 30;
-function txoIsOpenM(o){
-  const s = (o && o.status) || 'advised';
-  return TXO_OPEN_STATUSES[s] === true;
+   Chasing a lab happens at the clinic. What this answers away from it is
+   "what is still out, and how long has it been" — so open cases lead and
+   the delivered ones sit behind them as history. */
+const LAB_RECENT_DONE = 15;
+async function renderLabView(token){
+  let labs = null;
+  try{ labs = await loadLabCases(); }
+  catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    labs = null;
+  }
+  if(token !== undefined && !paintAllowed(token)) return;
+  const outList = document.getElementById('labOutList');
+  const doneList = document.getElementById('labDoneList');
+  if(!outList || !doneList) return;
+
+  /* NULL IS NOT EMPTY. A verified index that disagrees with its folder means
+     the phone cannot say what the lab has — which is a different sentence
+     from "nothing is out", and the wrong one would send somebody to the desk
+     believing the tracker was clear. */
+  if(labs === null){
+    rollCount('labOpenCount', 0);
+    document.getElementById('labOpenCount').textContent = '\u2014';
+    document.getElementById('labSub').textContent =
+      'Cannot be shown \u2014 the clinic PC has not written its index since the last change.';
+    document.getElementById('labOutCount').textContent = '\u2014';
+    document.getElementById('labDoneCount').textContent = '\u2014';
+    outList.innerHTML = '';
+    doneList.innerHTML = '';
+    return;
+  }
+
+  let dir = {};
+  try{ dir = (await loadPatientDirectory()) || {}; }catch(e){ dir = {}; }
+  if(token !== undefined && !paintAllowed(token)) return;
+
+  const open = [], done = [];
+  labs.forEach(c => {
+    if(!c) return;
+    (labStageOf(c).key === 'delivered' ? done : open).push(c);
+  });
+  /* Longest away first. A case sent three weeks ago is the one to ask about,
+     not the one sent yesterday. */
+  open.sort((a, b) => String(a.dateSent || a.dateLogged || '')
+    .localeCompare(String(b.dateSent || b.dateLogged || '')));
+  done.sort((a, b) => String(b.dateDelivered || '').localeCompare(String(a.dateDelivered || '')));
+
+  rollCount('labOpenCount', open.length);
+  const waiting = open.filter(c => labStageOf(c).key === 'logged').length;
+  document.getElementById('labSub').textContent = open.length
+    ? (waiting ? waiting + ' still waiting to be picked up' : 'all of them are with the lab')
+    : 'nothing is out';
+  document.getElementById('labOutCount').textContent = String(open.length);
+  document.getElementById('labDoneCount').textContent = String(Math.min(done.length, LAB_RECENT_DONE));
+
+  const nameOf = c => (dir && dir[String(c.patientId)]) || c.patientName || 'Unknown patient';
+  const row = (c, showAge) => {
+    const st = labStageOf(c);
+    const since = c.dateSent || c.dateLogged || '';
+    const days = since ? daysBetweenMobile(since, todayStr()) : null;
+    return '<div class="pay-row"><div class="pay-main">'
+      + '<div class="pay-name">' + escapeHtml(nameOf(c)) + '</div>'
+      + '<div class="pay-sub">' + escapeHtml(c.workType || 'Lab case')
+      + ' \u00b7 ' + escapeHtml(st.label)
+      + (c.lab ? ' \u00b7 ' + escapeHtml(c.lab) : '') + '</div>'
+    + '</div>'
+    + (showAge && days !== null
+        ? '<div class="pay-right"><div class="bill-status">' + days + 'd</div></div>' : '')
+  + '</div>';
+  };
+  outList.innerHTML = open.length
+    ? open.map(c => row(c, true)).join('')
+    : '<div class="empty-state">Nothing is at the lab.</div>';
+  doneList.innerHTML = done.length
+    ? done.slice(0, LAB_RECENT_DONE).map(c => row(c, false)).join('')
+      + (done.length > LAB_RECENT_DONE
+          ? '<div class="pd-unknown">' + (done.length - LAB_RECENT_DONE)
+            + ' older cases not shown.</div>' : '')
+    : '<div class="empty-state">Nothing delivered yet.</div>';
 }
-/* A task HELD while a course of treatment runs is not due, whatever its date
-   says \u2014 the desktop's rule, and the reason it exists is that the patient
-   otherwise appeared as on-hold and due-today on the same morning. */
-function txoIsDueM(o, today){
-  if(!txoIsOpenM(o)) return false;
-  if(o.verifyHeldFrom) return false;
-  if(!o.nextActionDate) return true;
-  return o.nextActionDate <= today;
-}
-function daysBetweenM(a, b){
+function daysBetweenMobile(a, b){
   const pa = String(a || '').split('-').map(Number);
   const pb = String(b || '').split('-').map(Number);
   if(!pa[0] || !pb[0]) return 0;
-  const da = new Date(pa[0], pa[1] - 1, pa[2]);
-  const db = new Date(pb[0], pb[1] - 1, pb[2]);
-  return Math.round((db - da) / 86400000);
-}
-function txoDaysOverdueM(o, today){
-  if(!o.nextActionDate){
-    const made = o.createdAt ? String(o.createdAt).slice(0, 10) : today;
-    return daysBetweenM(made, today);
-  }
-  return daysBetweenM(o.nextActionDate, today);
-}
-function txoIsSlippingM(o, today){
-  return txoIsDueM(o, today) && txoDaysOverdueM(o, today) >= TXO_SLIPPING_DAYS;
-}
-const RECALL_LABELS = { '3m':'3 month', '6m':'6 month', '12m':'12 month', '1y':'12 month' };
-function txoWhatM(o){
-  if(o && o.kind === 'recall'){
-    return (RECALL_LABELS[o.recallCycle] || '6 month') + ' check up';
-  }
-  return (o && o.procedure) || 'Treatment';
-}
-
-let txoCache = null, txoTried = false;
-let followupsCache = null, followupsTried = false;
-async function loadSettingsList(fileName){
-  try{
-    const settingsId = await getSettingsFolderId();
-    if(!settingsId) return [];
-    const fileId = await driveFindChild(settingsId, fileName, false);
-    if(!fileId) return [];
-    const list = await driveReadJson(fileId);
-    return Array.isArray(list) ? list : [];
-  }catch(err){
-    if(err && err.name === 'TokenExpiredError') throw err;
-    return [];
-  }
-}
-async function loadTreatmentTasks(){
-  if(txoTried) return txoCache;
-  txoCache = await loadSettingsList('treatment-opportunities.json'); txoTried = true; return txoCache;
-}
-async function loadFollowups(){
-  if(followupsTried) return followupsCache;
-  followupsCache = await loadSettingsList('followups.json'); followupsTried = true; return followupsCache;
-}
-
-async function renderTasksView(token){
-  const [tasks, follows, dir] = await Promise.all([
-    loadTreatmentTasks(), loadFollowups(), loadPatientDirectory()
-  ]);
-  if(token !== undefined && !paintAllowed(token)) return;
-  const today = todayStr();
-  const nameOf = id => (dir && dir[String(id)]) || '';
-
-  const open = (tasks || []).filter(txoIsOpenM);
-  const due = open.filter(o => txoIsDueM(o, today));
-  const later = open.filter(o => !txoIsDueM(o, today) && !o.verifyHeldFrom);
-
-  /* Longest waiting at the top. The desktop sorts its queue the same way, and
-     for the same reason: the task nobody has got to in five weeks is the one
-     that has stopped being a plan. */
-  due.sort((a, b) => txoDaysOverdueM(b, today) - txoDaysOverdueM(a, today));
-  later.sort((a, b) => String(a.nextActionDate || '').localeCompare(String(b.nextActionDate || '')));
-
-  rollCount('tasksDueCount', due.length);
-  const slipping = due.filter(o => txoIsSlippingM(o, today)).length;
-  document.getElementById('tasksSub').textContent = slipping
-    ? slipping + ' waiting more than a month'
-    : (due.length ? 'nothing waiting more than a month' : 'nothing due');
-  document.getElementById('tasksOpenCount').textContent = String(due.length);
-  document.getElementById('tasksLaterCount').textContent = String(later.length);
-
-  const taskRow = (o, showOverdue) => {
-    const over = txoDaysOverdueM(o, today);
-    const when = showOverdue
-      ? (over <= 0 ? 'due today' : over + (over === 1 ? ' day' : ' days') + ' overdue')
-      : (o.nextActionDate ? 'due ' + escapeHtml(o.nextActionDate) : 'no date');
-    const nm = nameOf(o.patientId) || o.patientName || 'Unknown patient';
-    return '<div class="pay-row' + (showOverdue && txoIsSlippingM(o, today) ? ' task-slipping' : '') + '">'
-      + '<div class="pay-main">'
-        + '<div class="pay-name">' + escapeHtml(nm) + '</div>'
-        + '<div class="pay-sub">' + escapeHtml(txoWhatM(o)) + ' \u00b7 ' + when + '</div>'
-      + '</div>'
-      + '<div class="pay-right"><div class="bill-status">'
-        + escapeHtml(String(o.status || 'advised')) + '</div></div>'
-    + '</div>';
-  };
-  document.getElementById('tasksDueList').innerHTML = due.length
-    ? due.map(o => taskRow(o, true)).join('')
-    : '<div class="empty-state">Nothing due \u2014 the list is clear.</div>';
-  document.getElementById('tasksLaterList').innerHTML = later.length
-    ? later.map(o => taskRow(o, false)).join('')
-    : '<div class="empty-state">Nothing dated ahead.</div>';
-
-  /* Follow-up calls. Struck ones are gone from this list because a struck
-     follow-up is a call somebody decided not to make \u2014 unlike a struck note,
-     which is a correction to the record and stays visible. */
-  const liveFollows = (follows || []).filter(f => f && !f.doneAt && !f.struckAt);
-  liveFollows.sort((a, b) => String(a.dueDate || a.date || '')
-    .localeCompare(String(b.dueDate || b.date || '')));
-  document.getElementById('tasksFollowCount').textContent = String(liveFollows.length);
-  document.getElementById('tasksFollowList').innerHTML = liveFollows.length
-    ? liveFollows.map(f => {
-        const nm = nameOf(f.patientId) || f.patientName || 'Unknown patient';
-        const when = f.dueDate || f.date || '';
-        return '<div class="pay-row"><div class="pay-main">'
-          + '<div class="pay-name">' + escapeHtml(nm) + '</div>'
-          + '<div class="pay-sub">' + escapeHtml(f.reason || f.note || 'Follow-up')
-          + (when ? ' \u00b7 ' + escapeHtml(when) : '') + '</div>'
-        + '</div></div>';
-      }).join('')
-    : '<div class="empty-state">No calls waiting.</div>';
+  return Math.round((new Date(pb[0], pb[1] - 1, pb[2]) - new Date(pa[0], pa[1] - 1, pa[2])) / 86400000);
 }
 
 /* ---------------- Outstanding ---------------- */
@@ -3771,6 +3799,11 @@ wireCollapsibleSection('billSecHead', 'dayBillList', 'echoDental_dayBillFolded')
 /* Folded by default is deliberate for this one: the Day tab is opened to see
    the money, and a list of names above the fold pushes it down. */
 wireCollapsibleSection('visitSecHead', 'dayVisitList', 'echoDental_dayVisitFolded');
+/* The owed list folds too. It is the Patient tab's default content, which
+   makes it the thing in the way when you came to search for somebody — and
+   the search box sits above it, so folding leaves the tab usable rather than
+   empty. */
+wireCollapsibleSection('pendSecHead', 'pendingFold', 'echoDental_pendingFolded');
 
 document.getElementById('prevDayBtn').addEventListener('click',
   () => navigate(() => { currentDate = addDays(currentDate, -1); }));
@@ -3780,11 +3813,22 @@ document.getElementById('nextDayBtn').addEventListener('click', () => {
 });
 document.getElementById('jumpTodayBtn').addEventListener('click',
   () => navigate(() => { currentDate = todayStr(); }));
-document.getElementById('prevMonthBtn').addEventListener('click',
-  () => navigate(() => { monthAnchor = shiftMonth(monthAnchor, -1); }));
+/* THE ARROWS STEP WHATEVER PERIOD IS CHOSEN. Month and Year share this view,
+   so they share its nav — and a year that stepped by a month would be the
+   quietest possible wrong answer. */
+function stepCollection(dir){
+  navigate(() => {
+    if(collectionPeriod === 'year') yearAnchor = String(Number(yearAnchor) + dir);
+    else monthAnchor = shiftMonth(monthAnchor, dir);
+  });
+}
+document.getElementById('prevMonthBtn').addEventListener('click', () => stepCollection(-1));
 document.getElementById('nextMonthBtn').addEventListener('click', () => {
-  if(monthAnchor >= todayStr().slice(0,7)) return;
-  navigate(() => { monthAnchor = shiftMonth(monthAnchor, 1); });
+  const a = (collectionPeriod === 'year') ? yearAnchor : monthAnchor;
+  /* Never past the current span — a month or year that has not finished must
+     not be steppable into. */
+  if(a >= todayStr().slice(0, a.length)) return;
+  stepCollection(1);
 });
 
 document.getElementById('refreshBtn').addEventListener('click', () => {
