@@ -632,6 +632,8 @@
      rows too put two near-identical states side by side and made neither
      read. */
   .task-slipping .pay-sub{ color:#A32D2D; }
+  .visit-removed .pay-name{ text-decoration:line-through; color:var(--muted); }
+  .visit-removed .pay-sub{ color:var(--muted); }
   .note-body{
     font-family:'Jost', sans-serif; font-size:0.84rem; color:var(--ink);
     line-height:1.45; white-space:pre-wrap;
@@ -2011,7 +2013,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v1.3';   // prescriptions, notes, Tasks, who-came. Bump WITH the worker's cache, or the phone keeps the old page.
+const APP_VERSION = 'v1.4';   // who-came reads removed and past-day visits correctly. Bump WITH the worker's cache.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -2104,6 +2106,31 @@ async function renderDayView(token){
    index needed: the day is already known, so there is nothing to look up.
    Chairs and the live queue stay out by decision; away from the clinic the
    useful thing is the record of who came, not what is happening now. */
+/* Ported from the desktop, and the labels with them. The phone was printing
+   the raw key — so a patient in the chair read as "ongoing" rather than "In
+   chair", which is a word the clinic does not use anywhere else. */
+const VISIT_STATUS_LABELS = { waiting:'Waiting', ongoing:'In chair', done:'Done' };
+function visitStatusLabel(key){
+  return VISIT_STATUS_LABELS[String(key || 'waiting')] || 'Waiting';
+}
+function visitWasRemoved(v){ return !!(v && v.removedAt); }
+/* A visit removed at the desk keeps its last status in the file — it is
+   struck, not deleted — so the raw status of a removed visit still says what
+   the patient was doing when somebody took them off the day. It must never
+   be read as their state.
+
+   And a day that is not today is CLOSED: by the next morning nobody is in a
+   chair, so an unfinished visit is done, marked auto because nobody said so.
+   Without this the phone showed last Tuesday's half-finished visit as still
+   in the chair. visitDayIsOpen is one line on the desktop — the day is open
+   if it is today — and is inlined here for the same reason. */
+function effectiveVisitStatusM(v, dateStr){
+  const raw = (v && v.status) || 'waiting';
+  if(!v || v.removedAt) return { status: raw, auto: false };
+  if(dateStr === todayStr()) return { status: raw, auto: false };
+  if(raw === 'done') return { status: 'done', auto: false };
+  return { status: 'done', auto: true };
+}
 async function renderDayVisits(dateStr, token){
   let rows = [];
   try{
@@ -2123,21 +2150,35 @@ async function renderDayVisits(dateStr, token){
   const dir = await loadPatientDirectory();
   if(token !== undefined && !paintAllowed(token)) return;
   const list = document.getElementById('dayVisitList');
-  rollCount('dayVisitCount', rows.length);
+  /* A REMOVED VISIT IS NOT AN ARRIVAL. It is still shown, struck, because the
+     desk strikes rather than erases — but counting it would over-report who
+     came, and this figure is read as a headcount. */
+  rollCount('dayVisitCount', rows.filter(v => !visitWasRemoved(v)).length);
   if(rows.length === 0){
     list.innerHTML = '<div class="empty-state">Nobody recorded as arriving on this day.</div>';
     return;
   }
-  rows.sort((a, b) => String(a.arrivedAt || '').localeCompare(String(b.arrivedAt || '')));
+  /* Arrivals in the order they arrived; a removed one sinks to the bottom
+     rather than disappearing, like a struck note or a struck prescription. */
+  const byTime = (a, b) => String(a.arrivedAt || '').localeCompare(String(b.arrivedAt || ''));
+  rows.sort((a, b) => (visitWasRemoved(a) ? 1 : 0) - (visitWasRemoved(b) ? 1 : 0) || byTime(a, b));
   list.innerHTML = rows.map(v => {
     const nm = (dir && dir[String(v.patientId)]) || v.patientName || 'Unknown patient';
     const t = v.arrivedAt ? new Date(v.arrivedAt) : null;
     const stamp = (t && !isNaN(t.getTime()))
       ? t.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) : '';
-    return '<div class="pay-row"><div class="pay-main">'
+    const gone = visitWasRemoved(v);
+    const eff = effectiveVisitStatusM(v, dateStr);
+    const said = gone
+      ? 'Removed' + (v.removedReason ? ' \u2014 ' + v.removedReason : '')
+      /* "auto" means the app concluded it, nobody said so. On the desk that
+         shows as a quieter mark; here it is said in words, because a phone
+         has no room for a mark nobody can hover. */
+      : visitStatusLabel(eff.status) + (eff.auto ? ' (day ended)' : '');
+    return '<div class="pay-row' + (gone ? ' visit-removed' : '') + '"><div class="pay-main">'
       + '<div class="pay-name">' + escapeHtml(nm) + '</div>'
       + '<div class="pay-sub">' + escapeHtml(stamp)
-      + (v.status ? (stamp ? ' \u00b7 ' : '') + escapeHtml(String(v.status)) : '')
+      + (stamp ? ' \u00b7 ' : '') + escapeHtml(said)
       + '</div></div></div>';
   }).join('');
 }
