@@ -286,8 +286,11 @@
     background:linear-gradient(90deg, transparent, var(--gold), transparent);
   }
   .total-hero .amount{
-    font-family:'Jost', sans-serif; font-weight:600; font-size:2.3rem;
-    letter-spacing:-0.01em; color:var(--ink); line-height:1.1;
+    /* THE ONE FIGURE THE PAGE EXISTS FOR. Cinzel is the weight the brand
+       already uses on headings, and the tighter tracking keeps a six-digit
+       sum from sprawling on a narrow phone. */
+    font-family:'Cinzel', serif; font-weight:600; font-size:2.5rem;
+    letter-spacing:-0.015em; color:var(--gold-deep); line-height:1.05;
     font-variant-numeric:tabular-nums lining-nums;
   }
   .total-hero .label{
@@ -301,7 +304,7 @@
    they read as crooked. Paired tiles give every figure the same room, and
    fixed rows mean the block is a rectangle whatever the numbers do. */
   .mode-grid{
-    display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    display:grid; grid-template-columns:1fr 1fr; gap:11px;
     /* Equal rows AND equal columns: 1fr columns can still differ by a
        sub-pixel when the container width is odd, which is enough to make one
        tile look a hair wider than its neighbour. minmax(0,1fr) pins them. */
@@ -365,15 +368,18 @@
   /* ---------------- Section ---------------- */
   .section-title{
     display:flex; align-items:center; justify-content:space-between;
-    padding:16px 16px 8px;
+    /* More air ABOVE than below, so a heading sits with its own list rather
+       than floating between two. */
+    padding:26px 16px 10px;
   }
   .section-title h3{
     font-family:'Cinzel', serif; font-size:0.8rem; font-weight:600;
     letter-spacing:0.14em; text-transform:uppercase; color:var(--brown); margin:0;
   }
   .section-title .count{
-    background:var(--gold-pale); color:var(--gold-deep); font-size:0.72rem; font-weight:700;
-    padding:2px 9px; border-radius:20px;
+    background:var(--gold-pale); color:var(--gold-deep); font-size:0.7rem; font-weight:700;
+    padding:3px 10px; border-radius:20px; letter-spacing:0.02em;
+    font-variant-numeric:tabular-nums lining-nums;
   }
   /* Payments and Bills fold away — the head stays tappable, the count badge
      stays visible, so a folded section still says how much it is hiding. */
@@ -396,9 +402,13 @@
   .pay-list{ padding:0 16px; }
   #pendingList, #pendingBlock .pending-hero{ margin-left:16px; margin-right:16px; }
   .pay-row{
-    background:var(--white); border:1px solid var(--line); border-radius:14px;
-    padding:13px 15px; margin-bottom:9px; display:flex; align-items:center; gap:12px;
-    box-shadow:0 1px 2px rgba(74,59,40,0.04);
+    background:var(--white);
+    /* A HAIRLINE, NOT A BORDER. At 1px solid the sand line reads as a box
+       drawn round each row; halved and paired with a soft lift, the rows
+       separate by depth instead. */
+    border:1px solid rgba(231,220,197,0.7); border-radius:16px;
+    padding:14px 16px; margin-bottom:10px; display:flex; align-items:center; gap:12px;
+    box-shadow:0 2px 8px rgba(74,59,40,0.05), 0 1px 0 #fff inset;
     transition:transform .12s ease, box-shadow .12s ease;
   }
   .pay-row.tappable:active{ transform:scale(0.985); box-shadow:0 1px 1px rgba(74,59,40,0.06); }
@@ -417,8 +427,9 @@
   /* ---------- Outstanding, split by kind ---------- */
   .split-pair{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 16px 14px; }
   .split-box{
-    background:var(--white); border:1px solid var(--line); border-radius:14px;
-    padding:13px 14px; border-left-width:3px;
+    background:var(--white); border:1px solid rgba(231,220,197,0.7); border-radius:16px;
+    padding:15px 16px; border-left-width:3px;
+    box-shadow:0 2px 8px rgba(74,59,40,0.05);
   }
   .split-box.ortho{ border-left-color:#6B4AA8; }
   .split-box.regular{ border-left-color:var(--gold-light); }
@@ -505,8 +516,12 @@
      one is scrolled into view when it changes. */
   .tabbar{
     display:flex; gap:4px; background:var(--white); border:1px solid var(--line);
-    border-radius:14px; padding:4px; margin:14px 16px; position:sticky; top:8px; z-index:5;
-    box-shadow:0 4px 14px rgba(74,59,40,0.07);
+    border-radius:16px; padding:5px; margin:16px 16px 0; position:sticky; top:8px; z-index:5;
+    box-shadow:0 6px 18px rgba(74,59,40,0.06), 0 1px 0 #fff inset;
+    /* CENTRED. Three tabs left-aligned in a full-width bar leave a bald patch
+       on the right that reads as a missing tab. justify-content does nothing
+       when the row overflows, so the scroll safety valve is unaffected. */
+    justify-content:center;
     overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
   }
   .tabbar::-webkit-scrollbar{ display:none; }
@@ -514,8 +529,15 @@
      have — so they rendered as the browser's default buttons: grey, boxy,
      and nothing like the tab bar above them. Built from the same tokens the
      tabs use instead of borrowing a name from the desktop. */
+  /* Room at the foot, so the last row of a list is not pressed against the
+     phone's own navigation bar — and clear of the floating refresh button,
+     which otherwise sits on top of the final figure. */
+  #viewCollection, #viewPatient, #viewLab{ padding-bottom:96px; }
   .period-chips{
-    display:flex; gap:6px; margin:12px 16px 0;
+    /* THE CHIPS BELONG TO THE PAGE BELOW THEM, not to the tab bar above.
+       Equal gaps on both sides made them read as a second row of tabs; more
+       room beneath than above puts them with what they filter. */
+    display:flex; gap:7px; margin:14px 16px 18px;
   }
   .period-chip{
     flex:1; border:1px solid var(--line); background:var(--white);
@@ -532,6 +554,8 @@
     flex:0 0 auto; white-space:nowrap; border:none; background:none; padding:10px 12px; border-radius:11px;
     font-family:'Jost', sans-serif; font-size:0.84rem; font-weight:500; letter-spacing:0.09em;
     text-transform:uppercase; color:var(--muted); cursor:pointer;
+    /* Figures and labels sit on one baseline grid across the app. */
+    font-variant-numeric:tabular-nums lining-nums;
     transition:background .18s ease, color .18s ease;
   }
   .tab-btn.active{
@@ -2082,7 +2106,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v2.2';   // folds actually fold; Received is its own place.
+const APP_VERSION = 'v2.3';   // centred tabs, spaced chips, a quieter surface.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
