@@ -867,7 +867,7 @@
 
   <div class="card" id="signInCard">
     <h3 style="margin-bottom:10px;">1. Sign in with Google</h3>
-    <p class="muted">Uses your Google account only to read the backup folder — never to change anything in it.</p>
+    <p class="muted"></p>
     <button class="btn" id="signInBtn">Sign in with Google</button>
     <div id="signInStatus" class="status-bar"></div>
   </div>
@@ -1058,7 +1058,6 @@
       </div>
     </div>
     <div class="pay-list" id="pendingList"></div>
-    <div class="footnote">Advances (patients in credit) are listed separately at the end.</div>
     </div>
   </div>
     <div id="patientDetail" class="hidden">
@@ -2106,7 +2105,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v2.3';   // centred tabs, spaced chips, a quieter surface.
+const APP_VERSION = 'v2.4';   // the prose cut back to what only the app can tell you.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -2280,7 +2279,7 @@ async function renderDayVisits(dateStr, token){
      came, and this figure is read as a headcount. */
   rollCount('dayVisitCount', rows.filter(v => !visitWasRemoved(v)).length);
   if(rows.length === 0){
-    list.innerHTML = '<div class="empty-state">Nobody recorded as arriving on this day.</div>';
+    list.innerHTML = '<div class="empty-state">Nobody came</div>';
     return;
   }
   /* Arrivals in the order they arrived; a removed one sinks to the bottom
@@ -2314,7 +2313,7 @@ async function renderDayBills(dateStr, token){
   const list = document.getElementById('dayBillList');
   rollCount('dayBillCount', bills.length);
   if(bills.length === 0){
-    list.innerHTML = '<div class="empty-state">No bills raised on this day.</div>';
+    list.innerHTML = '<div class="empty-state">None</div>';
     return;
   }
   bills.sort((a,b) => String(a.billNumber||'').localeCompare(String(b.billNumber||'')));
@@ -2495,8 +2494,7 @@ async function renderMonthView(token){
   if(dayHead) dayHead.textContent = isYear ? '\uD83D\uDCC5 By month' : '\uD83D\uDCC5 By day';
   const list = document.getElementById('monthDayList');
   if(rows.length === 0){
-    list.innerHTML = '<div class="empty-state">No payments recorded in this '
-      + (isYear ? 'year' : 'month') + '.</div>';
+    list.innerHTML = '<div class="empty-state">None</div>';
     return;
   }
   list.innerHTML = rows.map(d => {
@@ -2915,7 +2913,7 @@ async function runPatientSearch(q, token){
   const box = document.getElementById('patientResults');
   const query = (q || '').trim().toLowerCase();
   if(query.length < 2){
-    box.innerHTML = '<div class="search-hint">Type at least two letters of a name, or a patient ID.</div>';
+    box.innerHTML = '<div class="search-hint">Two letters, or an ID</div>';
     return;
   }
   const { people } = await patientIndex();
@@ -2933,7 +2931,7 @@ async function runPatientSearch(q, token){
   const hits = found.slice(0, PATIENT_HITS_SHOWN);
   const hidden = found.length - hits.length;
   if(found.length === 0){
-    box.innerHTML = '<div class="search-hint">Nobody found for that name or ID.</div>';
+    box.innerHTML = '<div class="search-hint">No match</div>';
     return;
   }
   box.innerHTML = '<div class="pay-list">' + hits.map(p =>
@@ -2949,9 +2947,7 @@ async function runPatientSearch(q, token){
      common surname quietly dropped the rest and the phone looked as though
      it simply did not have them. */
   + (hidden > 0
-      ? '<div class="search-hint">' + hidden + ' more '
-        + (hidden === 1 ? 'patient matches' : 'patients match')
-        + ' — type more of the name, or the ID.</div>'
+      ? '<div class="search-hint">' + hidden + ' more</div>'
       : '');
   box.querySelectorAll('.pay-row[data-pid]').forEach(row => {
     row.addEventListener('click', () => openPatientDetail(row.getAttribute('data-pid')));
@@ -3042,7 +3038,7 @@ async function openPatientDetail(patientId, token){
   rollCount('pdBillCount', mine.length);
   const bl = document.getElementById('pdBillList');
   bl.innerHTML = mine.length === 0
-    ? '<div class="empty-state">No bills on record.</div>'
+    ? '<div class="empty-state">None</div>'
     : mine.map((b, i) => {
         const cancelled = isCancelledBill(b), credit = isCreditNote(b);
         return '<div class="pay-row row-bill tappable' + (cancelled ? ' bill-cancelled' : (credit ? ' bill-credit' : ''))
@@ -3077,7 +3073,7 @@ async function openPatientDetail(patientId, token){
   document.getElementById('pdPayCount').textContent = pays.length;
   const LBL = { cash:'Cash', upi:'UPI', card:'Card', bank:'Bank', refund:'Refund', writeoff:'Written off' };
   document.getElementById('pdPayList').innerHTML = pays.length === 0
-    ? '<div class="empty-state">No payments on record.</div>'
+    ? '<div class="empty-state">None</div>'
     : pays.map((r, i) =>
         '<div class="pay-row row-payment' + (r.amount < 0 ? ' pay-row-refund' : (r.writeoff ? ' pay-row-writeoff' : '')) + '">'
         + '<div class="row-icon pay">' + (r.amount < 0 ? '\u21A9' : '\u2193') + '</div>'
@@ -3189,11 +3185,11 @@ async function paintPatientExtras(patientId, token){
   const vList = document.getElementById('pdVisitList');
   if(days === null){
     setUnknown('pdVisitList', 'pdVisitCount',
-      'Visits cannot be shown right now \u2014 the clinic PC has not written its index since the last change.');
+      'Waiting on the clinic PC');
   } else if(vList && vCount){
     vCount.textContent = String(days.length);
     if(days.length === 0){
-      vList.innerHTML = '<div class="empty-state">No visits recorded.</div>';
+      vList.innerHTML = '<div class="empty-state">None</div>';
     } else {
       const last = days[days.length - 1];
       vList.innerHTML =
@@ -3214,12 +3210,12 @@ async function paintPatientExtras(patientId, token){
   const lList = document.getElementById('pdLabList');
   if(labs === null){
     setUnknown('pdLabList', 'pdLabCount',
-      'Lab cases cannot be shown right now \u2014 the clinic PC has not written its index since the last change.');
+      'Waiting on the clinic PC');
   } else if(lList && lCount){
     const mine = labs.filter(c => c && String(c.patientId) === pid);
     lCount.textContent = String(mine.length);
     if(mine.length === 0){
-      lList.innerHTML = '<div class="empty-state">No lab cases.</div>';
+      lList.innerHTML = '<div class="empty-state">None</div>';
     } else {
       /* Open cases first — a case still at the lab is the one worth knowing
          about away from the clinic; a delivered one is history. */
@@ -3250,7 +3246,7 @@ async function paintPatientExtras(patientId, token){
     const live = mine.filter(x => !noteIsStruck(x));
     nCount.textContent = String(live.length);
     if(mine.length === 0){
-      nList.innerHTML = '<div class="empty-state">No notes.</div>';
+      nList.innerHTML = '<div class="empty-state">None</div>';
     } else {
       const byTime = (a, b) => String(b.time || '').localeCompare(String(a.time || ''));
       const rows = live.slice().sort(byTime)
@@ -3300,8 +3296,7 @@ async function expandPrescriptions(patientId){
     all = null;
   }
   if(all === null){
-    list.innerHTML = '<div class="pd-unknown">Prescriptions cannot be shown right now'
-      + ' \u2014 the clinic PC has not written its index since the last change.</div>';
+    list.innerHTML = '<div class="pd-unknown">Waiting on the clinic PC</div>';
     if(count) count.textContent = '\u2014';
     return;
   }
@@ -3313,7 +3308,7 @@ async function expandPrescriptions(patientId){
   mine.sort((a, b) => (rxIsStruck(a) ? 1 : 0) - (rxIsStruck(b) ? 1 : 0) || byDate(a, b));
   if(count) count.textContent = String(mine.filter(r => !rxIsStruck(r)).length);
   if(mine.length === 0){
-    list.innerHTML = '<div class="empty-state">No prescriptions on record.</div>';
+    list.innerHTML = '<div class="empty-state">None</div>';
     return;
   }
   rxOpenList = mine;
@@ -3357,7 +3352,6 @@ function openRxSheet(i){
             + '</div></div>').join('')
         : '')
     + row('Advice', rec.advice)
-    + '<div class="rxs-ro">Read only \u2014 this is the clinic\u2019s record</div>'
     + '<button type="button" class="rxs-close" id="pdRxClose">Close</button>';
   el.classList.remove('hidden');
   const c = document.getElementById('pdRxClose');
@@ -3399,7 +3393,7 @@ async function expandVisits(patientId, days){
     return;
   }
   if(rows.length === 0){
-    list.innerHTML = '<div class="pd-unknown">Those days no longer list this patient.</div>';
+    list.innerHTML = '<div class="pd-unknown">Not on those days</div>';
     return;
   }
   /* THE SAME READING AS THE DAY TAB. This list was left printing the raw
@@ -3424,8 +3418,7 @@ async function expandVisits(patientId, days){
   }).join('')
   + (days.length > wanted.length
       ? '<div class="pd-unknown">' + (days.length - wanted.length)
-        + ' earlier visit' + (days.length - wanted.length === 1 ? '' : 's')
-        + ' not shown.</div>'
+        + ' earlier</div>'
       : '');
   list.querySelectorAll('.pay-row[data-visitrx]').forEach(row => {
     row.addEventListener('click', () => openVisitRx(Number(row.getAttribute('data-visitrx'))));
@@ -3553,7 +3546,7 @@ async function renderLabView(token){
     rollCount('labOpenCount', 0);
     document.getElementById('labOpenCount').textContent = '\u2014';
     document.getElementById('labSub').textContent =
-      'Cannot be shown \u2014 the clinic PC has not written its index since the last change.';
+      'Waiting on the clinic PC';
     document.getElementById('labOutCount').textContent = '\u2014';
     document.getElementById('labDoneCount').textContent = '\u2014';
     outList.innerHTML = '';
@@ -3616,7 +3609,7 @@ async function renderLabView(token){
   };
   outList.innerHTML = open.length
     ? open.map(c => row(c, true)).join('')
-    : '<div class="empty-state">Nothing is at the lab.</div>';
+    : '<div class="empty-state">None out</div>';
   const backList = document.getElementById('labBackList');
   if(backList){
     /* Longest back first — a case that came back three weeks ago and has not
@@ -3624,14 +3617,14 @@ async function renderLabView(token){
     back.sort((a, b) => String(a.dateReceived || '').localeCompare(String(b.dateReceived || '')));
     backList.innerHTML = back.length
       ? back.map(c => row(c, true)).join('')
-      : '<div class="empty-state">Nothing waiting to be fitted.</div>';
+      : '<div class="empty-state">None back</div>';
   }
   doneList.innerHTML = done.length
     ? done.slice(0, LAB_RECENT_DONE).map(c => row(c, false)).join('')
       + (done.length > LAB_RECENT_DONE
           ? '<div class="pd-unknown">' + (done.length - LAB_RECENT_DONE)
-            + ' older cases not shown.</div>' : '')
-    : '<div class="empty-state">Nothing delivered yet.</div>';
+            + ' older</div>' : '')
+    : '<div class="empty-state">None yet</div>';
 }
 function daysBetweenMobile(a, b){
   const pa = String(a || '').split('-').map(Number);
@@ -3676,7 +3669,7 @@ function renderPending(map, orthoIds){
 
   const list = document.getElementById('pendingList');
   if(owed.length === 0 && advance.length === 0){
-    list.innerHTML = '<div class="empty-state">Nothing outstanding — every patient is settled.</div>';
+    list.innerHTML = '<div class="empty-state">All settled</div>';
     return;
   }
   /* TAPPABLE NOW. While this list sat in a tab of its own the rows went
@@ -3750,7 +3743,7 @@ function renderPayments(entry, items){
   rollCount('payCount', groups.length);
   const list = document.getElementById('payList');
   if(groups.length === 0){
-    list.innerHTML = '<div class="empty-state">No payments recorded for this day.</div>';
+    list.innerHTML = '<div class="empty-state">None</div>';
     return;
   }
   list.innerHTML = groups.map((group, i) => {
