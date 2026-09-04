@@ -533,6 +533,54 @@
      phone's own navigation bar — and clear of the floating refresh button,
      which otherwise sits on top of the final figure. */
   #viewCollection, #viewPatient, #viewLab{ padding-bottom:96px; }
+  /* ---------------- Dashboard ---------------- */
+  .dash{ padding:14px 16px 0; }
+  .dash-hero{
+    background:linear-gradient(135deg, var(--gold), var(--gold-deep)); color:#fff;
+    border-radius:18px; padding:16px 14px 12px; margin-bottom:10px;
+    box-shadow:0 8px 22px rgba(138,95,38,0.24);
+  }
+  .dash-stamp{ font-family:'Jost', sans-serif; font-size:0.62rem; letter-spacing:0.16em; text-transform:uppercase; opacity:0.85; }
+  .dash-total{
+    font-family:'Cinzel', serif; font-size:2.1rem; letter-spacing:-0.01em; line-height:1.1; margin-top:4px;
+    font-variant-numeric:tabular-nums lining-nums;
+  }
+  .dash-row{ display:flex; gap:6px; margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.22); }
+  .dash-mini{
+    flex:1; background:none; border:none; color:#fff; text-align:left; padding:2px 4px; cursor:pointer;
+    font-family:'Jost', sans-serif; -webkit-tap-highlight-color:transparent;
+  }
+  .dash-mini .v{ font-size:1rem; font-weight:600; font-variant-numeric:tabular-nums; }
+  .dash-mini .k{ font-size:0.58rem; letter-spacing:0.12em; text-transform:uppercase; opacity:0.85; margin-top:1px; }
+  .dash-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+  .dash-grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .dash-tile{
+    position:relative; background:var(--white); border:none; border-radius:14px; padding:12px;
+    text-align:left; box-shadow:0 2px 8px rgba(74,59,40,0.05), 0 1px 0 #fff inset;
+    font-family:'Jost', sans-serif; color:var(--ink); cursor:pointer;
+    -webkit-tap-highlight-color:transparent; transition:opacity .2s ease;
+  }
+  .dash-tile .v{ font-size:1.25rem; font-weight:600; font-variant-numeric:tabular-nums lining-nums; }
+  .dash-tile .k{ font-size:0.58rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-top:1px; }
+  .dash-tile.sm{ padding:10px; text-align:center; border-radius:12px; }
+  .dash-tile.sm .v{ font-size:1.05rem; }
+  /* RANKED. The two that can cost money carry a red rule and the larger
+     figure; the softer three sit smaller beneath. Colour is on the rule and
+     the figure, never a whole tile — a pink tile on an ordinary day is noise. */
+  .dash-tile.red.on{ border-top:3px solid #B14A3D; padding-top:9px; }
+  .dash-tile.red.on .v{ color:#A32D2D; }
+  .dash-tile.sm.on .v{ color:var(--gold-deep); }
+  .dash-tile.sm.on#dashFollowTile .v{ color:var(--ink); }
+  /* D3: a zero fades rather than vanishing, so "all clear" is visible and
+     the screen keeps its shape from one day to the next. */
+  .dash-tile.off{ opacity:0.5; }
+  .dash-chev{ position:absolute; right:10px; top:9px; color:var(--gold); font-size:0.85rem; }
+  .dash-tile.open .dash-chev{ transform:rotate(90deg); }
+  .dash-body{ border-top:1px solid #F0E7D6; margin-top:8px; padding-top:8px; font-size:0.78rem; }
+  .dash-body .r{ display:flex; justify-content:space-between; gap:8px; padding:3px 0; }
+  .dash-body .r .n{ color:#A32D2D; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .dash-body .go{ font-size:0.68rem; color:var(--gold-deep); margin-top:5px; }
+  .dash-quiet{ text-align:center; font-family:'Jost', sans-serif; font-size:0.66rem; color:var(--muted); margin-top:10px; }
   .period-chips{
     /* THE CHIPS BELONG TO THE PAGE BELOW THEM, not to the tab bar above.
        Equal gaps on both sides made them read as a second row of tabs; more
@@ -910,6 +958,39 @@
        chosen above it. The two blocks below are the ORIGINAL Day and Month
        views, unchanged and simply shown one at a time — rewriting them into
        one would have been a second copy of money code for no gain. -->
+  <!-- THE DASHBOARD. Today, in the eight facts the owner chose. Lives on
+       Collection rather than as a fourth tab: it is the same data, and the
+       app went from five tabs to three for good reason. Shown on Day only —
+       it is today's picture, and a Month or Year view is not today's. -->
+  <div id="dash" class="dash">
+    <div class="dash-hero">
+      <div class="dash-stamp" id="dashStamp">&mdash;</div>
+      <div class="dash-total" id="dashTotal">&#8377;0</div>
+      <div class="dash-row">
+        <button type="button" class="dash-mini" onclick="dashGo('clinic')"><div class="v" id="dashInClinic">0</div><div class="k">In clinic &rsaquo;</div></button>
+        <button type="button" class="dash-mini" onclick="dashGo('seen')"><div class="v" id="dashSeen">0</div><div class="k">Seen &rsaquo;</div></button>
+        <button type="button" class="dash-mini" onclick="dashGo('dues')"><div class="v" id="dashOldDues">&#8377;0</div><div class="k">Old dues in &rsaquo;</div></button>
+      </div>
+    </div>
+    <div class="dash-grid2">
+      <div class="dash-tile red" id="dashLabTile" onclick="dashExpand('lab')">
+        <div class="v" id="dashLab">0</div><div class="k">Lab overrun</div>
+        <span class="dash-chev" id="dashLabChev">&#9656;</span>
+        <div class="dash-body hidden" id="dashLabBody"></div>
+      </div>
+      <div class="dash-tile red" id="dashMovedTile" onclick="dashExpand('moved')">
+        <div class="v" id="dashMoved">&mdash;</div><div class="k">Money moved</div>
+        <span class="dash-chev" id="dashMovedChev">&#9656;</span>
+        <div class="dash-body hidden" id="dashMovedBody"></div>
+      </div>
+    </div>
+    <div class="dash-grid3">
+      <button type="button" class="dash-tile sm" id="dashZeroTile" onclick="dashGo('zero')"><div class="v" id="dashZero">0</div><div class="k">Zero bills &rsaquo;</div></button>
+      <button type="button" class="dash-tile sm" id="dashStockTile" onclick="dashGo('stock')"><div class="v" id="dashStock">0</div><div class="k">Stock out &rsaquo;</div></button>
+      <button type="button" class="dash-tile sm" id="dashFollowTile" onclick="dashGo('follow')"><div class="v" id="dashFollow">0</div><div class="k">Follow-ups &rsaquo;</div></button>
+    </div>
+    <div class="dash-quiet hidden" id="dashQuiet">nothing needs a look</div>
+  </div>
   <div class="period-chips" id="collectionChips">
     <button class="period-chip active" data-cperiod="day" onclick="setCollectionPeriod('day')">Day</button>
     <button class="period-chip" data-cperiod="month" onclick="setCollectionPeriod('month')">Month</button>
@@ -2105,7 +2186,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v2.4';   // the prose cut back to what only the app can tell you.
+const APP_VERSION = 'v2.5';   // the dashboard: today in eight facts.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -2148,6 +2229,8 @@ async function renderCurrentView(){
   ensureFreshMoneyData();
   const token = ++renderGen;
   document.getElementById('viewCollection').classList.toggle('hidden', currentView !== 'collection');
+  const dashEl = document.getElementById('dash');
+  if(dashEl && currentView !== 'collection') dashEl.classList.add('hidden');
   /* Within Collection the period decides which block shows. Day keeps its
      own; Month and Year share one, because they are the same summary over a
      different span. */
@@ -2158,8 +2241,14 @@ async function renderCurrentView(){
   document.getElementById('viewPatient').classList.toggle('hidden', currentView !== 'patient');
   document.getElementById('viewLab').classList.toggle('hidden', currentView !== 'lab');
   if(currentView === 'collection'){
-    return collectionPeriod === 'day' ? await renderDayView(token)
-                                      : await renderMonthView(token);
+    /* The dashboard and the day view are independent reads; together, so the
+       page does not paint in two visible stages. */
+    if(collectionPeriod === 'day'){
+      await Promise.all([renderDashboard(token), renderDayView(token)]);
+      return;
+    }
+    renderDashboard(token);   // hides itself on month / year
+    return await renderMonthView(token);
   }
   if(currentView === 'lab')     return await renderLabView(token);
   return await renderPatientView(token);
@@ -3515,6 +3604,241 @@ async function renderPendingBlock(token){
   ]);
   if(token !== undefined && !paintAllowed(token)) return;
   renderPending(computePendingFromData(bills, entries), orthoIds);
+}
+
+/* ================= DASHBOARD =============================================
+   Eight facts about today, chosen by the owner. Every threshold below is the
+   DESKTOP'S constant, so a case that is red on the desk is red on the phone
+   \u2014 one rule, not two that drift. If a number is wrong for the clinic, the
+   fix is on the desktop and the phone follows. */
+const DASH_LAB_PICKUP_DAYS = 2;   // LAB_PICKUP_ALERT_DAYS on the desktop
+const DASH_LAB_SENT_DAYS   = 7;   // LAB_SENT_ALERT_DAYS
+const DASH_LAB_FIT_DAYS    = 7;   // LAB_FIT_ALERT_DAYS
+
+let followupsCacheD = null, followupsTriedD = false;
+let stockLogCache = null, stockLogTried = false;
+async function loadSettingsListD(fileName){
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return [];
+    const fileId = await driveFindChild(settingsId, fileName, false);
+    if(!fileId) return [];
+    const l = await driveReadJson(fileId);
+    return Array.isArray(l) ? l : [];
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    return [];
+  }
+}
+async function loadFollowupsD(){
+  if(followupsTriedD) return followupsCacheD;
+  followupsCacheD = await loadSettingsListD('followups.json'); followupsTriedD = true; return followupsCacheD;
+}
+async function loadStockLog(){
+  if(stockLogTried) return stockLogCache;
+  stockLogCache = await loadSettingsListD('pharmacy-stock-log.json'); stockLogTried = true; return stockLogCache;
+}
+
+/* THE EIGHT, from data the phone already holds. Pure: takes what it is given
+   and returns figures and names, so it can be run against real-shaped
+   records in a test. */
+function dashFacts(o){
+  const today = o.today;
+  const days = (a, b) => daysBetweenMobile(a, b);
+
+  /* Today's money. */
+  const todayEntry = (o.entries || []).find(e => e && e.date === today);
+  const items = todayEntry && Array.isArray(todayEntry.items) ? todayEntry.items : [];
+  let collected = 0;
+  items.forEach(it => { if(it && !it.reversal) collected += Number(it.amount) || 0; });
+
+  /* OLD DUES IN: today's payments from patients who were NOT billed today.
+     Any bill before today counts \u2014 a patient billed last week who settles
+     this morning is money you were owed and have now collected. A cutoff
+     ("older than 30 days") sounds more rigorous and hides that ordinary case;
+     if only the long-overdue ones are wanted, that is one number to change. */
+  const billedToday = new Set((o.bills || [])
+    .filter(b => b && b.date === today && billCountsAsMoney(b))
+    .map(b => String(b.patientId)));
+  let oldDues = 0;
+  items.forEach(it => {
+    if(!it || it.reversal || !it.patientId) return;
+    if(!billedToday.has(String(it.patientId))) oldDues += Number(it.amount) || 0;
+  });
+
+  /* Visits: in the clinic now, and seen today. */
+  const visits = (o.visits || []).filter(v => v && !v.removedAt);
+  const inClinic = visits.filter(v => v.status !== 'done').length;
+  const seen = visits.length;
+
+  /* LAB OVERRUN \u2014 the desktop's three alerts. */
+  const lab = [];
+  (o.labs || []).forEach(c => {
+    if(!c) return;
+    const k = labStageOf(c).key;
+    let since = null, why = '';
+    if(k === 'logged'   && c.dateLogged   && days(c.dateLogged, today)   > DASH_LAB_PICKUP_DAYS){ since = c.dateLogged;   why = 'not picked up'; }
+    if(k === 'sent'     && c.dateSent     && days(c.dateSent, today)     > DASH_LAB_SENT_DAYS)  { since = c.dateSent;     why = 'at the lab'; }
+    if(k === 'received' && c.dateReceived && days(c.dateReceived, today) > DASH_LAB_FIT_DAYS)   { since = c.dateReceived; why = 'not fitted'; }
+    if(since) lab.push({ c: c, d: days(since, today), why: why });
+  });
+  lab.sort((a, b) => b.d - a.d);
+
+  /* MONEY MOVED today: bills cancelled today, and credit notes raised today.
+     Dated by when the ACT happened, not when the bill was raised \u2014 the
+     desktop's rule for this report. */
+  const moved = [];
+  (o.bills || []).forEach(b => {
+    if(!b) return;
+    if(b.cancellation && String(b.cancellation.at || b.cancellation.date || '').slice(0, 10) === today){
+      moved.push({ kind: 'Cancelled', b: b, amt: Number(b.grandTotal) || 0 });
+    } else if(b.date === today && Number(b.grandTotal) < 0 && billCountsAsMoney(b)){
+      moved.push({ kind: 'Credit note', b: b, amt: Math.abs(Number(b.grandTotal) || 0) });
+    }
+  });
+  const movedTotal = moved.reduce((s, m) => s + m.amt, 0);
+
+  /* ZERO BILLS today \u2014 real bills, finalized, that total nothing. Legitimate
+     (a courtesy, a free follow-up) and indistinguishable from a forgotten
+     rate, which is why they are counted where you will see them tonight. */
+  const zero = (o.bills || []).filter(b => b && b.date === today
+    && billCountsAsMoney(b) && Number(b.grandTotal) === 0);
+
+  /* STOCK OUT \u2014 the desktop's own derivation, SUM(IN) \u2212 SUM(OUT). Heaviest
+     thing on this screen, computed once per refresh. */
+  const stock = {};
+  (o.bills || []).forEach(b => {
+    if(!b || b.status === 'draft' || isCancelledBill(b)) return;
+    (b.items || []).forEach(it => {
+      if(!it || it.category !== 'pharmacy') return;
+      stock[it.name] = (stock[it.name] || 0) - (Number(it.qty) || 0);
+    });
+  });
+  (o.stockLog || []).forEach(e => {
+    if(!e || !e.medicineName) return;
+    stock[e.medicineName] = (stock[e.medicineName] || 0) + (Number(e.quantity) || 0);
+  });
+  const stockOut = Object.keys(stock).filter(n => stock[n] <= 0 && Object.prototype.hasOwnProperty.call(stock, n));
+
+  /* FOLLOW-UPS: due today and overdue, both, with overdue named. Due-only
+     hides that last week's calls never happened; overdue-only hides today's. */
+  const live = (o.followups || []).filter(f => f && !f.doneAt && !f.struckAt);
+  const dueDate = f => String(f.dueDate || f.date || '');
+  const due = live.filter(f => dueDate(f) && dueDate(f) <= today);
+  const overdue = due.filter(f => dueDate(f) < today);
+
+  return { collected, oldDues, inClinic, seen, lab, moved, movedTotal, zero, stockOut,
+           due: due.length, overdue: overdue.length };
+}
+
+async function renderDashboard(token){
+  const dash = document.getElementById('dash');
+  if(!dash) return;
+  /* Today's picture, so it shows on Day only. */
+  const show = (currentView === 'collection' && collectionPeriod === 'day');
+  dash.classList.toggle('hidden', !show);
+  if(!show) return;
+  const today = todayStr();
+  let entries = [], bills = [], visits = [], labs = null, followups = [], stockLog = [], dir = {};
+  try{
+    [entries, bills, labs, followups, stockLog, dir] = await Promise.all([
+      loadAllEntries(), loadBills(), loadLabCases(), loadFollowupsD(), loadStockLog(), loadPatientDirectory()
+    ]);
+    if(!cachedVisitsFolderId) cachedVisitsFolderId = await driveFindChild(driveFolderId, 'visits', true);
+    if(cachedVisitsFolderId){
+      const fid = await driveFindChild(cachedVisitsFolderId, today + '.json', false);
+      if(fid){ const l = await driveReadJson(fid); visits = Array.isArray(l) ? l : []; }
+    }
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+  }
+  if(token !== undefined && !paintAllowed(token)) return;
+  const f = dashFacts({ today, entries, bills, visits, labs: labs || [], followups, stockLog, dir });
+  const nameOf = id => (dir && dir[String(id)]) || '';
+
+  const now = new Date();
+  document.getElementById('dashStamp').textContent =
+    now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'short' })
+    + ' \u00b7 ' + now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  rollMoney('dashTotal', f.collected);
+  document.getElementById('dashInClinic').textContent = String(f.inClinic);
+  document.getElementById('dashSeen').textContent = String(f.seen);
+  rollMoney('dashOldDues', f.oldDues);   // rolls like every other figure; a snap reads as a glitch
+
+  const setTile = (id, valId, val, on) => {
+    const t = document.getElementById(id);
+    if(!t) return;
+    t.classList.toggle('on', on); t.classList.toggle('off', !on);
+    document.getElementById(valId).textContent = val;
+  };
+  setTile('dashLabTile', 'dashLab', String(f.lab.length), f.lab.length > 0);
+  /* A dash, not \u20b90, when nothing moved \u2014 zero rupees is a figure, and
+     nothing happened is not one. */
+  setTile('dashMovedTile', 'dashMoved', f.moved.length ? fmtINR(f.movedTotal) : '\u2014', f.moved.length > 0);
+  setTile('dashZeroTile', 'dashZero', String(f.zero.length), f.zero.length > 0);
+  setTile('dashStockTile', 'dashStock', labs === null ? '\u2014' : String(f.stockOut.length), f.stockOut.length > 0);
+  setTile('dashFollowTile', 'dashFollow',
+    f.due + (f.overdue ? ' \u00b7 ' + f.overdue + ' late' : ''), f.due > 0);
+
+  /* D2: the two red tiles unfold to names. Built now, shown on tap. */
+  const labBody = document.getElementById('dashLabBody');
+  if(labBody) labBody.innerHTML = f.lab.slice(0, 6).map(x =>
+      '<div class="r"><span>' + escapeHtml(nameOf(x.c.patientId) || x.c.patientName || '\u2014')
+      + ' \u00b7 ' + escapeHtml(x.why) + '</span><span class="n">' + x.d + 'd</span></div>').join('')
+    + (f.lab.length > 6 ? '<div class="go">+' + (f.lab.length - 6) + ' more</div>' : '')
+    + '<div class="go">Open Lab \u203a</div>';
+  const movedBody = document.getElementById('dashMovedBody');
+  if(movedBody) movedBody.innerHTML = f.moved.map(m =>
+      '<div class="r"><span>' + escapeHtml(m.kind) + ' \u00b7 '
+      + escapeHtml(nameOf(m.b.patientId) || m.b.patientName || '\u2014') + '</span>'
+      + '<span class="n">' + fmtINR(m.amt) + '</span></div>').join('')
+    || '<div class="r"><span>Nothing moved today</span></div>';
+
+  const quiet = document.getElementById('dashQuiet');
+  if(quiet) quiet.classList.toggle('hidden',
+    !!(f.lab.length || f.moved.length || f.zero.length || f.stockOut.length || f.due));
+}
+function dashExpand(which){
+  const tile = document.getElementById(which === 'lab' ? 'dashLabTile' : 'dashMovedTile');
+  const body = document.getElementById(which === 'lab' ? 'dashLabBody' : 'dashMovedBody');
+  if(!tile || !body) return;
+  const open = body.classList.toggle('hidden');
+  tile.classList.toggle('open', !open);
+  /* The "Open Lab" line inside the body is the route to the full screen. */
+  if(which === 'lab'){
+    const go = body.querySelector('.go:last-child');
+    if(go && !go.__wired){ go.__wired = true; go.addEventListener('click', ev => { ev.stopPropagation(); switchView('lab'); }); }
+  }
+}
+/* D1: the five softer tiles open their screen directly. Money moved has no
+   phone screen, so its expanded body IS the destination. */
+function dashGo(where){
+  if(where === 'clinic' || where === 'seen'){
+    /* The who-came section on this same page. */
+    const head = document.getElementById('visitSecHead');
+    const list = document.getElementById('dayVisitList');
+    if(list && list.classList.contains('sec-hidden') && head) head.click();
+    if(head) head.scrollIntoView({ behavior:'smooth', block:'start' });
+    return;
+  }
+  if(where === 'dues'){
+    const head = document.getElementById('paySecHead');
+    if(head) head.scrollIntoView({ behavior:'smooth', block:'start' });
+    return;
+  }
+  if(where === 'zero'){
+    const head = document.getElementById('billSecHead');
+    const list = document.getElementById('dayBillList');
+    if(list && list.classList.contains('sec-hidden') && head) head.click();
+    if(head) head.scrollIntoView({ behavior:'smooth', block:'start' });
+    return;
+  }
+  if(where === 'follow' || where === 'stock'){
+    /* Neither has a phone screen yet; the desktop is where they are acted
+       on. The tile says its number, and that is the whole of what the phone
+       can offer today. */
+    return;
+  }
 }
 
 /* ---------------- Lab ----------------
