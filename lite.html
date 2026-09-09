@@ -30,10 +30,18 @@ body{ padding-bottom:28px; }
 .wrap{ max-width:760px; margin:0 auto; padding:0 14px 24px; }
 .topbar{ position:sticky; top:0; z-index:20; background:var(--white); border-bottom:1px solid var(--line);
   padding:12px 14px 0; }
-.brand{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.brand-name{ font-family:inherit; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;
-  font-size:0.9rem; color:var(--gold-deep); }
-.brand-sub{ font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
+.hd-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.hd-hello{ cursor:pointer; }
+.hd-greet{ font-size:0.78rem; color:var(--muted); }
+.hd-who{ font-size:1.12rem; font-weight:700; color:var(--ink); margin-top:1px; }
+.hd-mark{ font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--gold-deep);
+  font-weight:600; text-align:right; padding-top:3px; white-space:nowrap; }
+.hd-mark b{ background:var(--gold-pale); border-radius:5px; padding:0 5px; }
+.hd-v{ display:block; font-size:0.64rem; letter-spacing:0.06em; color:var(--muted);
+  font-weight:500; margin-top:2px; }
+/* The pull cue takes no room at rest. */
+.pull-cue{ height:0; opacity:0; overflow:hidden; display:flex; align-items:center; justify-content:center;
+  font-size:0.74rem; letter-spacing:0.05em; color:var(--gold-deep); font-weight:600; }
 .tabbar{ display:flex; gap:6px; margin-top:10px; }
 .tab-btn{ flex:1; border:0; background:transparent; font-family:inherit; font-weight:600;
   font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);
@@ -163,18 +171,24 @@ body{ padding-bottom:28px; }
   text-transform:uppercase; font-size:0.78rem; padding:10px; border-radius:10px; cursor:pointer; }
 </style></head><body>
 <div class="topbar">
-  <div class="brand">
-    <div>
-      <div class="brand-name">Echo Nexus</div>
-      <div class="brand-sub">Echo Dental Clinic &middot; Lite <span id="appVer"></span></div>
+  <!-- The greeting leads and the mark sits quietly beside it: this is her app
+       before it is the clinic's system. Tapping the name sets it. -->
+  <div class="hd-row">
+    <div class="hd-hello" onclick="askName()">
+      <div class="hd-greet" id="hdGreet">Good day,</div>
+      <div class="hd-who" id="hdWho">Doctor</div>
     </div>
-    <button class="btn ghost" id="refreshBtn" style="padding:8px 14px;">&#8635;</button>
+    <div class="hd-mark">Echo Nexus <b>L</b><span class="hd-v" id="appVer"></span></div>
   </div>
   <div class="tabbar">
-    <button class="tab-btn active" data-tab="visits" onclick="setTab('visits')">Today</button>
+    <!-- "Visits", not "Today": the day can be moved back, so the tab that
+         said Today was lying the moment somebody used the arrows. -->
+    <button class="tab-btn active" data-tab="visits" onclick="setTab('visits')">Visits</button>
     <button class="tab-btn" data-tab="patients" onclick="setTab('patients')">Patients</button>
   </div>
 </div>
+
+<div id="pullCue" class="pull-cue"><span id="pullText">Pull to refresh</span></div>
 
 <div class="wrap">
   <!-- ================= SETUP ================= -->
@@ -684,7 +698,7 @@ async function loadPrescriptions(){
 /* The build, on screen. When somebody says it is behaving oddly, the first
    question is which copy they are holding — a phone can sit on a cached one
    for days. */
-const LITE_VERSION = 'v2.1';
+const LITE_VERSION = 'v2.3';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -695,6 +709,88 @@ let openLine = null;
 function showAllFor(pid){ openAllFor = String(pid); repaint(); }
 function toggleLine(k){ openLine = (openLine === k) ? '' : k; repaint(); }
 
+/* WHOSE APP THIS IS. The name is kept on the device, so the same file greets
+   whoever is holding it — the associate by name, reception by theirs. Tapping
+   the greeting sets it; until then it says "Doctor", which is true of the
+   person it was built for and harmless for anyone else. */
+const CACHE_KEY_NAME = 'echoLite_name';
+function greetingWord(){
+  const h = new Date().getHours();
+  if(h < 12) return 'Good morning,';
+  if(h < 17) return 'Good afternoon,';
+  return 'Good evening,';
+}
+function paintGreeting(){
+  const g = document.getElementById('hdGreet'), n = document.getElementById('hdWho');
+  if(g) g.textContent = greetingWord();
+  if(n) n.textContent = (localStorage.getItem(CACHE_KEY_NAME) || 'Doctor');
+}
+function askName(){
+  const now = localStorage.getItem(CACHE_KEY_NAME) || '';
+  const v = window.prompt('Name to greet you by', now);
+  if(v === null) return;                       // cancelled: leave it alone
+  const clean = String(v).trim().slice(0, 28);
+  try{
+    if(clean) localStorage.setItem(CACHE_KEY_NAME, clean);
+    else localStorage.removeItem(CACHE_KEY_NAME);
+  }catch(e){}
+  paintGreeting();
+}
+
+/* PULL TO REFRESH (v2.2). The refresh button is gone, so the gesture has to
+   do what it did: clear what the device holds and read Drive again. The
+   browser's own pull would reload the page and keep the cache, which is the
+   opposite of what somebody pulling down wants.
+
+   It arms only at the very top of the page, so a pull halfway down a long
+   list scrolls as normal. */
+let pullStartY = null, pullDist = 0, pullArmed = false, pullBusy = false;
+const PULL_TRIGGER = 70;
+function pullSetText(t){ const el = document.getElementById('pullText'); if(el) el.textContent = t; }
+function pullShow(px){
+  const cue = document.getElementById('pullCue');
+  if(!cue) return;
+  cue.style.height = Math.min(px, 64) + 'px';
+  cue.style.opacity = Math.min(px / PULL_TRIGGER, 1);
+}
+function pullReset(){
+  pullStartY = null; pullDist = 0; pullArmed = false; pullBusy = false;
+  const cue = document.getElementById('pullCue');
+  if(cue){ cue.style.height = '0px'; cue.style.opacity = '0'; }
+  pullSetText('Pull to refresh');
+}
+function wirePull(){
+  document.addEventListener('touchstart', e => {
+    if(pullBusy || window.scrollY > 0 || !e.touches || e.touches.length !== 1) return;
+    pullStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if(pullStartY === null || pullBusy) return;
+    pullDist = e.touches[0].clientY - pullStartY;
+    if(pullDist <= 0){ pullReset(); return; }
+    pullShow(pullDist * 0.5);
+    const armed = pullDist > PULL_TRIGGER;
+    if(armed !== pullArmed){ pullArmed = armed; pullSetText(armed ? 'Release to refresh' : 'Pull to refresh'); }
+  }, { passive: true });
+  document.addEventListener('touchend', () => {
+    if(pullStartY === null || pullBusy) return;
+    if(!pullArmed){ pullReset(); return; }
+    pullBusy = true; pullSetText('Reading\u2026');
+    doRefresh().then(pullReset).catch(pullReset);
+  }, { passive: true });
+}
+/* Exactly what the button did: drop every layer the device holds, then read. */
+async function doRefresh(){
+  directoryCache = null; directoryTried = false;
+  rxIndexCache = null; rxIndexTried = false;
+  cachedRxFolderId = null; cachedSettingsFolderId = null;
+  contactsCache = null; contactsTried = false;
+  rxVerifyDone = false; refreshScheduled = false;
+  openRx = null; selectedPatient = null; openLine = null; openAllFor = null;
+  cacheClear(); forgetIds();
+  setTab(currentTab);
+  await new Promise(r => setTimeout(r, 400));
+}
 function setTab(t){
   /* Coming back to Patients starts at the search again: a name left open
      from an hour ago is not what the next question is about. */
@@ -1209,6 +1305,8 @@ async function connectAndLoad(){
 window.addEventListener('load', () => {
   const ver = document.getElementById('appVer');
   if(ver) ver.textContent = LITE_VERSION;
+  paintGreeting();
+  wirePull();
   const saved = localStorage.getItem('echoDental_driveFolderId') || '';
   if(saved){ driveFolderId = saved; const el = document.getElementById('folderIdInput'); if(el) el.value = saved; }
   initGoogleAuth();
@@ -1216,17 +1314,6 @@ window.addEventListener('load', () => {
   else if(driveFolderId) requestTokenSilently();
 });
 
-document.getElementById('refreshBtn').addEventListener('click', () => {
-  /* Everything cached is re-read; the open tab stays put. */
-  /* Everything both layers hold, so Refresh really re-reads. */
-  directoryCache = null; directoryTried = false;
-  rxIndexCache = null; rxIndexTried = false;
-  cachedRxFolderId = null; cachedSettingsFolderId = null;
-  contactsCache = null; contactsTried = false;
-  rxVerifyDone = false; refreshScheduled = false;
-  openRx = null; selectedPatient = null;
-  cacheClear(); forgetIds();
-  setTab(currentTab);
-});
+/* The button is gone; the gesture does its work. */
 
 </script></body></html>
