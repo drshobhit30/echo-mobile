@@ -580,6 +580,45 @@ async function verifyRxIndexLater(idx){
     repaint();
   }catch(err){ /* a failed check leaves what was already shown alone */ }
 }
+/* AGE AND SEX (v2.0). They live in patient-contacts.json beside the names —
+   one more small file from settings/, kept on the device like the rest, so
+   the cost is one read on a cold start and nothing afterwards.
+
+   The file also holds phone numbers. They are not read here and not shown:
+   this app answers "who is this and what have they had", and a number on
+   screen turns it into something else. */
+let contactsCache = null, contactsTried = false;
+const CACHE_KEY_CON = 'echoLite_con';
+async function loadPatientContacts(){
+  if(contactsTried) return contactsCache;
+  contactsTried = true;
+  const held = cacheRead(CACHE_KEY_CON);
+  if(held && Object.keys(held).length){ contactsCache = held; scheduleRefreshBehind(); return contactsCache; }
+  contactsCache = await loadSettingsMap('patient-contacts.json');
+  if(contactsCache && Object.keys(contactsCache).length) cacheWrite(CACHE_KEY_CON, contactsCache);
+  return contactsCache;
+}
+/* An age recorded years ago is not today's age, so the year it was taken is
+   said rather than quietly adding the difference — the desk does the same. */
+function ageTextOf(contacts, patientId){
+  const rec = contacts && contacts[String(patientId)];
+  if(!rec || rec.age === undefined || rec.age === null || rec.age === '') return '';
+  const yr = rec.ageRecordedOn ? String(rec.ageRecordedOn).slice(0, 4) : '';
+  const thisYear = todayStr().slice(0, 4);
+  if(!yr || yr === thisYear) return String(rec.age);
+  return rec.age + ' (' + yr + ')';
+}
+function sexTextOf(contacts, patientId){
+  const rec = contacts && contacts[String(patientId)];
+  const v = rec && rec.sex ? String(rec.sex).trim() : '';
+  if(!v) return '';
+  const c = v[0].toUpperCase();
+  return (c === 'M' || c === 'F') ? c : v;
+}
+function whoLine(contacts, patientId){
+  const a = ageTextOf(contacts, patientId), x = sexTextOf(contacts, patientId);
+  return [x, a].filter(Boolean).join(' \u00b7 ');
+}
 async function loadPatientDirectory(){
   if(directoryTried) return directoryCache;
   directoryTried = true;
@@ -644,7 +683,7 @@ async function loadPrescriptions(){
 /* The build, on screen. When somebody says it is behaving oddly, the first
    question is which copy they are holding — a phone can sit on a cached one
    for days. */
-const LITE_VERSION = 'v1.9';
+const LITE_VERSION = 'v2.0';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -727,7 +766,7 @@ function cacheWrite(key, value){
   }
 }
 function cacheClear(){
-  [CACHE_KEY_DIR, CACHE_KEY_RX, CACHE_KEY_AT, 'echoLite_verified']
+  [CACHE_KEY_DIR, CACHE_KEY_RX, CACHE_KEY_AT, CACHE_KEY_CON, 'echoLite_verified']
     .forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
   /* And every day that was kept, or Refresh could not correct one. */
   try{
@@ -800,6 +839,15 @@ async function refreshBehind(){
       if(dir && typeof dir === 'object' && Object.keys(dir).length
          && JSON.stringify(dir) !== JSON.stringify(cachedDirectory())){
         directoryCache = dir; cacheWrite(CACHE_KEY_DIR, dir); changed = true;
+      }
+    }
+
+    const conId = await driveFindChild(settingsId, 'patient-contacts.json', false);
+    if(conId){
+      const con = await driveReadJson(conId);
+      if(con && typeof con === 'object' && Object.keys(con).length
+         && JSON.stringify(con) !== JSON.stringify(cacheRead(CACHE_KEY_CON))){
+        contactsCache = con; cacheWrite(CACHE_KEY_CON, con); changed = true;
       }
     }
 
@@ -907,6 +955,7 @@ async function renderVisits(){
      day itself is always read, because that is what changed. */
   const dirPromise = getDirectory();
   const rxPromise = getRxIndex();
+  const conPromise = loadPatientContacts().catch(() => null);
   /* A DAY THAT IS OVER CANNOT CHANGE. Yesterday's arrivals are read once and
      kept; only today is re-read, because only today is still happening. */
   const dayKey = 'echoLite_day_' + today;
@@ -936,7 +985,7 @@ async function renderVisits(){
      greyed: this app is a list of who to see, and a cancelled arrival is not
      one of them. */
   rows = rows.filter(v => v && !visitWasRemoved(v));
-  const [dir, all] = await Promise.all([dirPromise, rxPromise]);
+  const [dir, all, contacts] = await Promise.all([dirPromise, rxPromise, conPromise]);
   document.getElementById('visitCount').textContent = String(rows.length);
   if(!rows.length){
     list.innerHTML = '<div class="empty-state">' + (isToday ? 'Nobody yet today' : 'Nobody came') + '</div>';
@@ -1017,6 +1066,7 @@ async function renderVisits(){
         + '<div class="pt-time">' + escapeHtml(stamp) + '</div>'
       + '</div>'
       + '<div class="pt-sub pt-sub-indent">' + escapeHtml(pid)
+        + (whoLine(contacts, pid) ? ' \u00b7 ' + escapeHtml(whoLine(contacts, pid)) : '')
         + (v.cameFor ? ' \u00b7 ' + escapeHtml(v.cameFor) : '')
         + '</div>'
       /* WHAT THE CARD SAYS WITHOUT BEING OPENED (v1.9). A name and a time do
@@ -1082,9 +1132,11 @@ async function renderPatients(){
     if(selectedPatient !== pid) return;          // they tapped Back meanwhile
     if(all === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
     const mine = rxFor(all, pid);
+    const con = await loadPatientContacts().catch(() => null);
+    const who = whoLine(con, pid);
     let h = '<button type="button" class="btn ghost" onclick="backToSearch()" style="margin:4px 0 14px;">&lsaquo; Back</button>'
       + '<div class="sec-head"><span class="sec-title">' + escapeHtml(dir[pid] || 'Unknown patient')
-      + ' <span class="muted">' + escapeHtml(String(pid)) + '</span></span>'
+      + ' <span class="muted">' + escapeHtml(String(pid)) + (who ? ' \u00b7 ' + escapeHtml(who) : '') + '</span></span>'
       + '<span class="count-badge">' + mine.length + '</span></div>';
     if(!mine.length){ list.innerHTML = h + '<div class="empty-state">No prescriptions</div>'; return; }
     h += mine.map((r, i) => {
@@ -1109,6 +1161,8 @@ async function renderPatients(){
     list.innerHTML = '<div class="empty-state">Type a name or an ID</div>';
     return;
   }
+  /* Already on the device after the first open, so this costs nothing. */
+  const searchContacts = contactsCache || cacheRead(CACHE_KEY_CON);
   const ids = Object.keys(dir || {});
   const hits = ids
     .filter(pid => String(dir[pid] || '').toLowerCase().includes(q) || String(pid).toLowerCase().includes(q))
@@ -1125,7 +1179,8 @@ async function renderPatients(){
       '<div class="row tappable" onclick="openPatient(' + JSON.stringify(String(pid)).replace(/"/g,'&quot;') + ')">'
     + '<div class="row-head"><div class="row-name">' + escapeHtml(dir[pid] || 'Unknown patient') + '</div>'
       + '<div class="row-when">&rsaquo;</div></div>'
-    + '<div class="row-sub">' + escapeHtml(String(pid)) + '</div>'
+    + '<div class="row-sub">' + escapeHtml(String(pid))
+      + (whoLine(searchContacts, pid) ? ' \u00b7 ' + escapeHtml(whoLine(searchContacts, pid)) : '') + '</div>'
     + '</div>').join('')
     + (hits.length > shown.length
         ? '<div class="empty-state">' + (hits.length - shown.length) + ' more \u2014 type a little further</div>'
@@ -1167,6 +1222,7 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   directoryCache = null; directoryTried = false;
   rxIndexCache = null; rxIndexTried = false;
   cachedRxFolderId = null; cachedSettingsFolderId = null;
+  contactsCache = null; contactsTried = false;
   rxVerifyDone = false; refreshScheduled = false;
   openRx = null; selectedPatient = null;
   cacheClear(); forgetIds();
