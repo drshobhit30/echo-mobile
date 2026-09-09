@@ -2228,7 +2228,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v2.6';   // Home and Visits tabs; implants on the patient.
+const APP_VERSION = 'v2.7';   // implants read from settings/, where they live.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -3362,7 +3362,14 @@ async function loadImplantLog(){
   if(implantLogTriedM) return implantLogCacheM;
   implantLogTriedM = true;
   try{
-    const fileId = await driveFindChild(driveFolderId, 'implant-log.json', false);
+    /* IN settings/, NOT THE ROOT (v2.7). The desktop keeps every single-file
+       key in settings/ — the same folder visits-index and the bill log come
+       from. Looking in the root found nothing, so the section sat on
+       "Waiting on the clinic PC" for ever with a file that was there all
+       along. */
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return (implantLogCacheM = null);
+    const fileId = await driveFindChild(settingsId, 'implant-log.json', false);
     if(!fileId) return (implantLogCacheM = null);
     const rows = await driveReadJson(fileId);
     implantLogCacheM = Array.isArray(rows) ? rows : null;
