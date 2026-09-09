@@ -38,7 +38,9 @@ body{ padding-bottom:28px; }
 .tab-btn{ flex:1; border:0; background:transparent; font-family:inherit; font-weight:600;
   font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);
   padding:10px 6px; border-bottom:2px solid transparent; cursor:pointer; }
+.tab-btn{ transition:color .12s ease, border-color .12s ease; }
 .tab-btn.active{ color:var(--gold-deep); border-bottom-color:var(--gold-deep); }
+.tab-btn:active{ color:var(--gold); }
 .sec-head{ display:flex; align-items:baseline; justify-content:space-between; margin:18px 0 8px; }
 .sec-title{ font-family:inherit; font-size:0.72rem; letter-spacing:0.1em; text-transform:uppercase;
   color:var(--gold-deep); font-weight:600; }
@@ -46,7 +48,8 @@ body{ padding-bottom:28px; }
 .row{ background:var(--white); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
   margin-bottom:8px; }
 .row.tappable{ cursor:pointer; }
-.row.tappable:active{ background:var(--gold-pale); }
+.row{ transition:transform .09s ease, background .09s ease; }
+.row.tappable:active{ background:var(--gold-pale); transform:translateY(1px); }
 .row-name{ font-weight:700; font-size:0.98rem; color:#1A1410; }
 .row-sub{ font-size:0.8rem; color:var(--muted); margin-top:2px; }
 .row-when{ font-size:0.78rem; color:var(--gold-deep); font-weight:600; }
@@ -56,10 +59,52 @@ body{ padding-bottom:28px; }
 .struck{ opacity:0.55; }
 .struck .row-name{ text-decoration:line-through; }
 .empty-state{ text-align:center; color:var(--muted); padding:22px 8px; font-size:0.86rem; }
+/* ---- the patient card ------------------------------------------------
+   Colour and weight only: no images, no fonts, nothing to download. The
+   press feel is a 1px shift and a shade change, which the phone renders on
+   the compositor and costs nothing to run. */
+.pt-card{ position:relative; background:var(--white); border:1px solid var(--line);
+  border-radius:14px; padding:12px 14px 12px 16px; margin-bottom:9px; overflow:hidden;
+  transition:transform .09s ease, box-shadow .09s ease, border-color .09s ease; }
+.pt-card::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:var(--gold-light); opacity:.55; }
+.pt-card.tappable{ cursor:pointer; }
+.pt-card.tappable:active{ transform:translateY(1px) scale(0.997); background:var(--cream); }
+.pt-card.pt-open{ border-color:var(--gold-light); box-shadow:0 2px 10px rgba(74,59,40,0.07); }
+.pt-card.pt-open::before{ background:var(--gold); opacity:1; }
+.pt-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.pt-name{ font-weight:700; font-size:1rem; color:var(--ink); }
+.pt-time{ font-size:0.8rem; font-weight:600; color:var(--gold-deep); white-space:nowrap; }
+.pt-sub{ font-size:0.78rem; color:var(--muted); margin-top:2px; }
+.pt-tag{ display:inline-block; margin-top:7px; font-size:0.75rem; font-weight:600;
+  padding:3px 9px; border-radius:7px; background:var(--gold-pale); color:var(--gold-deep); }
+.pt-tag-today{ background:var(--success-bg); color:var(--success); }
+.pt-tag-none{ background:transparent; color:var(--muted); padding-left:0; }
+.pt-tag-wait{ background:var(--danger-bg); color:var(--danger); }
+
+/* ---- prescriptions inside the card ---- */
+.pt-body{ margin-top:11px; border-top:1px solid var(--line); }
+.rx-line + .rx-line{ border-top:1px solid rgba(0,0,0,0.05); }
+.rx-line-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+  padding:9px 0; cursor:pointer; transition:opacity .09s ease; }
+.rx-line-head:active{ opacity:.55; }
+.rx-line-what{ font-weight:600; font-size:0.9rem; color:var(--brown); }
+.rx-line-open .rx-line-what{ color:var(--gold-deep); }
+.rx-line-when{ font-size:0.75rem; color:var(--muted); white-space:nowrap; }
+.rx-line.struck .rx-line-what{ text-decoration:line-through; opacity:.6; }
+.rx-detail{ padding:2px 0 12px; }
+.rxs-when{ font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:6px; }
+.pt-more{ display:block; width:100%; margin:4px 0 2px; border:1px dashed var(--line);
+  background:transparent; color:var(--gold-deep); font-weight:600; font-size:0.78rem;
+  padding:9px; border-radius:9px; cursor:pointer; transition:background .09s ease; }
+.pt-more:active{ background:var(--gold-pale); }
+
 .daynav{ display:flex; align-items:center; gap:6px; margin:14px 0 4px; }
 .daynav-btn{ width:40px; height:40px; border:1px solid var(--line); background:var(--white);
   border-radius:11px; font-size:1.2rem; color:var(--gold-deep); cursor:pointer; line-height:1; }
-.daynav-btn:active{ background:var(--gold-pale); }
+.daynav-btn{ transition:transform .09s ease, background .09s ease; }
+.daynav-btn:active{ background:var(--gold-pale); transform:translateY(1px); }
 .daynav-label{ flex:1; text-align:center; font-weight:700; font-size:0.95rem; color:var(--brown); }
 .daycal{ position:relative; display:inline-flex; align-items:center; justify-content:center;
   width:40px; height:40px; border:1px solid var(--line); border-radius:11px; background:var(--white);
@@ -74,9 +119,10 @@ body{ padding-bottom:28px; }
 .gate h1{ font-family:inherit; font-size:1.1rem; letter-spacing:0.1em; text-transform:uppercase;
   color:var(--gold-deep); margin:0 0 6px; }
 .gate p{ color:var(--muted); font-size:0.88rem; margin:0 0 20px; }
-.btn{ border:0; background:var(--gold-deep); color:#fff; font-family:inherit; font-weight:600;
+.btn{ transition:transform .09s ease, filter .09s ease; border:0; background:var(--gold-deep); color:#fff; font-family:inherit; font-weight:600;
   letter-spacing:0.06em; text-transform:uppercase; font-size:0.82rem; padding:12px 22px; border-radius:11px;
   cursor:pointer; }
+.btn:active{ transform:translateY(1px); filter:brightness(0.94); }
 .btn.ghost{ background:transparent; color:var(--gold-deep); border:1px solid var(--line); }
 .status-bar{ padding:10px 14px; font-size:0.84rem; text-align:center; }
 .status-bar.err{ background:var(--danger-bg); color:var(--danger); }
@@ -577,12 +623,16 @@ async function loadPrescriptions(){
 /* The build, on screen. When somebody says it is behaving oddly, the first
    question is which copy they are holding — a phone can sit on a cached one
    for days. */
-const LITE_VERSION = 'v1.6';
+const LITE_VERSION = 'v1.7';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
 let openAllFor = null;
+/* Which prescription inside the open card is expanded. null means "the
+   newest one", which is what a freshly opened card shows. */
+let openLine = null;
 function showAllFor(pid){ openAllFor = String(pid); repaint(); }
+function toggleLine(k){ openLine = (openLine === k) ? '' : k; repaint(); }
 
 function setTab(t){
   /* Coming back to Patients starts at the search again: a name left open
@@ -760,12 +810,13 @@ function rxFor(all, patientId){
 /* THE WHOLE PRESCRIPTION, opened where it was tapped rather than in a sheet
    that covers the list: on a phone the thing you were reading should still
    be on screen when you close what you opened. */
-function rxSheetHtml(rec, key){
+/* The contents of one prescription, with no box of its own — the card it
+   sits in provides that. */
+function rxDetailHtml(rec){
   const row = (k, v) => v ? '<div class="rxs-k">' + k + '</div><div class="rxs-v">' + escapeHtml(v) + '</div>' : '';
   const meds = ((rec.medicines) || []).filter(m => m && m.name);
-  return '<div class="rx-sheet">'
-    + '<div class="rxs-h">' + escapeHtml(rxDayLabel(rec)) + ' <span class="muted">\u00b7 '
-      + escapeHtml(agoWords(rec.date || rec.createdAt)) + '</span></div>'
+  return '<div class="rx-detail">'
+    + '<div class="rxs-when">' + escapeHtml(rxDayLabel(rec)) + '</div>'
     + (rxIsStruck(rec) ? '<div class="muted" style="font-size:0.8rem;">Struck'
         + (rec.struckReason ? ' \u00b7 ' + escapeHtml(rec.struckReason) : '') + '</div>' : '')
     + row('Complaints', rec.complaints)
@@ -781,12 +832,17 @@ function rxSheetHtml(rec, key){
     + row('Advice', rec.advice)
     + (!meds.length && !rec.treatment && !rec.advice && !rec.complaints && !rec.investigations
         ? '<div class="muted" style="font-size:0.86rem;">Nothing was written on this one.</div>' : '')
-    + '<button type="button" class="rxs-close" onclick="closeRx()">Close</button>'
     + '</div>';
+}
+/* The Patients page still shows one prescription at a time in its own box. */
+function rxSheetHtml(rec, key){
+  return '<div class="rx-sheet">' + rxDetailHtml(rec)
+    + '<button type="button" class="rxs-close" onclick="closeRx()">Close</button></div>';
 }
 function toggleRx(key){
   openRx = (openRx === key) ? null : key;
   openAllFor = null;          // closing a patient folds their history again
+  openLine = null;            // and the next one opens on its newest again
   repaint();
 }
 function closeRx(){ openRx = null; repaint(); }
@@ -886,24 +942,50 @@ async function renderVisits(){
     const showAll = openAllFor === pid;
     const shown = showAll ? mine : mine.slice(0, 3);
     const hidden = mine.length - shown.length;
-    return '<div class="row' + (mine.length ? ' tappable' : '') + '"'
+    /* ONE CARD PER PATIENT (v1.7). Each prescription used to be its own box,
+       so an opened patient became a stack of loose panels and you could not
+       see where one person ended and the next began. Everything about a
+       person now sits inside their card, and the card is what opens.
+
+       Inside it: the newest prescription OPEN, because that is the one being
+       asked about; the two before it as closed lines you can tap; anything
+       older folded behind a single count. */
+    let body = '';
+    if(open){
+      body = '<div class="pt-body">' + shown.map((r, i) => {
+        const rkey = key + ':' + i;
+        /* The newest starts open. After that the reader decides. */
+        const isOpen = (openLine === null) ? (i === 0) : (openLine === rkey);
+        return '<div class="rx-line' + (isOpen ? ' rx-line-open' : '') + (rxIsStruck(r) ? ' struck' : '') + '">'
+          + '<div class="rx-line-head" onclick="event.stopPropagation(); toggleLine(\'' + rkey + '\')">'
+            + '<span class="rx-line-what">' + escapeHtml(rxWhat(r)) + '</span>'
+            + '<span class="rx-line-when">' + escapeHtml(agoWords(r.date || r.createdAt)) + '</span>'
+          + '</div>'
+          + (isOpen ? rxDetailHtml(r) : '')
+          + '</div>';
+      }).join('')
+      + (hidden > 0
+          ? '<button type="button" class="pt-more" onclick="event.stopPropagation(); showAllFor('
+            + JSON.stringify(pid).replace(/"/g,'&quot;') + ')">' + hidden + ' older</button>'
+          : '')
+      + '</div>';
+    }
+    return '<div class="pt-card' + (open ? ' pt-open' : '') + (mine.length ? ' tappable' : '') + '"'
         + (mine.length ? ' onclick="toggleRx(\'' + key + '\')"' : '') + '>'
-      + '<div class="row-head"><div class="row-name">' + escapeHtml(name) + '</div>'
-        + '<div class="row-when">' + escapeHtml(stamp) + '</div></div>'
-      + '<div class="row-sub">' + escapeHtml(pid)
-        + (v.cameFor ? ' \u00b7 ' + escapeHtml(v.cameFor) : '')
-        + (all === null ? ' \u00b7 waiting on the clinic PC'
-            : (onDay.length ? ' \u00b7 ' + rxWhat(onDay[0])
-               : (mine.length ? ' \u00b7 ' + mine.length + ' on record' : ' \u00b7 no prescription')))
-        + '</div>'
+      + '<div class="pt-head">'
+        + '<div class="pt-name">' + escapeHtml(name) + '</div>'
+        + '<div class="pt-time">' + escapeHtml(stamp) + '</div>'
       + '</div>'
-      + (open
-          ? shown.map(r => rxSheetHtml(r, key)).join('')
-            + (hidden > 0
-                ? '<button type="button" class="rxs-close" onclick="showAllFor(' 
-                  + JSON.stringify(pid).replace(/"/g,'&quot;') + ')">Show ' + hidden + ' older</button>'
-                : '')
-          : '');
+      + '<div class="pt-sub">' + escapeHtml(pid)
+        + (v.cameFor ? ' \u00b7 ' + escapeHtml(v.cameFor) : '')
+        + '</div>'
+      + (all === null
+          ? '<div class="pt-tag pt-tag-wait">waiting on the clinic PC</div>'
+          : (onDay.length ? '<div class="pt-tag pt-tag-today">' + escapeHtml(rxWhat(onDay[0])) + '</div>'
+             : (mine.length ? '<div class="pt-tag">' + mine.length + ' on record</div>'
+                : '<div class="pt-tag pt-tag-none">no prescription</div>')))
+      + body
+      + '</div>';
   }).join('');
 }
 
