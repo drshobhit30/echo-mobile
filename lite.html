@@ -483,6 +483,48 @@ function effectiveVisitStatusM(v, dateStr){
   if(raw === 'done') return { status: 'done', auto: false };
   return { status: 'done', auto: true };
 }
+/* THE STATE THE BORROWED LOADERS KEEP. These were declared elsewhere in the
+   phone app and did not travel with the functions, so both loaders threw on
+   their first line — and the throw was swallowed by their own catch, which
+   is why it showed as empty data rather than an error. */
+let directoryCache = null, directoryTried = false;
+let rxIndexCache = null, rxIndexTried = false;
+let cachedRxFolderId = null;
+
+/* PUT BACK (v1.1). Stripping "unused" code from the borrowed layer took two
+   functions that ARE used: loadSettingsMap, which loadPatientDirectory reads
+   the patient names through, and driveListChildren, which loadPrescriptions
+   uses to check the index against the folder. Without them every visit read
+   "Unknown patient" and every prescription "waiting on the clinic PC" — the
+   app looked broken in exactly the way a permissions problem looks, which is
+   the wrong lesson to hand somebody on their first open. */
+async function loadSettingsMap(fileName, state){
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return {};
+    const fileId = await driveFindChild(settingsId, fileName, false);
+    if(!fileId) return {};
+    const m = await driveReadJson(fileId);
+    return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    return {};
+  }
+}
+async function driveListChildren(parentId){
+  let files = [];
+  let pageToken = null;
+  do{
+    const q = encodeURIComponent(`'${parentId}' in parents and trashed=false`);
+    let url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name)&pageSize=1000`;
+    if(pageToken) url += '&pageToken=' + pageToken;
+    const res = await driveFetch(url, 'Drive listing failed');
+    const data = await res.json();
+    files = files.concat(data.files || []);
+    pageToken = data.nextPageToken || null;
+  } while(pageToken);
+  return files;
+}
 async function loadPatientDirectory(){
   if(directoryTried) return directoryCache;
   directoryTried = true;
@@ -530,8 +572,6 @@ async function loadPrescriptions(){
    the clinic's files even if one were coded by mistake.
    ========================================================================== */
 let currentTab = 'visits';
-let rxIndexCache = null, rxIndexTried = false;
-let dirCache = null;
 let openRx = null;
 
 function setTab(t){
@@ -566,20 +606,17 @@ function agoWords(dateStr){
   return years + (years === 1 ? ' year' : ' years') + (rem ? ' ' + rem + 'm' : '') + ' ago';
 }
 
+/* One cache, not two. This used to keep its own copy on top of the loader's,
+   so Refresh cleared the outer one and got the stale inner one back. */
 async function getRxIndex(){
-  if(rxIndexTried) return rxIndexCache;
-  rxIndexTried = true;
-  try{ rxIndexCache = await loadPrescriptions(); }
+  try{ return await loadPrescriptions(); }
   catch(err){
     if(err && err.name === 'TokenExpiredError') throw err;
-    rxIndexCache = null;
+    return null;
   }
-  return rxIndexCache;
 }
 async function getDirectory(){
-  if(dirCache) return dirCache;
-  try{ dirCache = await loadPatientDirectory(); }catch(e){ dirCache = {}; }
-  return dirCache || {};
+  try{ return (await loadPatientDirectory()) || {}; }catch(e){ return {}; }
 }
 function rxFor(all, patientId){
   const byDate = (a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || ''));
@@ -737,7 +774,11 @@ window.addEventListener('load', () => {
 
 document.getElementById('refreshBtn').addEventListener('click', () => {
   /* Everything cached is re-read; the open tab stays put. */
-  dirCache = null; rxIndexCache = null; rxIndexTried = false; openRx = null;
+  /* Everything both layers hold, so Refresh really re-reads. */
+  directoryCache = null; directoryTried = false;
+  rxIndexCache = null; rxIndexTried = false;
+  cachedRxFolderId = null; cachedSettingsFolderId = null;
+  openRx = null;
   setTab(currentTab);
 });
 
