@@ -98,7 +98,7 @@ body{ padding-bottom:28px; }
   <div class="brand">
     <div>
       <div class="brand-name">Echo Nexus</div>
-      <div class="brand-sub">Echo Dental Clinic &middot; Lite</div>
+      <div class="brand-sub">Echo Dental Clinic &middot; Lite <span id="appVer"></span></div>
     </div>
     <button class="btn ghost" id="refreshBtn" style="padding:8px 14px;">&#8635;</button>
   </div>
@@ -484,10 +484,18 @@ async function driveListChildren(parentId){
 }
 /* The check that used to block the first paint. It compares what the index
    claims against what is on the folder, and only speaks up when they differ. */
+/* ONCE A DAY, NOT EVERY OPEN (v1.5). This lists every prescription file the
+   clinic has ever written — the single heaviest request the app makes. It
+   guards against an index the desktop failed to update, which is rare; run
+   it once in twelve hours rather than on every open, and the cost stops
+   being paid for a fault that is usually not there. */
+const CACHE_KEY_VERIFIED = 'echoLite_verified';
 let rxVerifyDone = false;
 async function verifyRxIndexLater(idx){
   if(rxVerifyDone) return;
   rxVerifyDone = true;
+  const last = Number(localStorage.getItem(CACHE_KEY_VERIFIED) || 0);
+  if(last && (Date.now() - last) < 12 * 60 * 60 * 1000) return;
   try{
     if(!cachedRxFolderId) cachedRxFolderId = await driveFindChild(driveFolderId, 'prescriptions', true);
     if(!cachedRxFolderId) return;
@@ -497,6 +505,7 @@ async function verifyRxIndexLater(idx){
     const inIndex = (idx.keys || []).slice().sort();
     let same = onDisk.length === inIndex.length;
     if(same) for(let i = 0; i < onDisk.length; i++) if(onDisk[i] !== inIndex[i]){ same = false; break; }
+    try{ localStorage.setItem(CACHE_KEY_VERIFIED, String(Date.now())); }catch(e){}
     if(same) return;
     /* The index is behind the folder: say so rather than show a record that
        may be missing someone's latest prescription. */
@@ -511,7 +520,7 @@ async function loadPatientDirectory(){
   if(held && Object.keys(held).length){
     /* Answer from the device now; the wire catches up behind. */
     directoryCache = held;
-    setTimeout(refreshBehind, 0);
+    scheduleRefreshBehind();
     return directoryCache;
   }
   directoryCache = await loadSettingsMap('patients.json');
@@ -524,7 +533,7 @@ async function loadPrescriptions(){
   const heldRx = cachedRxIndex();
   if(heldRx && heldRx.length){
     rxIndexCache = heldRx;
-    setTimeout(refreshBehind, 0);
+    scheduleRefreshBehind();
     return rxIndexCache;
   }
   try{
@@ -565,8 +574,15 @@ async function loadPrescriptions(){
    Drive scope is drive.readonly, so there is no path from this app back to
    the clinic's files even if one were coded by mistake.
    ========================================================================== */
+/* The build, on screen. When somebody says it is behaving oddly, the first
+   question is which copy they are holding — a phone can sit on a cached one
+   for days. */
+const LITE_VERSION = 'v1.6';
 let currentTab = 'visits';
 let openRx = null;
+/* Which patient, if any, has had their older prescriptions unfolded. */
+let openAllFor = null;
+function showAllFor(pid){ openAllFor = String(pid); repaint(); }
 
 function setTab(t){
   /* Coming back to Patients starts at the search again: a name left open
@@ -640,15 +656,61 @@ function cacheWrite(key, value){
   }
 }
 function cacheClear(){
-  [CACHE_KEY_DIR, CACHE_KEY_RX, CACHE_KEY_AT].forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+  [CACHE_KEY_DIR, CACHE_KEY_RX, CACHE_KEY_AT, 'echoLite_verified']
+    .forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+  /* And every day that was kept, or Refresh could not correct one. */
+  try{
+    const doomed = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.indexOf('echoLite_day_') === 0) doomed.push(k);
+    }
+    doomed.forEach(k => localStorage.removeItem(k));
+  }catch(e){}
 }
 async function getDirectory(){
   try{ return (await loadPatientDirectory()) || {}; }catch(e){ return {}; }
 }
+
+/* EVERY LOOKUP, REMEMBERED (v1.5). A Drive id never changes, but the app was
+   asking for the same ones on every open: which folder is 'settings', which
+   file is 'patients.json', which is today's day file. Each question is a
+   round trip. They are resolved once and kept on the device, so a second
+   open spends its network on the data itself rather than on finding it
+   again. An id that has gone stale simply fails to read, and the entry is
+   dropped and asked for afresh. */
+const CACHE_KEY_IDS = 'echoLite_ids';
+let idMap = cacheRead(CACHE_KEY_IDS) || {};
+let idInFlight = {};
+const _findChildDirect = driveFindChild;
+driveFindChild = async function(parentId, name, isFolder){
+  if(!parentId) return null;
+  const key = parentId + '/' + name;
+  if(idMap[key]) return idMap[key];
+  /* Two callers wanting the same folder at the same moment asked twice; they
+     now share the one request. */
+  if(idInFlight[key]) return idInFlight[key];
+  idInFlight[key] = (async () => {
+    const id = await _findChildDirect(parentId, name, isFolder);
+    if(id){ idMap[key] = id; cacheWrite(CACHE_KEY_IDS, idMap); }
+    delete idInFlight[key];
+    return id;
+  })();
+  return idInFlight[key];
+};
+function forgetIds(){ idMap = {}; idInFlight = {}; try{ localStorage.removeItem(CACHE_KEY_IDS); }catch(e){} }
 /* The cached pair, if the device has them. Used to paint; never trusted as
    the last word — a re-read always follows. */
 function cachedDirectory(){ return cacheRead(CACHE_KEY_DIR); }
 function cachedRxIndex(){ return cacheRead(CACHE_KEY_RX); }
+/* Both loaders ask for the catch-up read; it should happen once a session,
+   not once per loader. */
+let refreshScheduled = false;
+function scheduleRefreshBehind(){
+  if(refreshScheduled) return;
+  refreshScheduled = true;
+  setTimeout(refreshBehind, 0);
+}
 let refreshingInBackground = false;
 /* Straight to Drive, deliberately NOT through the loaders above — they would
    hand back the very cache this exists to replace. Only a real difference
@@ -722,7 +784,11 @@ function rxSheetHtml(rec, key){
     + '<button type="button" class="rxs-close" onclick="closeRx()">Close</button>'
     + '</div>';
 }
-function toggleRx(key){ openRx = (openRx === key) ? null : key; repaint(); }
+function toggleRx(key){
+  openRx = (openRx === key) ? null : key;
+  openAllFor = null;          // closing a patient folds their history again
+  repaint();
+}
 function closeRx(){ openRx = null; repaint(); }
 function repaint(){ if(currentTab === 'visits') renderVisits(); else renderPatients(); }
 
@@ -765,16 +831,30 @@ async function renderVisits(){
      day itself is always read, because that is what changed. */
   const dirPromise = getDirectory();
   const rxPromise = getRxIndex();
-  let rows = [];
-  try{
-    const folder = await driveFindChild(driveFolderId, 'visits', true);
-    if(folder){
-      const fid = await driveFindChild(folder, today + '.json', false);
-      if(fid){ const l = await driveReadJson(fid); rows = Array.isArray(l) ? l : []; }
-    }
-  }catch(err){
-    if(err && err.name === 'TokenExpiredError') throw err;
+  /* A DAY THAT IS OVER CANNOT CHANGE. Yesterday's arrivals are read once and
+     kept; only today is re-read, because only today is still happening. */
+  const dayKey = 'echoLite_day_' + today;
+  let rows = null;
+  if(!isToday){
+    const held = cacheRead(dayKey);
+    if(Array.isArray(held)) rows = held;
+  }
+  if(rows === null){
     rows = [];
+    try{
+      const folder = await driveFindChild(driveFolderId, 'visits', true);
+      if(folder){
+        const fid = await driveFindChild(folder, today + '.json', false);
+        if(fid){
+          const l = await driveReadJson(fid);
+          rows = Array.isArray(l) ? l : [];
+          if(!isToday) cacheWrite(dayKey, rows);
+        }
+      }
+    }catch(err){
+      if(err && err.name === 'TokenExpiredError') throw err;
+      rows = [];
+    }
   }
   /* A struck visit is not an arrival. It is dropped here rather than shown
      greyed: this app is a list of who to see, and a cancelled arrival is not
@@ -786,16 +866,26 @@ async function renderVisits(){
     list.innerHTML = '<div class="empty-state">' + (isToday ? 'Nobody yet today' : 'Nobody came') + '</div>';
     return;
   }
-  rows.sort((a, b) => String(a.arrivedAt || '').localeCompare(String(b.arrivedAt || '')));
+  /* NEWEST FIRST (v1.6). The last person through the door is the one being
+     asked about; the morning's arrivals are history by the evening. */
+  rows.sort((a, b) => String(b.arrivedAt || '').localeCompare(String(a.arrivedAt || '')));
   list.innerHTML = rows.map(v => {
     const pid = String(v.patientId);
     const name = (dir && dir[pid]) || v.patientName || 'Unknown patient';
     const t = v.arrivedAt ? new Date(v.arrivedAt) : null;
     const stamp = (t && !isNaN(t.getTime()))
       ? t.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) : '';
-    const mine = all === null ? [] : rxFor(all, pid).filter(r => String(r.date || '').slice(0,10) === today);
+    /* EVERY prescription this patient has, newest first — not only the one
+       written on the day being viewed. Somebody in the chair is asked about
+       in the light of what came before, and three is what fits on a phone
+       without scrolling past the next patient. The rest are one tap away. */
+    const mine = all === null ? [] : rxFor(all, pid);
+    const onDay = mine.filter(r => String(r.date || '').slice(0, 10) === today);
     const key = 'v:' + pid;
     const open = openRx === key && mine.length;
+    const showAll = openAllFor === pid;
+    const shown = showAll ? mine : mine.slice(0, 3);
+    const hidden = mine.length - shown.length;
     return '<div class="row' + (mine.length ? ' tappable' : '') + '"'
         + (mine.length ? ' onclick="toggleRx(\'' + key + '\')"' : '') + '>'
       + '<div class="row-head"><div class="row-name">' + escapeHtml(name) + '</div>'
@@ -803,10 +893,17 @@ async function renderVisits(){
       + '<div class="row-sub">' + escapeHtml(pid)
         + (v.cameFor ? ' \u00b7 ' + escapeHtml(v.cameFor) : '')
         + (all === null ? ' \u00b7 waiting on the clinic PC'
-            : (mine.length ? ' \u00b7 ' + rxWhat(mine[0]) : ' \u00b7 no prescription'))
+            : (onDay.length ? ' \u00b7 ' + rxWhat(onDay[0])
+               : (mine.length ? ' \u00b7 ' + mine.length + ' on record' : ' \u00b7 no prescription')))
         + '</div>'
       + '</div>'
-      + (open ? mine.map(r => rxSheetHtml(r, key)).join('') : '');
+      + (open
+          ? shown.map(r => rxSheetHtml(r, key)).join('')
+            + (hidden > 0
+                ? '<button type="button" class="rxs-close" onclick="showAllFor(' 
+                  + JSON.stringify(pid).replace(/"/g,'&quot;') + ')">Show ' + hidden + ' older</button>'
+                : '')
+          : '');
   }).join('');
 }
 
@@ -914,6 +1011,8 @@ async function connectAndLoad(){
   else setTab(currentTab);
 }
 window.addEventListener('load', () => {
+  const ver = document.getElementById('appVer');
+  if(ver) ver.textContent = LITE_VERSION;
   const saved = localStorage.getItem('echoDental_driveFolderId') || '';
   if(saved){ driveFolderId = saved; const el = document.getElementById('folderIdInput'); if(el) el.value = saved; }
   initGoogleAuth();
@@ -927,9 +1026,9 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   directoryCache = null; directoryTried = false;
   rxIndexCache = null; rxIndexTried = false;
   cachedRxFolderId = null; cachedSettingsFolderId = null;
-  rxVerifyDone = false;
+  rxVerifyDone = false; refreshScheduled = false;
   openRx = null; selectedPatient = null;
-  cacheClear();
+  cacheClear(); forgetIds();
   setTab(currentTab);
 });
 
