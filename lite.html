@@ -575,6 +575,9 @@ let currentTab = 'visits';
 let openRx = null;
 
 function setTab(t){
+  /* Coming back to Patients starts at the search again: a name left open
+     from an hour ago is not what the next question is about. */
+  if(t !== currentTab && t === 'patients'){ selectedPatient = null; }
   currentTab = t;
   document.querySelectorAll('.tab-btn').forEach(b =>
     b.classList.toggle('active', b.getAttribute('data-tab') === t));
@@ -705,31 +708,46 @@ async function renderVisits(){
   }).join('');
 }
 
-/* ---------------------------- PATIENTS ---------------------------------- */
+/* ---------------------------- PATIENTS ----------------------------------
+   TWO STEPS, NOT ONE (v1.2). The search used to answer with every
+   prescription of every match at once: on a common first name that is forty
+   people and hundreds of rows, built on every keystroke, and it needed the
+   whole prescriptions index before it could draw anything. Now the search
+   answers with NAMES — which cost only the patient directory — and the
+   prescriptions are read when one name is tapped. */
 let patientQuery = '';
-function onSearch(v){ patientQuery = String(v || '').trim(); openRx = null; renderPatients(); }
+let selectedPatient = null;
+let searchTimer = null;
+
+function onSearch(v){
+  patientQuery = String(v || '').trim();
+  selectedPatient = null; openRx = null;
+  /* A phone keyboard fires faster than a render; without this the list is
+     rebuilt for every letter of a name and the typing itself stutters. */
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(renderPatients, 180);
+}
+function openPatient(pid){ selectedPatient = String(pid); openRx = null; renderPatients(); }
+function backToSearch(){ selectedPatient = null; openRx = null; renderPatients(); }
+
 async function renderPatients(){
   const list = document.getElementById('patientList');
-  const q = patientQuery.toLowerCase();
-  if(q.length < 2){
-    list.innerHTML = '<div class="empty-state">Type a name or an ID</div>';
-    return;
-  }
-  const [dir, all] = await Promise.all([getDirectory(), getRxIndex()]);
-  const hits = Object.keys(dir || {})
-    .filter(pid => String(dir[pid] || '').toLowerCase().includes(q) || String(pid).toLowerCase().includes(q))
-    .slice(0, 40);
-  if(!hits.length){ list.innerHTML = '<div class="empty-state">No one by that name</div>'; return; }
-  if(all === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
-  /* One block per person: the name, then every prescription ever written for
-     them, newest first, each saying how long ago it was. */
-  list.innerHTML = hits.map(pid => {
+  const dir = await getDirectory();
+
+  /* ---- one patient, opened ---- */
+  if(selectedPatient){
+    const pid = selectedPatient;
+    list.innerHTML = '<div class="spin">Reading&hellip;</div>';
+    const all = await getRxIndex();
+    if(selectedPatient !== pid) return;          // they tapped Back meanwhile
+    if(all === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
     const mine = rxFor(all, pid);
-    const head = '<div class="sec-head"><span class="sec-title">' + escapeHtml(dir[pid])
+    let h = '<button type="button" class="btn ghost" onclick="backToSearch()" style="margin:4px 0 14px;">&lsaquo; Back</button>'
+      + '<div class="sec-head"><span class="sec-title">' + escapeHtml(dir[pid] || 'Unknown patient')
       + ' <span class="muted">' + escapeHtml(String(pid)) + '</span></span>'
       + '<span class="count-badge">' + mine.length + '</span></div>';
-    if(!mine.length) return head + '<div class="empty-state">No prescriptions</div>';
-    return head + mine.map((r, i) => {
+    if(!mine.length){ list.innerHTML = h + '<div class="empty-state">No prescriptions</div>'; return; }
+    h += mine.map((r, i) => {
       const key = 'p:' + pid + ':' + i;
       const open = openRx === key;
       return '<div class="row tappable' + (rxIsStruck(r) ? ' struck' : '') + '"'
@@ -741,9 +759,38 @@ async function renderPatients(){
         + '</div>'
         + (open ? rxSheetHtml(r, key) : '');
     }).join('');
-  }).join('');
-}
+    list.innerHTML = h;
+    return;
+  }
 
+  /* ---- the search: names only ---- */
+  const q = patientQuery.toLowerCase();
+  if(q.length < 2){
+    list.innerHTML = '<div class="empty-state">Type a name or an ID</div>';
+    return;
+  }
+  const ids = Object.keys(dir || {});
+  const hits = ids
+    .filter(pid => String(dir[pid] || '').toLowerCase().includes(q) || String(pid).toLowerCase().includes(q))
+    /* Names that START with what was typed are what people mean; the rest
+       follow. */
+    .sort((a, b) => {
+      const na = String(dir[a]||'').toLowerCase(), nb = String(dir[b]||'').toLowerCase();
+      const sa = na.startsWith(q) ? 0 : 1, sb = nb.startsWith(q) ? 0 : 1;
+      return sa - sb || na.localeCompare(nb);
+    });
+  if(!hits.length){ list.innerHTML = '<div class="empty-state">No one by that name</div>'; return; }
+  const shown = hits.slice(0, 30);
+  list.innerHTML = shown.map(pid =>
+      '<div class="row tappable" onclick="openPatient(' + JSON.stringify(String(pid)).replace(/"/g,'&quot;') + ')">'
+    + '<div class="row-head"><div class="row-name">' + escapeHtml(dir[pid] || 'Unknown patient') + '</div>'
+      + '<div class="row-when">&rsaquo;</div></div>'
+    + '<div class="row-sub">' + escapeHtml(String(pid)) + '</div>'
+    + '</div>').join('')
+    + (hits.length > shown.length
+        ? '<div class="empty-state">' + (hits.length - shown.length) + ' more \u2014 type a little further</div>'
+        : '');
+}
 
 /* ---- boot ---------------------------------------------------------------
    The same two gates as the main phone app: a Google token, and a folder id.
@@ -778,7 +825,7 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   directoryCache = null; directoryTried = false;
   rxIndexCache = null; rxIndexTried = false;
   cachedRxFolderId = null; cachedSettingsFolderId = null;
-  openRx = null;
+  openRx = null; selectedPatient = null;
   setTab(currentTab);
 });
 
