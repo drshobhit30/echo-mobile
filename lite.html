@@ -87,6 +87,12 @@ body{ padding-bottom:28px; }
 .pt-tag-today{ background:var(--success-bg); color:var(--success); }
 .pt-tag-none{ background:transparent; color:var(--muted); padding-left:0; }
 .pt-tag-wait{ background:var(--danger-bg); color:var(--danger); }
+/* The two figures a card carries before it is opened. */
+.pt-facts{ display:flex; gap:18px; margin-top:9px; padding-left:31px; }
+.pt-f{ display:flex; flex-direction:column; }
+.pt-v{ font-weight:700; font-size:0.95rem; color:var(--brown); }
+.pt-v.pt-ok{ color:var(--success); }
+.pt-k{ font-size:0.66rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); }
 
 /* ---- prescriptions inside the card ---- */
 .pt-body{ margin-top:11px; border-top:1px solid var(--line); }
@@ -638,7 +644,7 @@ async function loadPrescriptions(){
 /* The build, on screen. When somebody says it is behaving oddly, the first
    question is which copy they are holding — a phone can sit on a cached one
    for days. */
-const LITE_VERSION = 'v1.8';
+const LITE_VERSION = 'v1.9';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -956,6 +962,9 @@ async function renderVisits(){
        without scrolling past the next patient. The rest are one tap away. */
     const mine = all === null ? [] : rxFor(all, pid);
     const onDay = mine.filter(r => String(r.date || '').slice(0, 10) === today);
+    /* Everything written before the day being viewed — what "last seen"
+       actually means. */
+    const before = mine.filter(r => String(r.date || '').slice(0, 10) < today);
     const key = 'v:' + pid;
     const open = openRx === key && mine.length;
     const showAll = openAllFor === pid;
@@ -1010,11 +1019,30 @@ async function renderVisits(){
       + '<div class="pt-sub pt-sub-indent">' + escapeHtml(pid)
         + (v.cameFor ? ' \u00b7 ' + escapeHtml(v.cameFor) : '')
         + '</div>'
+      /* WHAT THE CARD SAYS WITHOUT BEING OPENED (v1.9). A name and a time do
+         not tell you whether this is somebody you saw last month or somebody
+         you have never met. Two figures do: when they were last here, and how
+         much is on record — read before the card is touched.
+
+         "Last seen" is the newest prescription BEFORE today, not the newest
+         overall, or a patient prescribed for an hour ago would read as last
+         seen today, which answers nothing. */
       + (all === null
           ? '<div class="pt-tag pt-tag-wait">waiting on the clinic PC</div>'
-          : (onDay.length ? '<div class="pt-tag pt-tag-today">' + escapeHtml(rxWhat(onDay[0])) + '</div>'
-             : (mine.length ? '<div class="pt-tag">' + mine.length + ' on record</div>'
-                : '<div class="pt-tag pt-tag-none">no prescription</div>')))
+          : '<div class="pt-facts">'
+            + '<div class="pt-f"><span class="pt-v">'
+              + (before.length ? escapeHtml(agoWords(before[0].date || before[0].createdAt).replace(' ago', ''))
+                 : '\u2014')
+              + '</span><span class="pt-k">last seen</span></div>'
+            + '<div class="pt-f"><span class="pt-v">' + mine.length + ' \u211e</span>'
+              + '<span class="pt-k">on record</span></div>'
+            + '</div>'
+            /* What was done on the day being viewed still leads: it is the
+               fastest thing on the card to read, and a tick saying "seen
+               today" says less than the treatment itself. */
+            + (onDay.length
+                ? '<div class="pt-tag pt-tag-today">' + escapeHtml(rxWhat(onDay[0])) + '</div>'
+                : ''))
       + body
       + '</div>';
   }).join('');
