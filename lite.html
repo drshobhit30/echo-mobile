@@ -72,7 +72,13 @@ body{ padding-bottom:28px; }
 .pt-card.tappable:active{ transform:translateY(1px) scale(0.997); background:var(--cream); }
 .pt-card.pt-open{ border-color:var(--gold-light); box-shadow:0 2px 10px rgba(74,59,40,0.07); }
 .pt-card.pt-open::before{ background:var(--gold); opacity:1; }
-.pt-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.pt-head{ display:flex; align-items:baseline; gap:9px; }
+.pt-no{ flex:none; min-width:22px; height:22px; line-height:22px; text-align:center;
+  border-radius:6px; background:var(--gold-pale); color:var(--gold-deep);
+  font-size:0.72rem; font-weight:700; }
+.pt-card.pt-open .pt-no{ background:var(--gold-deep); color:#fff; }
+.pt-head .pt-name{ flex:1; min-width:0; }
+.pt-sub-indent{ padding-left:31px; }
 .pt-name{ font-weight:700; font-size:1rem; color:var(--ink); }
 .pt-time{ font-size:0.8rem; font-weight:600; color:var(--gold-deep); white-space:nowrap; }
 .pt-sub{ font-size:0.78rem; color:var(--muted); margin-top:2px; }
@@ -85,12 +91,21 @@ body{ padding-bottom:28px; }
 /* ---- prescriptions inside the card ---- */
 .pt-body{ margin-top:11px; border-top:1px solid var(--line); }
 .rx-line + .rx-line{ border-top:1px solid rgba(0,0,0,0.05); }
-.rx-line-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
-  padding:9px 0; cursor:pointer; transition:opacity .09s ease; }
+.rx-line-head{ display:flex; align-items:flex-start; gap:9px;
+  padding:10px 0; cursor:pointer; transition:opacity .09s ease; }
+.rx-mark{ flex:none; width:22px; height:22px; line-height:21px; text-align:center;
+  border-radius:6px; border:1px solid var(--line); color:var(--gold-deep);
+  font-size:0.82rem; font-weight:700; background:var(--cream); }
+.rx-line-open .rx-mark{ background:var(--gold-pale); border-color:var(--gold-light); }
+.rx-line-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.rx-line-meta{ font-size:0.72rem; color:var(--muted); }
+.rx-chev{ flex:none; color:var(--muted); font-size:1rem; line-height:22px; width:14px; text-align:center; }
+.rx-line-open .rx-chev{ color:var(--gold-deep); }
+.rx-detail{ padding-left:31px; }
 .rx-line-head:active{ opacity:.55; }
 .rx-line-what{ font-weight:600; font-size:0.9rem; color:var(--brown); }
 .rx-line-open .rx-line-what{ color:var(--gold-deep); }
-.rx-line-when{ font-size:0.75rem; color:var(--muted); white-space:nowrap; }
+
 .rx-line.struck .rx-line-what{ text-decoration:line-through; opacity:.6; }
 .rx-detail{ padding:2px 0 12px; }
 .rxs-when{ font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase;
@@ -623,7 +638,7 @@ async function loadPrescriptions(){
 /* The build, on screen. When somebody says it is behaving oddly, the first
    question is which copy they are holding — a phone can sit on a cached one
    for days. */
-const LITE_VERSION = 'v1.7';
+const LITE_VERSION = 'v1.8';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -816,7 +831,6 @@ function rxDetailHtml(rec){
   const row = (k, v) => v ? '<div class="rxs-k">' + k + '</div><div class="rxs-v">' + escapeHtml(v) + '</div>' : '';
   const meds = ((rec.medicines) || []).filter(m => m && m.name);
   return '<div class="rx-detail">'
-    + '<div class="rxs-when">' + escapeHtml(rxDayLabel(rec)) + '</div>'
     + (rxIsStruck(rec) ? '<div class="muted" style="font-size:0.8rem;">Struck'
         + (rec.struckReason ? ' \u00b7 ' + escapeHtml(rec.struckReason) : '') + '</div>' : '')
     + row('Complaints', rec.complaints)
@@ -925,7 +939,12 @@ async function renderVisits(){
   /* NEWEST FIRST (v1.6). The last person through the door is the one being
      asked about; the morning's arrivals are history by the evening. */
   rows.sort((a, b) => String(b.arrivedAt || '').localeCompare(String(a.arrivedAt || '')));
-  list.innerHTML = rows.map(v => {
+  /* NUMBERED (v1.8). The desk counts arrivals from the first of the day, so
+     the phone counts the same way: newest first on screen, but the number is
+     the order they came, which is the number the desk will say out loud. */
+  const total = rows.length;
+  list.innerHTML = rows.map((v, idx) => {
+    const srNo = total - idx;
     const pid = String(v.patientId);
     const name = (dir && dir[pid]) || v.patientName || 'Unknown patient';
     const t = v.arrivedAt ? new Date(v.arrivedAt) : null;
@@ -956,10 +975,21 @@ async function renderVisits(){
         const rkey = key + ':' + i;
         /* The newest starts open. After that the reader decides. */
         const isOpen = (openLine === null) ? (i === 0) : (openLine === rkey);
+        /* A PRESCRIPTION IS A RECORD, NOT A LINE (v1.8). It now carries the
+           ℞ mark, its own date, how long ago, and how many medicines — so a
+           closed one still says what it is, and an open one is plainly a
+           document rather than an indented paragraph. */
         return '<div class="rx-line' + (isOpen ? ' rx-line-open' : '') + (rxIsStruck(r) ? ' struck' : '') + '">'
           + '<div class="rx-line-head" onclick="event.stopPropagation(); toggleLine(\'' + rkey + '\')">'
-            + '<span class="rx-line-what">' + escapeHtml(rxWhat(r)) + '</span>'
-            + '<span class="rx-line-when">' + escapeHtml(agoWords(r.date || r.createdAt)) + '</span>'
+            + '<span class="rx-mark">\u211e</span>'
+            + '<span class="rx-line-main">'
+              + '<span class="rx-line-what">' + escapeHtml(rxWhat(r)) + '</span>'
+              + '<span class="rx-line-meta">' + escapeHtml(rxDayLabel(r))
+                + ' \u00b7 ' + escapeHtml(agoWords(r.date || r.createdAt))
+                + ' \u00b7 ' + escapeHtml(rxMedCount(r))
+                + (rxIsStruck(r) ? ' \u00b7 struck' : '') + '</span>'
+            + '</span>'
+            + '<span class="rx-chev">' + (isOpen ? '\u2013' : '+') + '</span>'
           + '</div>'
           + (isOpen ? rxDetailHtml(r) : '')
           + '</div>';
@@ -973,10 +1003,11 @@ async function renderVisits(){
     return '<div class="pt-card' + (open ? ' pt-open' : '') + (mine.length ? ' tappable' : '') + '"'
         + (mine.length ? ' onclick="toggleRx(\'' + key + '\')"' : '') + '>'
       + '<div class="pt-head">'
+        + '<span class="pt-no">' + srNo + '</span>'
         + '<div class="pt-name">' + escapeHtml(name) + '</div>'
         + '<div class="pt-time">' + escapeHtml(stamp) + '</div>'
       + '</div>'
-      + '<div class="pt-sub">' + escapeHtml(pid)
+      + '<div class="pt-sub pt-sub-indent">' + escapeHtml(pid)
         + (v.cameFor ? ' \u00b7 ' + escapeHtml(v.cameFor) : '')
         + '</div>'
       + (all === null
