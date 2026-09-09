@@ -265,6 +265,17 @@
   }
   .daynav-btn:disabled{ opacity:0.35; }
   .daynav-label{ text-align:center; flex:1; }
+  .vday-cal{ position:relative; display:inline-flex; align-items:center; justify-content:center;
+    width:38px; height:38px; border-radius:10px; cursor:pointer; font-size:1rem; }
+  .vday-cal input{ position:absolute; inset:0; width:100%; height:100%; opacity:0; margin:0;
+    padding:0; border:0; }
+  .vrow{ cursor:pointer; }
+  .vrow-open{ background:var(--gold-pale); }
+  .vrow-body{ margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.07); }
+  .vrow-line{ display:flex; gap:10px; align-items:baseline; padding:2px 0; font-size:0.86rem; }
+  .vrow-k{ min-width:44px; font-weight:600; color:var(--gold-deep); font-size:0.76rem;
+    text-transform:uppercase; letter-spacing:0.05em; }
+  .vrow-v{ flex:1; color:var(--brown); }
   .daynav-label .eyebrow{ font-size:0.65rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--gold-deep); font-weight:600; }
   .daynav-label .date{ font-family:'Jost', sans-serif; font-weight:600; font-size:0.95rem; color:var(--brown); }
   .jump-today{ text-align:center; margin:-6px 16px 10px; }
@@ -946,23 +957,20 @@
   <!-- Three views of the same money: a day, a month, a chosen period.
        Read-only throughout — this is the owner's pocket window, not a till. -->
   <div class="tabbar">
-    <button class="tab-btn active" data-view="collection">Collection</button>
+    <button class="tab-btn active" data-view="home">Home</button>
+    <button class="tab-btn" data-view="collection">Collection</button>
+    <button class="tab-btn" data-view="visits">Visits</button>
     <button class="tab-btn" data-view="patient">Patient</button>
     <button class="tab-btn" data-view="lab">Lab</button>
   </div>
 
-  <!-- ---------------- DAY ---------------- -->
-  <div id="viewCollection">
-  <!-- DAY AND MONTH WERE TWO TABS ASKING THE SAME QUESTION over different
-       spans, and Year was not asked at all. One page now, with the period
-       chosen above it. The two blocks below are the ORIGINAL Day and Month
-       views, unchanged and simply shown one at a time — rewriting them into
-       one would have been a second copy of money code for no gain. -->
-  <!-- THE DASHBOARD. Today, in the eight facts the owner chose. Lives on
-       Collection rather than as a fourth tab: it is the same data, and the
-       app went from five tabs to three for good reason. Shown on Day only —
-       it is today's picture, and a Month or Year view is not today's. -->
-  <div id="dash" class="dash">
+  <!-- ---------------- HOME ----------------
+       The dashboard was a block at the top of Collection, shown on Day only
+       and hidden the moment the period changed — a page's worth of content
+       living as a condition of another page. It is its own tab now, which is
+       also what the first tap of the day should land on. -->
+  <div id="viewHome">
+<div id="dash" class="dash">
     <div class="dash-hero">
       <div class="dash-stamp" id="dashStamp">&mdash;</div>
       <div class="dash-total" id="dashTotal">&#8377;0</div>
@@ -991,6 +999,31 @@
     </div>
     <div class="dash-quiet hidden" id="dashQuiet">nothing needs a look</div>
   </div>
+  </div>
+
+  <!-- ---------------- VISITS ----------------
+       Who came, day by day, as the desk sees it — read only. -->
+  <div id="viewVisits" class="hidden">
+    <div class="daynav">
+      <button class="daynav-btn" id="prevVisitDayBtn">&lsaquo;</button>
+      <div class="daynav-label" id="visitDayLabel">&mdash;</div>
+      <button class="daynav-btn" id="nextVisitDayBtn">&rsaquo;</button>
+      <label class="vday-cal" title="Pick a date">&#128197;
+        <input type="date" id="visitDayPicker">
+      </label>
+    </div>
+    <div class="sec-head"><span class="sec-title">Arrivals</span>
+      <span class="count-badge" id="visitDayTotal">0</span></div>
+    <div id="visitDayList"><div class="empty-state">&mdash;</div></div>
+  </div>
+
+  <!-- ---------------- DAY ---------------- -->
+  <div id="viewCollection">
+  <!-- DAY AND MONTH WERE TWO TABS ASKING THE SAME QUESTION over different
+       spans, and Year was not asked at all. One page now, with the period
+       chosen above it. The two blocks below are the ORIGINAL Day and Month
+       views, unchanged and simply shown one at a time — rewriting them into
+       one would have been a second copy of money code for no gain. -->
   <div class="period-chips" id="collectionChips">
     <button class="period-chip active" data-cperiod="day" onclick="setCollectionPeriod('day')">Day</button>
     <button class="period-chip" data-cperiod="month" onclick="setCollectionPeriod('month')">Month</button>
@@ -1173,6 +1206,13 @@
         <div class="count" id="pdLabCount">0</div>
       </div>
       <div class="pay-list" id="pdLabList"></div>
+      <!-- IMPLANTS. One file, implant-log.json, filtered to this patient —
+           the same record the desk shows, read only. -->
+      <div class="section-title">
+        <h3>&#129463; Implants</h3>
+        <div class="count" id="pdImplantCount">0</div>
+      </div>
+      <div class="pay-list" id="pdImplantList"></div>
       <div class="section-title">
         <h3>&#8478; Prescriptions</h3>
         <div class="count" id="pdRxCount">&mdash;</div>
@@ -2142,14 +2182,16 @@ const VIEW_MEMORY_MS = 20 * 60 * 1000;
 /* 'report' is gone — Outstanding lives on the Patient tab now. A phone that
    remembered it falls through to 'day', which the guard below already does
    for any value it does not recognise. */
-const KNOWN_VIEWS = ['collection','patient','lab'];
+const KNOWN_VIEWS = ['home','collection','visits','patient','lab'];
 /* Which tab is open, restored from this phone's own storage the moment the
    state is declared — not later, beside the tab buttons, where it would
    depend on whether boot happens to run before or after that line. By the
    time anything can render, currentView is already right, so the opening
    paint is the tab you left on rather than a flash of Day.
    An unknown or missing value falls through to the 'day' default. */
-let currentView = 'collection';
+/* Home is where the day starts, so it is the default a first-ever open
+   lands on; a phone that was left on another tab still comes back to it. */
+let currentView = 'home';
 try{
   const _savedView = localStorage.getItem(VIEW_KEY);
   const _savedAt = Number(localStorage.getItem(VIEW_AT_KEY) || 0);
@@ -2186,7 +2228,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v2.5';   // the dashboard: today in eight facts.
+const APP_VERSION = 'v2.6';   // Home and Visits tabs; implants on the patient.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -2228,9 +2270,9 @@ function paintAllowed(token){ return token === renderGen; }
 async function renderCurrentView(){
   ensureFreshMoneyData();
   const token = ++renderGen;
+  document.getElementById('viewHome').classList.toggle('hidden', currentView !== 'home');
+  document.getElementById('viewVisits').classList.toggle('hidden', currentView !== 'visits');
   document.getElementById('viewCollection').classList.toggle('hidden', currentView !== 'collection');
-  const dashEl = document.getElementById('dash');
-  if(dashEl && currentView !== 'collection') dashEl.classList.add('hidden');
   /* Within Collection the period decides which block shows. Day keeps its
      own; Month and Year share one, because they are the same summary over a
      different span. */
@@ -2240,18 +2282,130 @@ async function renderCurrentView(){
     currentView !== 'collection' || collectionPeriod === 'day');
   document.getElementById('viewPatient').classList.toggle('hidden', currentView !== 'patient');
   document.getElementById('viewLab').classList.toggle('hidden', currentView !== 'lab');
+  if(currentView === 'home')   return await renderDashboard(token);
+  if(currentView === 'visits') return await renderVisitsView(token);
   if(currentView === 'collection'){
-    /* The dashboard and the day view are independent reads; together, so the
-       page does not paint in two visible stages. */
-    if(collectionPeriod === 'day'){
-      await Promise.all([renderDashboard(token), renderDayView(token)]);
-      return;
-    }
-    renderDashboard(token);   // hides itself on month / year
+    if(collectionPeriod === 'day') return await renderDayView(token);
     return await renderMonthView(token);
   }
   if(currentView === 'lab')     return await renderLabView(token);
   return await renderPatientView(token);
+}
+
+/* ================= VISITS (mobile, read only) =========================
+   The desk's Visits page as a phone can carry it: a day at a time, the
+   arrivals in the order they came, and a row that opens to what that day
+   produced for that patient — the prescription, the bill, the money.
+
+   Nothing here writes. The day's file, the bills index, the entries index
+   and the prescriptions index are already fetched for other tabs, so a day
+   costs one small read beyond what the phone has. */
+let visitDay = todayStr();
+let openVisitRow = null;
+function setVisitDay(d){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d||'')) || d > todayStr()) return;
+  visitDay = d; openVisitRow = null;
+  renderCurrentView();
+}
+function stepVisitDay(delta){
+  const [y,m,dd] = visitDay.split('-').map(Number);
+  const dt = new Date(y, m-1, dd + delta);
+  const cand = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+  if(cand > todayStr()) return;
+  setVisitDay(cand);
+}
+function toggleVisitRow(id){
+  openVisitRow = (openVisitRow === id) ? null : id;
+  renderVisitsView(++renderGen);
+}
+async function renderVisitsView(token){
+  const label = document.getElementById('visitDayLabel');
+  const isToday = visitDay === todayStr();
+  if(label) label.textContent = shortDateMobile(visitDay) + (isToday ? ' \u00b7 Today' : '');
+  const pick = document.getElementById('visitDayPicker');
+  if(pick){ pick.value = visitDay; pick.max = todayStr(); }
+  const nextBtn = document.getElementById('nextVisitDayBtn');
+  if(nextBtn) nextBtn.style.visibility = isToday ? 'hidden' : 'visible';
+
+  let rows = [];
+  try{
+    if(!cachedVisitsFolderId) cachedVisitsFolderId = await driveFindChild(driveFolderId, 'visits', true);
+    if(cachedVisitsFolderId){
+      const fileId = await driveFindChild(cachedVisitsFolderId, visitDay + '.json', false);
+      if(fileId){ const l = await driveReadJson(fileId); rows = Array.isArray(l) ? l : []; }
+    }
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    rows = [];
+  }
+  if(token !== undefined && !paintAllowed(token)) return;
+  const [dir, bills, entries, rxIdx] = await Promise.all([
+    loadPatientDirectory(), loadBills().catch(()=>[]), loadAllEntries().catch(()=>[]), loadPrescriptions().catch(()=>null)
+  ]);
+  if(token !== undefined && !paintAllowed(token)) return;
+
+  const list = document.getElementById('visitDayList');
+  rollCount('visitDayTotal', rows.filter(v => !visitWasRemoved(v)).length);
+  if(!rows.length){ list.innerHTML = '<div class="empty-state">Nobody came</div>'; return; }
+  const byTime = (a, b) => String(a.arrivedAt || '').localeCompare(String(b.arrivedAt || ''));
+  rows = rows.slice().sort((a, b) => (visitWasRemoved(a) ? 1 : 0) - (visitWasRemoved(b) ? 1 : 0) || byTime(a, b));
+
+  /* What that day produced for that patient, from indexes already in hand. */
+  const dayFacts = pid => {
+    const p = String(pid);
+    const bl = (bills || []).filter(b => b && String(b.patientId) === p && b.date === visitDay
+      && b.status !== 'draft' && !isCreditNote(b));
+    const billTotal = bl.reduce((t, b) => t + (Number(b.grandTotal) || 0), 0);
+    let paid = 0;
+    (entries || []).forEach(e => {
+      if(!e || e.date !== visitDay) return;
+      (e.items || []).forEach(it => {
+        if(!it || String(it.patientId) !== p) return;
+        paid += (it.method === 'refund' ? -1 : 1) * (Number(it.amount) || 0);
+      });
+    });
+    let rx = null;
+    if(rxIdx && Array.isArray(rxIdx)){
+      const hit = rxIdx.filter(r => r && String(r.patientId) === p
+        && String(r.date || (r.createdAt||'').slice(0,10)) === visitDay);
+      if(hit.length) rx = String(hit[0].treatment || hit[0].advice || '').trim();
+    }
+    return { billTotal, hasBill: bl.length > 0, paid, rx };
+  };
+
+  list.innerHTML = rows.map(v => {
+    const pid = String(v.patientId);
+    const nm = (dir && dir[pid]) || v.patientName || 'Unknown patient';
+    const t = v.arrivedAt ? new Date(v.arrivedAt) : null;
+    const stamp = (t && !isNaN(t.getTime()))
+      ? t.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) : '';
+    const gone = visitWasRemoved(v);
+    const eff = effectiveVisitStatusM(v, visitDay);
+    const said = gone
+      ? 'Removed' + (v.removedReason ? ' \u2014 ' + v.removedReason : '')
+      : visitStatusLabel(eff.status) + (eff.auto ? ' (day ended)' : '');
+    const open = openVisitRow === String(v.id);
+    let body = '';
+    if(open && !gone){
+      const f = dayFacts(pid);
+      const line = (k, val) => '<div class="vrow-line"><span class="vrow-k">' + k + '</span>'
+        + '<span class="vrow-v">' + val + '</span></div>';
+      body = '<div class="vrow-body">'
+        + line('\u211e', f.rx ? escapeHtml(f.rx) : '<span class="muted">none written</span>')
+        + line('Bill', f.hasBill ? fmtINR(f.billTotal) : '<span class="muted">no bill</span>')
+        + line('Paid', f.paid > 0.5 ? fmtINR(f.paid) : '<span class="muted">nothing taken</span>')
+        + (v.reason ? line('For', escapeHtml(v.reason)) : '')
+        + '</div>';
+    }
+    return '<div class="pay-row vrow' + (gone ? ' visit-removed' : '') + (open ? ' vrow-open' : '')
+        + '" onclick="toggleVisitRow(' + JSON.stringify(String(v.id)).replace(/"/g,'&quot;') + ')">'
+      + '<div class="pay-main">'
+        + '<div class="pay-name">' + escapeHtml(nm) + '</div>'
+        + '<div class="pay-sub">' + escapeHtml(stamp) + (stamp ? ' \u00b7 ' : '') + escapeHtml(said)
+        + ' \u00b7 ' + escapeHtml(pid) + '</div>'
+        + body
+      + '</div></div>';
+  }).join('');
 }
 
 function switchView(view){
@@ -3199,6 +3353,58 @@ function closePatientDetail(){
   document.querySelector('.patient-search').classList.remove('hidden');
 }
 
+/* IMPLANTS (mobile, read only). One file for the whole clinic, cached for
+   the session like the other logs: a patient's fixtures are a filter over it,
+   not a read of their own. Removed ones are struck at the desk rather than
+   erased, so they are dropped here the same way. */
+let implantLogCacheM = null, implantLogTriedM = false;
+async function loadImplantLog(){
+  if(implantLogTriedM) return implantLogCacheM;
+  implantLogTriedM = true;
+  try{
+    const fileId = await driveFindChild(driveFolderId, 'implant-log.json', false);
+    if(!fileId) return (implantLogCacheM = null);
+    const rows = await driveReadJson(fileId);
+    implantLogCacheM = Array.isArray(rows) ? rows : null;
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    implantLogCacheM = null;
+  }
+  return implantLogCacheM;
+}
+function implantSizeM(e){
+  const d = (e && e.dia != null && e.dia !== '') ? e.dia : null;
+  const l = (e && e.len != null && e.len !== '') ? e.len : null;
+  if(d == null && l == null) return '';
+  return String(d == null ? '?' : d) + ' \u00d7 ' + String(l == null ? '?' : l);
+}
+function renderPatientImplants(rows, patientId){
+  const list = document.getElementById('pdImplantList');
+  const cnt = document.getElementById('pdImplantCount');
+  if(!list) return;
+  if(rows === null){
+    list.innerHTML = '<div class="pd-unknown">Waiting on the clinic PC</div>';
+    if(cnt) cnt.textContent = '\u2014';
+    return;
+  }
+  const mine = (rows || []).filter(e => e && !e.removedAt && String(e.patientId) === String(patientId))
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  if(cnt) cnt.textContent = String(mine.length);
+  if(!mine.length){ list.innerHTML = '<div class="empty-state">None</div>'; return; }
+  list.innerHTML = mine.map(e => {
+    const size = implantSizeM(e);
+    const bits = [escapeHtml(e.company || ''), size ? escapeHtml(size) : ''].filter(Boolean).join(' \u00b7 ');
+    /* Where it was placed matters: this clinic's own log carries fixtures the
+       user placed at other clinics too. */
+    const where = e.placedAt ? ' \u00b7 ' + escapeHtml(e.placedAt) : '';
+    return '<div class="pay-row"><div class="pay-main">'
+      + '<div class="pay-name">' + escapeHtml(String(e.tooth || '\u2014')) + '  ' + bits + '</div>'
+      + '<div class="pay-sub">' + escapeHtml(e.date ? shortDateMobile(e.date) : '') + where
+      + (e.historical ? ' \u00b7 from the register' : '') + '</div>'
+      + '</div></div>';
+  }).join('');
+}
+
 /* Everything on the patient screen that is not money. Kept out of
    openPatientDetail deliberately: the balance must paint the moment the
    money is in hand, and these six reads must never hold it up or, if they
@@ -3211,15 +3417,17 @@ async function paintPatientExtras(patientId, token){
     if(c) c.textContent = '\u2014';
   };
   let crm = {}, contacts = {}, created = {}, ortho = new Set(), visitsIdx = null, labs = null, notes = [];
+  let implants = null;
   try{
-    [crm, contacts, created, ortho, visitsIdx, labs, notes] = await Promise.all([
+    [crm, contacts, created, ortho, visitsIdx, labs, notes, implants] = await Promise.all([
       loadPatientCrm(), loadPatientContacts(), loadPatientCreated(),
-      loadOrthoIds(), loadVisitsIndex(), loadLabCases(), loadPatientNotes()
+      loadOrthoIds(), loadVisitsIndex(), loadLabCases(), loadPatientNotes(), loadImplantLog()
     ]);
   }catch(err){
     if(err && err.name === 'TokenExpiredError') throw err;
   }
   if(token !== undefined && !paintAllowed(token)) return;
+  renderPatientImplants(implants, patientId);
 
   const pid = String(patientId);
   const row = (crm && crm[pid]) || {};
@@ -3734,10 +3942,9 @@ function dashFacts(o){
 async function renderDashboard(token){
   const dash = document.getElementById('dash');
   if(!dash) return;
-  /* Today's picture, so it shows on Day only. */
-  const show = (currentView === 'collection' && collectionPeriod === 'day');
-  dash.classList.toggle('hidden', !show);
-  if(!show) return;
+  /* Its own tab now: it hides itself no longer, because the tab it lives on
+     is either showing or it is not. */
+  dash.classList.remove('hidden');
   const today = todayStr();
   let entries = [], bills = [], visits = [], labs = null, followups = [], stockLog = [], dir = {};
   try{
@@ -4242,6 +4449,11 @@ wireCollapsibleSection('pendSecHead', 'pendingFold', 'echoDental_pendingFolded')
    the two lists above it are the ones opened for. */
 wireCollapsibleSection('labDoneHead', 'labDoneList', 'echoDental_labDoneFolded', true);
 
+/* The Visits day nav. Its own state, not the Collection date: stepping back
+   through arrivals should not move the money page under it. */
+document.getElementById('prevVisitDayBtn').addEventListener('click', () => stepVisitDay(-1));
+document.getElementById('nextVisitDayBtn').addEventListener('click', () => stepVisitDay(1));
+document.getElementById('visitDayPicker').addEventListener('change', function(){ setVisitDay(this.value); });
 document.getElementById('prevDayBtn').addEventListener('click',
   () => navigate(() => { currentDate = addDays(currentDate, -1); }));
 document.getElementById('nextDayBtn').addEventListener('click', () => {
