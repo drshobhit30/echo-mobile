@@ -22,7 +22,7 @@
    Bump CACHE_VERSION whenever the shell changes. The old cache is deleted on
    activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-v46';  // v43: dashboard
+const CACHE_VERSION = 'echo-nexus-v47';  // v43: dashboard
 
 const SHELL = [
   './',
@@ -74,22 +74,35 @@ self.addEventListener('fetch', (event) => {
      new upload from being invisible on the phone. */
   const isPage = req.mode === 'navigate'
     || (req.destination === 'document')
-    || url.pathname.endsWith('/index.html')
+    || url.pathname.endsWith('.html')
     || url.pathname.endsWith('/');
 
   if(isPage){
+    /* EACH PAGE IS ITS OWN PAGE (v47). This handler used to store every
+       navigation under the single key './index.html' and, offline, serve
+       that one file for ANY page request in scope. With a second page in the
+       same repo — the lite app for reception and staff — that meant opening
+       lite.html without a signal quietly served the ADMIN app instead: the
+       whole money app, under the wrong URL, to the wrong reader. The cache
+       is now keyed by the page's own path, and the offline fallback returns
+       the page that was asked for. A directory URL is normalised to
+       index.html so '/' and '/index.html' remain one entry rather than two. */
+    const pageKey = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
     event.respondWith((async () => {
       try{
         const fresh = await fetch(req);
         const cache = await caches.open(CACHE_VERSION);
-        cache.put('./index.html', fresh.clone());
+        cache.put(pageKey, fresh.clone());
         return fresh;
       }catch(e){
-        const cached = await caches.match('./index.html');
+        /* Only ever the page that was asked for. If it has never been opened
+           with a signal there is nothing to give, and saying so is better
+           than handing over a different app. */
+        const cached = await caches.match(pageKey);
         if(cached) return cached;
         return new Response(
-          '<h1>Echo Nexus</h1><p>No connection, and no saved copy of the app yet. '
-          + 'Open this once with a signal and it will work offline afterwards.</p>',
+          '<h1>Echo Nexus</h1><p>No connection, and no saved copy of this page yet. '
+          + 'Open it once with a signal and it will work offline afterwards.</p>',
           { headers: { 'Content-Type': 'text/html' }, status: 503 });
       }
     })());
