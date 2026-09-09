@@ -2228,7 +2228,7 @@ let monthAnchor = todayStr().slice(0, 7);      // 'YYYY-MM'
 /* VERSION 1, frozen 25 Aug 2026. The service worker's CACHE_VERSION keeps
    its own running number — it exists to force phones to refetch and must
    change on every deploy, which a release name must not. */
-const APP_VERSION = 'v2.7';   // implants read from settings/, where they live.
+const APP_VERSION = 'v2.8';   // nothing slow blocks a paint.
 /* SHOWN, not just recorded. The desktop carried a build stamp typed into the
    markup by hand; it read an old date for weeks because no rebuild touched
    it. Filled from the constant here, so the version on screen is always the
@@ -2339,10 +2339,20 @@ async function renderVisitsView(token){
     rows = [];
   }
   if(token !== undefined && !paintAllowed(token)) return;
-  const [dir, bills, entries, rxIdx] = await Promise.all([
-    loadPatientDirectory(), loadBills().catch(()=>[]), loadAllEntries().catch(()=>[]), loadPrescriptions().catch(()=>null)
-  ]);
+  /* THE ARRIVALS FIRST (v2.8). Bills, entries and prescriptions are three
+     whole indexes, and waiting on all of them before drawing a single name
+     left the tab blank for as long as the slowest one took. Only the
+     directory is waited for — it is what turns an ID into a name — and the
+     money is read only when a row is actually opened. */
+  const dir = await loadPatientDirectory();
   if(token !== undefined && !paintAllowed(token)) return;
+  let bills = [], entries = [], rxIdx = null;
+  if(openVisitRow){
+    [bills, entries, rxIdx] = await Promise.all([
+      loadBills().catch(()=>[]), loadAllEntries().catch(()=>[]), loadPrescriptions().catch(()=>null)
+    ]);
+    if(token !== undefined && !paintAllowed(token)) return;
+  }
 
   const list = document.getElementById('visitDayList');
   rollCount('visitDayTotal', rows.filter(v => !visitWasRemoved(v)).length);
@@ -3367,9 +3377,15 @@ async function loadImplantLog(){
        from. Looking in the root found nothing, so the section sat on
        "Waiting on the clinic PC" for ever with a file that was there all
        along. */
+    /* settings/ first, because that is where the desktop keeps its
+       single-file keys — then the root, because a folder synced by a
+       different route may hold it flat. Being wrong about the location cost
+       a section that waited for ever, so it now looks in both rather than
+       insisting on one. */
+    let fileId = null;
     const settingsId = await getSettingsFolderId();
-    if(!settingsId) return (implantLogCacheM = null);
-    const fileId = await driveFindChild(settingsId, 'implant-log.json', false);
+    if(settingsId) fileId = await driveFindChild(settingsId, 'implant-log.json', false);
+    if(!fileId && driveFolderId) fileId = await driveFindChild(driveFolderId, 'implant-log.json', false);
     if(!fileId) return (implantLogCacheM = null);
     const rows = await driveReadJson(fileId);
     implantLogCacheM = Array.isArray(rows) ? rows : null;
@@ -3424,17 +3440,22 @@ async function paintPatientExtras(patientId, token){
     if(c) c.textContent = '\u2014';
   };
   let crm = {}, contacts = {}, created = {}, ortho = new Set(), visitsIdx = null, labs = null, notes = [];
-  let implants = null;
   try{
-    [crm, contacts, created, ortho, visitsIdx, labs, notes, implants] = await Promise.all([
+    [crm, contacts, created, ortho, visitsIdx, labs, notes] = await Promise.all([
       loadPatientCrm(), loadPatientContacts(), loadPatientCreated(),
-      loadOrthoIds(), loadVisitsIndex(), loadLabCases(), loadPatientNotes(), loadImplantLog()
+      loadOrthoIds(), loadVisitsIndex(), loadLabCases(), loadPatientNotes()
     ]);
   }catch(err){
     if(err && err.name === 'TokenExpiredError') throw err;
   }
   if(token !== undefined && !paintAllowed(token)) return;
-  renderPatientImplants(implants, patientId);
+  /* NOT IN THE BLOCKING SET (v2.8). Adding the implant read to the Promise.all
+     above made the whole patient screen wait on a file that costs two folder
+     lookups the first time — the record appeared seconds late for the sake of
+     one section. It is fired here and paints itself whenever it lands. */
+  loadImplantLog()
+    .then(rows => { if(token === undefined || paintAllowed(token)) renderPatientImplants(rows, patientId); })
+    .catch(() => renderPatientImplants(null, patientId));
 
   const pid = String(patientId);
   const row = (crm && crm[pid]) || {};
