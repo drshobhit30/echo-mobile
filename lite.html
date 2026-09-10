@@ -43,6 +43,10 @@ body{ padding-bottom:28px; }
   font-weight:500; margin-top:3px; }
 .hd-v b{ background:var(--gold-pale); color:var(--gold-deep); border-radius:5px; padding:0 5px; }
 /* The pull cue takes no room at rest. */
+.signin-bar{ margin:10px 14px 0; padding:9px 12px; border-radius:10px; cursor:pointer;
+  background:var(--gold-pale); border:1px solid var(--gold-light); color:var(--gold-deep);
+  font-size:0.8rem; text-align:center; }
+.signin-bar:active{ filter:brightness(0.96); }
 .pull-cue{ height:0; opacity:0; overflow:hidden; display:flex; align-items:center; justify-content:center;
   font-size:0.74rem; letter-spacing:0.05em; color:var(--gold-deep); font-weight:600; }
 .tabbar{ display:flex; gap:6px; margin-top:10px; }
@@ -205,6 +209,10 @@ body{ padding-bottom:28px; }
 </div>
 
 <div id="pullCue" class="pull-cue"><span id="pullText">Pull to refresh</span></div>
+<!-- Offered, not imposed: the record stays readable underneath. -->
+<div id="signInBar" class="signin-bar hidden" onclick="tapToSignIn()">
+  Showing what was last read &middot; <b>tap to sign in</b>
+</div>
 
 <div class="wrap">
   <!-- ================= SETUP ================= -->
@@ -361,6 +369,9 @@ function initGoogleAuth(){
         if(silentAttemptInFlight){
           silentAttemptInFlight = false;
           setStatus('signInStatus', 'Tap to sign in.', false);
+          /* Only worth saying if there is nothing on screen to read; with the
+             record already showing, the offer waits until a read wants it. */
+          if(!haveStoredData()) showSetup();
           return;
         }
         setStatus('signInStatus', 'Sign-in failed: ' + resp.error, true);
@@ -370,9 +381,13 @@ function initGoogleAuth(){
       accessToken = resp.access_token;
       saveToken(resp.access_token, resp.expires_in);
       setStatus('signInStatus', 'Signed in.', false);
+      /* The offer goes, and whatever could not be read is read now. */
+      showSignInNeeded(false);
       document.getElementById('folderCard').classList.remove('hidden');
       if(driveFolderId){
         document.getElementById('folderIdInput').value = driveFolderId;
+        directoryTried = false; rxIndexTried = false; contactsTried = false;
+        refreshScheduled = false;
         connectAndLoad();
       }
     },
@@ -416,6 +431,16 @@ document.getElementById('saveFolderBtn').addEventListener('click', () => {
   connectAndLoad();
 });
 
+/* Any Drive call made without a token is not an error to hide: it is the one
+   moment the tap is genuinely needed, so it raises the offer.
+
+   It gets its OWN error type, deliberately. Callers re-raise TokenExpiredError
+   so a session that dies mid-use can re-authenticate; "there was never a token
+   this session" is a different thing and must not travel that path, or every
+   render would throw before it could show the copy already on the device. */
+function noteTokenNeeded(){ showSignInNeeded(true); }
+function NoTokenError(){ this.name = 'NoTokenError'; this.message = 'Not signed in'; }
+NoTokenError.prototype = Object.create(Error.prototype);
 /* ---------------- Drive REST helpers ---------------- */
 /* A stored token can expire mid-session, and an expired token looks exactly
    like a permissions error (401/403) to the code below. Every Drive call
@@ -426,9 +451,14 @@ class TokenExpiredError extends Error {
   constructor(){ super('Session expired'); this.name = 'TokenExpiredError'; }
 }
 async function driveFetch(url, whatFailed){
+  /* No token: do not spend a round trip proving it. Raise the offer of a tap
+     and fail the read — callers already cope with a failed read by leaving
+     what is on screen alone. */
+  if(!accessToken){ noteTokenNeeded(); throw new NoTokenError(); }
   const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
   if(res.status === 401 || res.status === 403){
     clearStoredToken();
+    noteTokenNeeded();
     throw new TokenExpiredError();
   }
   if(!res.ok) throw new Error(whatFailed + ' (' + res.status + ')');
@@ -714,7 +744,7 @@ async function loadPrescriptions(){
 /* The build, on screen. When somebody says it is behaving oddly, the first
    question is which copy they are holding — a phone can sit on a cached one
    for days. */
-const LITE_VERSION = 'v2.5';
+const LITE_VERSION = 'v2.6';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -1078,20 +1108,30 @@ async function renderVisits(){
     if(Array.isArray(held)) rows = held;
   }
   if(rows === null){
-    rows = [];
+    let got = null;
     try{
       const folder = await driveFindChild(driveFolderId, 'visits', true);
       if(folder){
         const fid = await driveFindChild(folder, today + '.json', false);
         if(fid){
           const l = await driveReadJson(fid);
-          rows = Array.isArray(l) ? l : [];
-          if(!isToday) cacheWrite(dayKey, rows);
+          got = Array.isArray(l) ? l : [];
+          /* TODAY IS KEPT TOO (v2.6). It was not, because today changes — but
+             the alternative, when there is no token, is an empty Visits page
+             on an app that plainly has the day's arrivals from an hour ago.
+             It is written every time it is read, so it is never more stale
+             than the last successful read, and the bar above says so. */
+          cacheWrite(dayKey, got);
         }
       }
     }catch(err){
       if(err && err.name === 'TokenExpiredError') throw err;
-      rows = [];
+      got = null;
+    }
+    if(got !== null) rows = got;
+    else {
+      const held = cacheRead(dayKey);
+      rows = Array.isArray(held) ? held : [];
     }
   }
   /* A struck visit is not an arrival. It is dropped here rather than shown
@@ -1312,11 +1352,42 @@ function showSetup(){
   document.getElementById('setupScreen').classList.remove('hidden');
   document.getElementById('appScreen').classList.add('hidden');
 }
+/* WHAT THE DEVICE ALREADY KNOWS IS ENOUGH TO OPEN ON (v2.6).
+
+   A Google access token lasts about an hour, and this app is opened once or
+   twice a day — so the token is always expired by the time it is wanted, and
+   every open depended on a silent renewal succeeding. When that renewal
+   fails, which it does inside an installed app where the browser partitions
+   its cookies, the sign-in gate covered the whole screen. A tap, every time,
+   to be shown data that was already sitting on the phone.
+
+   The gate is now only for a device that has never been set up. If names and
+   prescriptions are stored here, the app opens on them at once and asks for
+   nothing. The token is fetched quietly behind that, and if it cannot be had
+   quietly, a single line appears offering the tap — while the record stays
+   readable underneath it. */
+function haveStoredData(){
+  const d = cacheRead(CACHE_KEY_DIR);
+  return !!(d && Object.keys(d).length);
+}
 async function connectAndLoad(){
-  if(!accessToken || !driveFolderId){ showSetup(); return; }
+  if(!driveFolderId){ showSetup(); return; }
+  if(!accessToken && !haveStoredData()){ showSetup(); return; }
   showApp();
-  if(!booted){ booted = true; setTab(currentTab); }
-  else setTab(currentTab);
+  booted = true;
+  setTab(currentTab);
+}
+/* The line that appears only when a read wanted a token and there was none.
+   It sits above the list rather than over it: nothing already on screen is
+   taken away to ask for a tap. */
+function showSignInNeeded(show){
+  const bar = document.getElementById('signInBar');
+  if(bar) bar.classList.toggle('hidden', !show);
+}
+function tapToSignIn(){
+  if(!tokenClient) return;
+  silentAttemptInFlight = false;
+  tokenClient.requestAccessToken();
 }
 window.addEventListener('load', () => {
   const ver = document.getElementById('appVer');
@@ -1326,8 +1397,10 @@ window.addEventListener('load', () => {
   const saved = localStorage.getItem('echoDental_driveFolderId') || '';
   if(saved){ driveFolderId = saved; const el = document.getElementById('folderIdInput'); if(el) el.value = saved; }
   initGoogleAuth();
-  if(loadStoredToken() && driveFolderId) connectAndLoad();
-  else if(driveFolderId) requestTokenSilently();
+  /* Paint first, authenticate second. A device that has been used before
+     opens on its own copy; the token is chased quietly behind it. */
+  if(driveFolderId) connectAndLoad();
+  if(!loadStoredToken() && driveFolderId) requestTokenSilently();
 });
 
 /* The button is gone; the gesture does its work. */
