@@ -1513,7 +1513,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '2.9';
+const ADMIN_VERSION = '3.0';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -2133,6 +2133,16 @@ function stepMoney(delta){
   moneyDay = cand; openBill = null;
   renderCurrent();
 }
+/* Every page that shows a period draws its control through here. Three
+   copies of the same three buttons is how one of them ends up stale. */
+function paintPeriod(rowId, labelId, nextBtnId){
+  const chips = document.getElementById(rowId);
+  if(chips) chips.innerHTML = periodChipsHtml();
+  const lab = document.getElementById(labelId);
+  if(lab) lab.textContent = moneyLabelText();
+  const nb = document.getElementById(nextBtnId);
+  if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
+}
 function periodChipsHtml(){
   return ['day','month','year'].map(p =>
     '<button type="button" class="per-chip' + (moneyPeriod === p ? ' on' : '') + '"'
@@ -2169,11 +2179,7 @@ function totalBlock(label, value, parts, note){
 
 /* ---------------------------- PAYMENT ---------------------------------- */
 async function renderPayment(){
-  const chips = document.getElementById('payPeriod');
-  if(chips) chips.innerHTML = periodChipsHtml();
-  document.getElementById('moneyLabel').textContent = moneyLabelText();
-  const nb = document.getElementById('moneyNextBtn');
-  if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
+  paintPeriod('payPeriod', 'moneyLabel', 'moneyNextBtn');
 
   const list = document.getElementById('payList');
   const entries = await loadAllEntries().catch(() => null);
@@ -2251,12 +2257,7 @@ async function renderBilling(){
     '<button type="button" class="per-chip' + (billSub === x[0] ? ' on' : '') + '"'
     + ' onclick="setBillSub(\'' + x[0] + '\')">' + x[1] + '</button>').join('');
   if(billSub === 'moved') return renderMoneyMoved();
-  const chips = document.getElementById('billPeriod');
-  if(chips) chips.innerHTML = periodChipsHtml();
-  document.getElementById('billLabel').textContent = moneyLabelText();
-  const nb = document.getElementById('billNextBtn');
-  if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
-
+  paintPeriod('billPeriod', 'billLabel', 'billNextBtn');
   document.getElementById('billSecTitle').textContent = 'Bills';
   const list = document.getElementById('billList');
   const bills = await loadBills().catch(() => null);
@@ -2346,9 +2347,12 @@ function billLinesHtml(b){
 }
 
 async function renderMoneyMoved(){
-  document.getElementById('billLabel').textContent = moneyLabelText();
-  const nb = document.getElementById('billNextBtn');
-  if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
+  /* THE CONTROL WAS ONLY DRAWN BY THE OTHER BRANCH (a3.0). Money moved
+     updated its label and its list when the period changed, but never
+     redrew the Day/Month/Year chips — so the highlight stayed where the
+     bills page had left it. The period WAS changing; the control simply
+     never said so, which reads as a dead button. */
+  paintPeriod('billPeriod', 'billLabel', 'billNextBtn');
   document.getElementById('billSecTitle').textContent = 'Taken out of the books';
   const list = document.getElementById('billList');
   const [bills, entries] = await Promise.all([
