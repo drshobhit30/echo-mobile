@@ -55,7 +55,17 @@ body{ padding-bottom:28px; }
   padding:10px 6px; border-bottom:2px solid transparent; cursor:pointer; }
 .tab-btn{ transition:color .12s ease, border-color .12s ease; }
 .tab-btn.active{ color:var(--gold-deep); border-bottom-color:var(--gold-deep); }
-.tab-btn:active{ color:var(--gold); }
+/* Every tappable thing answers the finger. A phone gives no other
+   confirmation that a tap landed. */
+.tab-btn{ transition:color .12s ease, border-color .12s ease, transform .08s ease; }
+.tab-btn:active{ color:var(--gold); transform:translateY(1px); }
+.tc-row.tappable{ transition:background .09s ease, transform .08s ease; }
+.tc-row.tappable:active{ background:var(--gold-pale); transform:translateY(1px); opacity:1; }
+.fu-chip:active{ transform:translateY(1px) scale(0.985); }
+.ptr-tel{ transition:transform .08s ease, filter .08s ease; }
+.ptr-tel:active{ transform:translateY(1px); filter:brightness(0.95); }
+.pt-more{ transition:background .09s ease, transform .08s ease; }
+.pt-more:active{ transform:translateY(1px); }
 .sec-head{ display:flex; align-items:baseline; justify-content:space-between; margin:18px 0 8px; }
 .sec-title{ font-family:inherit; font-size:0.72rem; letter-spacing:0.1em; text-transform:uppercase;
   color:var(--gold-deep); font-weight:600; }
@@ -142,7 +152,7 @@ body{ padding-bottom:28px; }
 .per-chip{ flex:1; border:1px solid var(--line); background:var(--white); border-radius:10px;
   padding:9px 0; font-size:0.76rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;
   color:var(--muted); cursor:pointer; transition:background .09s ease, transform .09s ease; }
-.per-chip:active{ transform:translateY(1px); }
+.per-chip:active{ transform:translateY(1px) scale(0.985); }
 .per-chip.on{ background:var(--gold-deep); border-color:var(--gold-deep); color:#fff; }
 .tot{ margin:10px 0 2px; background:var(--gold-pale); border:1px solid var(--gold-light);
   border-radius:14px; padding:13px 16px; cursor:pointer;
@@ -207,12 +217,19 @@ body{ padding-bottom:28px; }
 .tc-what{ flex:1; min-width:0; color:var(--brown); }
 .tc-chev{ flex:none; color:var(--gold-deep); width:14px; text-align:center; }
 .tc-body{ padding:2px 0 10px 84px; }
+.imp-split{ display:flex; gap:10px; margin:2px 0 10px; }
+.imp-s{ flex:1; background:var(--white); border:1px solid var(--line); border-radius:12px;
+  padding:10px 12px; }
+.imp-s b{ display:block; font-size:1.1rem; font-weight:700; color:var(--ink); }
+.imp-s span{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); }
 .pt-amt.adv{ color:var(--success); }
 /* Six across a phone: a mark above a short word, no wrapping, no scrolling. */
 .tabbar{ display:flex; gap:0; overflow:visible; }
 .tab-btn{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center;
-  gap:3px; padding:8px 2px 7px; font-size:0.62rem; letter-spacing:0.02em; }
-.tab-btn span{ white-space:nowrap; }
+  gap:3px; padding:8px 1px 7px; font-size:0.58rem; letter-spacing:0; }
+/* The longest label sets the size: it must not wrap, and it must not push
+   its neighbours out of shape. */
+.tab-btn span{ white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
 .ti{ width:20px; height:20px; display:block; }
 .ptr-tellabel{ font-weight:500; opacity:.7; }
 .ptr-nonum{ margin-top:9px; font-size:0.82rem; color:var(--muted); }
@@ -638,7 +655,7 @@ async function loadEntriesIndex(){
   try{
     const settingsId = await getSettingsFolderId();
     if(!settingsId) return null;
-    const fileId = await driveFindChild(settingsId, 'entries-index.json', false);
+    const fileId = await driveFindChildFresh(settingsId, 'entries-index.json', false);
     const seenAt = lastFoundModifiedTime;
     if(!fileId) return null;
     if(cachedEntriesIndex && seenAt && seenAt === entriesSeenModified) return cachedEntriesIndex;
@@ -710,7 +727,7 @@ async function loadBills(){
   try{
     const settingsId = await getSettingsFolderId();
     if(settingsId){
-      const fileId = await driveFindChild(settingsId, 'bills-index.json', false);
+      const fileId = await driveFindChildFresh(settingsId, 'bills-index.json', false);
       const seenAt = lastFoundModifiedTime;
       if(fileId){
         /* The whole point: unchanged file, no download. */
@@ -950,6 +967,59 @@ async function findDayFile(dateStr){
     }
   }
   return await driveFindChild(cachedDataFolderId, dateStr + '.json', false);
+}
+
+/* KEPT ON THE DEVICE (a2.7). Opening one patient's record read twelve
+   indexes, and ten of them went to Drive every time — on a phone, over
+   whatever signal it had, before a single line appeared.
+
+   These are the small, slow-changing ones: who is who, who is on long
+   treatment, the notes, the lab, the calls, the fixtures. They are answered
+   from the phone at once and re-read behind the paint, so the record opens
+   immediately and corrects itself a moment later if the desk has moved on.
+
+   The two big ones — bills and payments — are deliberately NOT here. They
+   are the largest files the clinic has, they change all day, and filling
+   the phone's storage with them would evict the very things that make this
+   fast. They keep their own revalidating in-memory cache instead. */
+const PT_CACHE_PREFIX = 'echoAdmin_pt_';
+/* How old a kept answer may be before it is worth asking again. These files
+   change a few times a day at most; re-reading all ten every time a record is
+   opened spent the phone's signal on answers that had not moved. */
+const PT_STALE_MS = 10 * 60 * 1000;
+const ptRefreshed = {};
+async function deviceCached(name, fetcher){
+  const key = PT_CACHE_PREFIX + name;
+  const held = cacheRead(key);
+  if(held !== null && held !== undefined){
+    const last = Number(localStorage.getItem(key + ':at') || 0);
+    const stale = !last || (Date.now() - last) > PT_STALE_MS;
+    /* Answer now. Catch up behind only if the copy has had time to go out of
+       date, and only once per name per session. */
+    if(stale && !ptRefreshed[name]){
+      ptRefreshed[name] = true;
+      setTimeout(() => {
+        Promise.resolve(fetcher()).then(fresh => {
+          if(fresh === null || fresh === undefined) return;
+          try{ localStorage.setItem(key + ':at', String(Date.now())); }catch(e){}
+          if(JSON.stringify(fresh) !== JSON.stringify(held)){ cacheWrite(key, fresh); repaint(); }
+        }).catch(() => {});
+      }, 0);
+    }
+    return held;
+  }
+  const fresh = await fetcher();
+  if(fresh !== null && fresh !== undefined){
+    cacheWrite(key, fresh);
+    try{ localStorage.setItem(key + ':at', String(Date.now())); }catch(e){}
+  }
+  return fresh;
+}
+/* A Set does not survive a round trip through storage, so it is kept as a
+   list and rebuilt on the way out. */
+async function orthoIdsCachedM(){
+  const list = await deviceCached('ortho', async () => Array.from((await loadOrthoIds()) || []));
+  return new Set(list || []);
 }
 
 /* ---- the patient side, lifted whole from the app being retired ---- */
@@ -1441,7 +1511,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '2.6';
+const ADMIN_VERSION = '2.7';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -1531,6 +1601,18 @@ async function doRefresh(){
   rxVerifyDone = false; refreshScheduled = false;
   openRx = null; openLine = null; openAllFor = null;
   cacheClear(); forgetIds();
+  try{
+    const doomed = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.indexOf(PT_CACHE_PREFIX) === 0) doomed.push(k);
+    }
+    doomed.forEach(k => localStorage.removeItem(k));
+  }catch(e){}
+  crmTried = createdTried = orthoTried = notesTried = false;
+  labCasesTried = followupsTriedD = implantLogTriedM = visitsIdxTried = false;
+  cachedBills = null; cachedEntriesIndex = null; entriesIndexTried = false;
+  billsRevalidate = true; entriesRevalidate = true;
   setTab(currentTab);
   await new Promise(r => setTimeout(r, 400));
 }
@@ -1558,9 +1640,12 @@ const ICON = {
 };
 const ADMIN_VIEWS = { visits:'viewVisits', payment:'viewPayment', billing:'viewBilling',
                       lab:'viewLab', followups:'viewFollowups', patients:'viewPatients' };
+/* The desk's own words. "Calls" was shorter and fitted better, and that is
+   not a good enough reason for the phone to call a thing by a different name
+   than the screen it is read beside. The label is made to fit instead. */
 const ADMIN_TABS = [
-  ['visits','Visits'], ['payment','Payments'], ['billing','Bills'],
-  ['lab','Lab'], ['followups','Calls'], ['patients','Patients']
+  ['visits','Visits'], ['payment','Payment'], ['billing','Billing'],
+  ['lab','Lab'], ['followups','Follow-ups'], ['patients','Patients']
 ];
 function paintTabs(){
   const bar = document.querySelector('.tabbar');
@@ -1693,6 +1778,19 @@ driveFindChild = async function(parentId, name, isFolder){
   return idInFlight[key];
 };
 function forgetIds(){ idMap = {}; idInFlight = {}; try{ localStorage.removeItem(CACHE_KEY_IDS); }catch(e){} }
+/* THE ID CACHE DEFEATED THE FRESHNESS CHECK (a2.7). loadBills asks for the
+   index's id and then compares its modifiedTime against the copy it holds —
+   unchanged file, no download. But a cached id is returned without going to
+   Drive, so modifiedTime was never seen, the comparison always failed, and
+   the WHOLE bills index came down again on every single visit to Billing.
+
+   A caller that needs the timestamp asks for a real lookup: one small
+   metadata query instead of one large download. */
+async function driveFindChildFresh(parentId, name, isFolder){
+  const id = await _findChildDirect(parentId, name, isFolder);
+  if(id){ idMap[parentId + '/' + name] = id; cacheWrite(CACHE_KEY_IDS, idMap); }
+  return id;
+}
 /* The cached pair, if the device has them. Used to paint; never trusted as
    the last word — a re-read always follows. */
 function cachedDirectory(){ return cacheRead(CACHE_KEY_DIR); }
@@ -2238,7 +2336,7 @@ function billLinesHtml(b){
 /* ------------------------------- LAB ------------------------------------ */
 async function renderLab(){
   const list = document.getElementById('labList');
-  const cases = await loadLabCases().catch(() => null);
+  const cases = await deviceCached('labs', () => loadLabCases()).catch(() => null);
   if(cases === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
   const dir = await getDirectory();
   const live = (cases || []).filter(c => c && !c.struckAt);
@@ -2308,7 +2406,7 @@ function setFuFilter(k){ fuFilter = (fuFilter === k) ? null : k; renderFollowups
 
 async function renderFollowups(){
   const list = document.getElementById('fuList');
-  const all = await loadFollowupsD().catch(() => null);
+  const all = await deviceCached('fups', () => loadFollowupsD()).catch(() => null);
   if(all === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
   const dir = await getDirectory();
   const today = todayStr();
@@ -2459,22 +2557,33 @@ async function renderPtMoneyList(body, which){
 /* ---- the implants placed ---- */
 async function renderPtImplants(body){
   body.innerHTML = '<div class="spin">Reading&hellip;</div>';
-  const [log, dir] = await Promise.all([loadImplantLog().catch(() => null), getDirectory()]);
+  const [log, dir] = await Promise.all([
+    deviceCached('implants', () => loadImplantLog()).catch(() => null), getDirectory()]);
   if(log === null){ body.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
   const live = (log || []).filter(e => e && !e.removedAt)
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
   if(!live.length){ body.innerHTML = '<div class="empty-state">None on record</div>'; return; }
-  /* Grouped by brand, because that is the question the shelf asks. */
+  /* WHERE IT WAS PLACED (a2.7). The log holds fixtures the owner placed at
+     other clinics as well as here, and a count that mixes them answers
+     neither question. An entry carries a clinic name only when it was placed
+     somewhere else; no name means this clinic. */
+  const here = live.filter(e => !String(e.placedAt || '').trim());
+  const away = live.filter(e => String(e.placedAt || '').trim());
   const byCo = {};
   live.forEach(e => { const c = String(e.company || 'Unknown').trim(); (byCo[c] = byCo[c] || []).push(e); });
   const cos = Object.keys(byCo).sort((a, b) => byCo[b].length - byCo[a].length);
   body.innerHTML = totalBlock('implants placed', String(live.length),
-      cos.slice(0, 6).map(c => [c, String(byCo[c].length)]), '')
+      [['at this clinic', String(here.length)], ['elsewhere', String(away.length)]]
+        .concat(cos.slice(0, 5).map(c => [c, String(byCo[c].length)])), '')
+    + '<div class="imp-split">'
+      + '<div class="imp-s"><b>' + here.length + '</b><span>at this clinic</span></div>'
+      + '<div class="imp-s"><b>' + away.length + '</b><span>elsewhere</span></div>'
+    + '</div>'
     + live.slice(0, 200).map(e => {
       const size = [e.dia, e.len].filter(v => v != null && v !== '').join(' \u00d7 ');
       return ptRowHtml(e.patientId, (dir && dir[String(e.patientId)]) || e.patientName,
         String(e.tooth || '\u2014') + (e.company ? ' \u00b7 ' + e.company : '') + (size ? ' \u00b7 ' + size : '')
-          + (e.placedAt ? ' \u00b7 ' + e.placedAt : ''),
+          + (e.placedAt ? ' \u00b7 at ' + e.placedAt : ''),
         '<div class="pt-f"><b>' + escapeHtml(e.date ? shortDateMobile(e.date) : '\u2014') + '</b>'
           + '<span>placed</span></div>');
     }).join('')
@@ -2507,11 +2616,18 @@ async function renderPtRecord(body, pid){
   body.innerHTML = '<div class="spin">Reading&hellip;</div>';
   const [dir, con, crm, created, ortho, notes, rx, bills, entries, labs, fups, implants] =
     await Promise.all([
-      getDirectory(), loadPatientContacts().catch(()=>null), loadPatientCrm().catch(()=>({})),
-      loadPatientCreated().catch(()=>({})), loadOrthoIds().catch(()=>new Set()),
-      loadPatientNotes().catch(()=>[]), getRxIndex(), loadBills().catch(()=>[]),
-      loadAllEntries().catch(()=>[]), loadLabCases().catch(()=>[]),
-      loadFollowupsD().catch(()=>[]), loadImplantLog().catch(()=>[])
+      getDirectory(),
+      loadPatientContacts().catch(()=>null),
+      deviceCached('crm',     () => loadPatientCrm()).catch(()=>({})),
+      deviceCached('created', () => loadPatientCreated()).catch(()=>({})),
+      orthoIdsCachedM().catch(()=>new Set()),
+      deviceCached('notes',   () => loadPatientNotes()).catch(()=>[]),
+      getRxIndex(),
+      loadBills().catch(()=>[]),
+      loadAllEntries().catch(()=>[]),
+      deviceCached('labs',    () => loadLabCases()).catch(()=>[]),
+      deviceCached('fups',    () => loadFollowupsD()).catch(()=>[]),
+      deviceCached('implants',() => loadImplantLog()).catch(()=>[]),
     ]);
   if(ptOpen !== pid) return;                    // they went back while it read
   const P = String(pid);
@@ -2584,7 +2700,7 @@ async function renderPtRecord(body, pid){
       what: String(n.text || n.note || ''), struck: !!n.struckAt }));
 
   /* Visits come from the index, which holds only the dates. */
-  const vIdx = await loadVisitsIndex().catch(()=>null);
+  const vIdx = await deviceCached('vidx', () => loadVisitsIndex()).catch(()=>null);
   if(vIdx && typeof vIdx === 'object'){
     (Array.isArray(vIdx[P]) ? vIdx[P] : []).forEach(dt =>
       mine.visit.push({ when:String(dt).slice(0,10), what:'Visited' }));
