@@ -28,8 +28,13 @@ html,body{ margin:0; padding:0; background:var(--cream); color:var(--brown);
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
 body{ padding-bottom:28px; }
 .wrap{ max-width:760px; margin:0 auto; padding:0 14px 24px; }
-.topbar{ position:sticky; top:0; z-index:20; background:var(--white); border-bottom:1px solid var(--line);
-  padding:12px 14px 0; }
+.topbar{ position:sticky; top:0; z-index:20; border-bottom:1px solid var(--line);
+  padding:12px 14px 0;
+  /* One static gradient and one inset edge, both painted once and never
+     animated. Colour where the eye starts, without a band of it competing
+     with the gold that carries meaning further down the page. */
+  background:linear-gradient(180deg, #FFFFFF 0%, #FBF3E4 100%);
+  box-shadow:inset 0 3px 0 var(--gold); }
 .hd-row{ display:flex; align-items:center; gap:12px; }
 /* Both ends take equal share, so what sits between them lands in the middle
    however long the name or the clinic line runs. */
@@ -46,14 +51,15 @@ body{ padding-bottom:28px; }
 .signin-bar{ margin:10px 14px 0; padding:9px 12px; border-radius:10px; cursor:pointer;
   background:var(--gold-pale); border:1px solid var(--gold-light); color:var(--gold-deep);
   font-size:0.8rem; text-align:center; }
-.signin-bar:active{ filter:brightness(0.96); }
+.signin-bar:active{ background:var(--gold-light); }
 .pull-cue{ height:0; opacity:0; overflow:hidden; display:flex; align-items:center; justify-content:center;
   font-size:0.74rem; letter-spacing:0.05em; color:var(--gold-deep); font-weight:600; }
 .tabbar{ display:flex; gap:6px; margin-top:10px; }
 .tab-btn{ flex:1; border:0; background:transparent; font-family:inherit; font-weight:600;
   font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);
   padding:10px 6px; border-bottom:2px solid transparent; cursor:pointer; }
-.tab-btn{ transition:color .12s ease, border-color .12s ease; }
+/* (a transition for .tab-btn was declared twice; the later one wins, so the
+   first was only weight) */
 .tab-btn.active{ color:var(--gold-deep); border-bottom-color:var(--gold-deep); }
 /* Every tappable thing answers the finger. A phone gives no other
    confirmation that a tap landed. */
@@ -75,12 +81,6 @@ body{ padding-bottom:28px; }
 .row.tappable{ cursor:pointer; }
 .row{ transition:transform .09s ease, background .09s ease; }
 .row.tappable:active{ background:var(--gold-pale); transform:translateY(1px); }
-.row-name{ font-weight:700; font-size:0.98rem; color:#1A1410; }
-.row-sub{ font-size:0.8rem; color:var(--muted); margin-top:2px; }
-.row-when{ font-size:0.78rem; color:var(--gold-deep); font-weight:600; }
-.row-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
-.pill{ display:inline-block; background:var(--gold-pale); color:var(--gold-deep); border-radius:6px;
-  padding:1px 8px; font-size:0.72rem; font-weight:700; margin-left:6px; }
 .struck{ opacity:0.55; }
 .struck .row-name{ text-decoration:line-through; }
 .empty-state{ text-align:center; color:var(--muted); padding:22px 8px; font-size:0.86rem; }
@@ -90,7 +90,12 @@ body{ padding-bottom:28px; }
    the compositor and costs nothing to run. */
 .pt-card{ position:relative; background:var(--white); border:1px solid var(--line);
   border-radius:14px; padding:12px 14px 12px 16px; margin-bottom:9px; overflow:hidden;
-  transition:transform .09s ease, box-shadow .09s ease, border-color .09s ease; }
+  /* box-shadow is NOT animated, deliberately. transform and opacity are handed
+     to the compositor; a shadow must be repainted every frame — and this is
+     the most repeated element in the app, forty of them down a list on
+     Payment or Bills. The shadow still appears when a card opens; it appears
+     rather than fades. */
+  transition:transform .09s ease, border-color .09s ease; }
 .pt-card::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
   background:var(--gold-light); opacity:.55; }
 .pt-card.tappable{ cursor:pointer; }
@@ -140,8 +145,6 @@ body{ padding-bottom:28px; }
 
 .rx-line.struck .rx-line-what{ text-decoration:line-through; opacity:.6; }
 .rx-detail{ padding:2px 0 12px; }
-.rxs-when{ font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase;
-  color:var(--muted); margin-bottom:6px; }
 .pt-more{ display:block; width:100%; margin:4px 0 2px; border:1px dashed var(--line);
   background:transparent; color:var(--gold-deep); font-weight:600; font-size:0.78rem;
   padding:9px; border-radius:9px; cursor:pointer; transition:background .09s ease; }
@@ -157,7 +160,9 @@ body{ padding-bottom:28px; }
 .tot{ margin:10px 0 2px; background:var(--gold-pale); border:1px solid var(--gold-light);
   border-radius:14px; padding:13px 16px; cursor:pointer;
   transition:transform .09s ease, filter .09s ease; }
-.tot:active{ transform:translateY(1px); filter:brightness(0.985); }
+/* brightness() builds a compositing layer for the length of the press; a
+   background change gives the same feedback for nothing. */
+.tot:active{ transform:translateY(1px); background:var(--gold-light); }
 .tot-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .tot-v{ font-size:1.6rem; font-weight:700; color:var(--gold-deep); line-height:1.1;
   /* Never abbreviated: it is the number the page is for. */
@@ -170,15 +175,6 @@ body{ padding-bottom:28px; }
 .tot-s{ display:flex; flex-direction:column; }
 .tot-sv{ font-weight:700; font-size:1rem; color:var(--brown); white-space:nowrap; }
 .tot-sk{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); }
-.mt-row{ display:flex; gap:8px; margin:10px 0 2px; }
-.mt{ flex:1; background:var(--white); border:1px solid var(--line); border-radius:12px;
-  padding:10px 12px; min-width:0; }
-.mt-v{ font-weight:700; font-size:0.95rem; color:var(--ink); white-space:nowrap;
-  overflow:hidden; text-overflow:ellipsis; }
-.mt.mt-big{ flex:1.4; background:var(--gold-pale); border-color:var(--gold-light); }
-.mt.mt-big .mt-v{ font-size:1.15rem; color:var(--gold-deep); }
-.mt.mt-neg .mt-v{ color:var(--danger); }
-.mt-k{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); margin-top:2px; }
 /* ---- the patient record ---- */
 .ptr-head{ background:var(--white); border:1px solid var(--line); border-radius:14px;
   padding:14px 16px; margin-bottom:12px; }
@@ -226,10 +222,15 @@ body{ padding-bottom:28px; }
 /* Six across a phone: a mark above a short word, no wrapping, no scrolling. */
 .tabbar{ display:flex; gap:0; overflow:visible; }
 .tab-btn{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center;
-  gap:3px; padding:8px 1px 7px; font-size:0.58rem; letter-spacing:0; }
-/* The longest label sets the size: it must not wrap, and it must not push
-   its neighbours out of shape. */
-.tab-btn span{ white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  gap:3px; padding:8px 1px 7px; font-size:0.58rem; letter-spacing:0.01em; }
+/* IT WRAPS, IT DOES NOT SHRINK OR HIDE (a3.3). Ellipsis turned "Follow-ups"
+   into "FOLLOW…" — a label you have to remember rather than read. Shrinking
+   the type to fit the longest word made all six smaller for the sake of one.
+   So it breaks onto a second line at its own hyphen, the type stays legible,
+   and every tab reserves the same two lines' height so the row keeps its
+   shape whether a label wraps or not. */
+.tab-btn span{ white-space:normal; text-align:center; line-height:1.15;
+  min-height:2.3em; display:flex; align-items:flex-start; justify-content:center; }
 .ti{ width:20px; height:20px; display:block; }
 .ptr-tellabel{ font-weight:500; opacity:.7; }
 .ptr-nonum{ margin-top:9px; font-size:0.82rem; color:var(--muted); }
@@ -293,19 +294,11 @@ body{ padding-bottom:28px; }
 .status-bar{ padding:10px 14px; font-size:0.84rem; text-align:center; }
 .status-bar.err{ background:var(--danger-bg); color:var(--danger); }
 .spin{ text-align:center; padding:26px; color:var(--muted); font-size:0.86rem; }
-/* The prescription itself, opened in place. */
-.rx-sheet{ background:var(--white); border:1px solid var(--gold-light); border-radius:12px;
-  padding:14px 16px; margin:0 0 10px; }
-.rxs-h{ font-family:inherit; font-weight:700; color:var(--brown); margin-bottom:8px; }
 .rxs-k{ font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--gold-deep);
   font-weight:600; margin-top:10px; }
 .rxs-v{ font-size:0.9rem; color:var(--brown); white-space:pre-wrap; }
 .rxs-med{ border-top:1px solid rgba(0,0,0,0.06); padding:6px 0 4px; font-size:0.9rem; font-weight:600; }
-.rxs-dose{ font-size:0.8rem; color:var(--muted); font-weight:400; }
-.rxs-close{ display:block; width:100%; margin-top:14px; border:1px solid var(--line); background:transparent;
-  color:var(--gold-deep); font-family:inherit; font-weight:600; letter-spacing:0.06em;
-  text-transform:uppercase; font-size:0.78rem; padding:10px; border-radius:10px; cursor:pointer; }
-</style></head><body>
+.rxs-dose{ font-size:0.8rem; color:var(--muted); font-weight:400; }</style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
        before it is the clinic's system. Tapping the name sets it. -->
@@ -612,6 +605,16 @@ document.getElementById('saveFolderBtn').addEventListener('click', () => {
    this session" is a different thing and must not travel that path, or every
    render would throw before it could show the copy already on the device. */
 function noteTokenNeeded(){ showSignInNeeded(true); }
+/* TWO DIFFERENT SILENCES (a3.4). "Waiting on the clinic PC" means the desk
+   has not written the file yet — a real thing that happens. It is NOT what
+   happens when the hour on a Google token runs out, and saying it then sends
+   somebody to check a computer that is working perfectly. */
+function nothingHere(what){
+  const box = t => '<div class="empty-state">' + t + '</div>';
+  return accessToken
+    ? box('Waiting on the clinic PC')
+    : box('Not signed in \u2014 tap the line above to read ' + (what || 'this'));
+}
 function NoTokenError(){ this.name = 'NoTokenError'; this.message = 'Not signed in'; }
 NoTokenError.prototype = Object.create(Error.prototype);
 /* ======================= THE MONEY, THE LAB, THE CALLS ==================
@@ -683,47 +686,19 @@ async function loadEntriesIndex(){
     entriesIndexInFlight = null;
   }
 }
-async function loadDayEntry(dateStr, token){
-  renderDayNav(dateStr);
-  if(dateStr !== todayStr()){
-    const idx = await loadEntriesIndex();
-    /* Only trust the index for a day it actually CONTAINS.
-       THE BUG THIS FIXES: the desktop adds a day to the index the next time
-       it runs, so a day that has just ended is not in it yet. With the
-       clinic PC shut overnight, yesterday was missing — and treating
-       "absent from the index" as "no money that day" showed ₹0 over a full
-       day's takings. Absent from the index means UNKNOWN, not zero, so we
-       go and read the day's own file. */
-    if(idx && Object.prototype.hasOwnProperty.call(idx, dateStr)){
-      const entry = idx[dateStr] || null;
-      if(token !== undefined && !paintAllowed(token)) return;
-      renderPayments(entry, entry && Array.isArray(entry.items) ? entry.items : []);
-      return;
-    }
-  }
-  const fileId = await findDayFile(dateStr);
-  const seenAt = lastFoundModifiedTime;
-  if(!fileId){
-    if(token !== undefined && !paintAllowed(token)) return;
-    renderPayments(null, []);
-    return;
-  }
-  /* Today's file is re-checked on every render, as it must be — it is the
-     one that keeps changing. But an unchanged file need not be downloaded
-     again, and between two taps it usually has not changed. */
-  let entry;
-  if(dateStr === todayStr() && todayEntryCache && seenAt && seenAt === todaySeenModified){
-    entry = todayEntryCache;
-  } else {
-    entry = await driveReadJson(fileId);
-    if(dateStr === todayStr()){ todayEntryCache = entry; todaySeenModified = seenAt; }
-  }
-  const items = Array.isArray(entry.items) ? entry.items : [];
-  if(token !== undefined && !paintAllowed(token)) return;
-  renderPayments(entry, items);
-}
+/* KEPT ON THE DEVICE (a3.4). These two were deliberately left out before,
+   because they are the largest files the clinic has. But leaving them out
+   meant that the moment a token expired — every morning, in practice — the
+   money pages had nothing at all to show, while lite happily opened on what
+   it had. So they are kept, and they yield FIRST if the phone runs out of
+   room: cacheWrite drops them rather than the names and prescriptions that
+   make everything else fast. */
 async function loadBills(){
   if(cachedBills && !billsRevalidate) return cachedBills;
+  if(!cachedBills && !accessToken){
+    const held = cacheRead('echoAdmin_bills');
+    if(Array.isArray(held)) return (cachedBills = held);
+  }
   if(billsInFlight) return await billsInFlight;
   billsInFlight = (async () => {
   try{
@@ -740,6 +715,7 @@ async function loadBills(){
         const idx = await driveReadJson(fileId);
         if(idx && Array.isArray(idx.bills)){
           cachedBills = idx.bills;
+          cacheWrite('echoAdmin_bills', idx.bills);
           billsSeenModified = seenAt;
           billsRevalidate = false;
           return cachedBills;
@@ -769,6 +745,10 @@ async function loadBills(){
   }
 }
 async function loadAllEntries(){
+  if(!accessToken){
+    const held = cacheRead('echoAdmin_entries');
+    if(Array.isArray(held)) return held;
+  }
   const idx = await loadEntriesIndex();
   const out = idx ? Object.keys(idx).map(d => idx[d]) : [];
   const have = new Set(out.filter(Boolean).map(e => e.date));
@@ -804,7 +784,9 @@ async function loadAllEntries(){
   });
   const fetched = await Promise.all(fetches);
   fetched.forEach(e => { if(e) out.push(e); });
-  return out.filter(Boolean);
+  const done = out.filter(Boolean);
+  if(done.length) cacheWrite('echoAdmin_entries', done);
+  return done.filter(Boolean);
 }
 async function loadLabCases(){
   if(labCasesTried) return labCasesCache;
@@ -953,22 +935,6 @@ async function listRecentDays(){
   })();
   try{ return await dayListInFlight; }
   finally{ dayListInFlight = null; }
-}
-async function findDayFile(dateStr){
-  const list = await listRecentDays();
-  if(list){
-    if(Object.prototype.hasOwnProperty.call(list, dateStr)){
-      lastFoundModifiedTime = list[dateStr].modifiedTime;
-      return list[dateStr].id;
-    }
-    /* Inside the listed range and absent means it genuinely does not exist
-       — no request needed to confirm that. */
-    if(dayListOldest && dateStr >= dayListOldest){
-      lastFoundModifiedTime = null;
-      return null;
-    }
-  }
-  return await driveFindChild(cachedDataFolderId, dateStr + '.json', false);
 }
 
 /* KEPT ON THE DEVICE (a2.7). Opening one patient's record read twelve
@@ -1317,13 +1283,6 @@ function visitWasRemoved(v){ return !!(v && v.removedAt); }
    Without this the phone showed last Tuesday's half-finished visit as still
    in the chair. visitDayIsOpen is one line on the desktop — the day is open
    if it is today — and is inlined here for the same reason. */
-function effectiveVisitStatusM(v, dateStr){
-  const raw = (v && v.status) || 'waiting';
-  if(!v || v.removedAt) return { status: raw, auto: false };
-  if(dateStr === todayStr()) return { status: raw, auto: false };
-  if(raw === 'done') return { status: 'done', auto: false };
-  return { status: 'done', auto: true };
-}
 /* THE STATE THE BORROWED LOADERS KEEP. These were declared elsewhere in the
    phone app and did not travel with the functions, so both loaders threw on
    their first line — and the throw was swallowed by their own catch, which
@@ -1513,7 +1472,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '3.0';
+const ADMIN_VERSION = '3.4';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -1614,6 +1573,8 @@ async function doRefresh(){
   crmTried = createdTried = orthoTried = notesTried = false;
   labCasesTried = followupsTriedD = implantLogTriedM = visitsIdxTried = false;
   cachedBills = null; cachedEntriesIndex = null; entriesIndexTried = false;
+  try{ localStorage.removeItem('echoAdmin_bills');
+       localStorage.removeItem('echoAdmin_entries'); }catch(e){}
   billsRevalidate = true; entriesRevalidate = true;
   setTab(currentTab);
   await new Promise(r => setTimeout(r, 400));
@@ -1730,9 +1691,13 @@ function cacheWrite(key, value){
     localStorage.setItem(CACHE_KEY_AT, String(Date.now()));
     return true;
   }catch(e){
-    /* Out of room: drop the big one and keep the small one rather than lose
-       both. Names alone still spare the slowest read on the search page. */
-    try{ localStorage.removeItem(CACHE_KEY_RX); }catch(e2){}
+    /* Out of room: drop the biggest first and keep the small ones, rather
+       than lose everything. Bills and payments are the largest by far, and
+       losing them costs one read; losing the names costs every page. */
+    try{
+      localStorage.removeItem('echoAdmin_entries');
+      localStorage.removeItem('echoAdmin_bills');
+    }catch(e2){}
     return false;
   }
 }
@@ -1887,10 +1852,6 @@ function rxDetailHtml(rec){
     + '</div>';
 }
 /* The Patients page still shows one prescription at a time in its own box. */
-function rxSheetHtml(rec, key){
-  return '<div class="rx-sheet">' + rxDetailHtml(rec)
-    + '<button type="button" class="rxs-close" onclick="closeRx()">Close</button></div>';
-}
 function toggleRx(key){
   openRx = (openRx === key) ? null : key;
   openAllFor = null;          // closing a patient folds their history again
@@ -1947,6 +1908,18 @@ async function renderVisits(){
   if(!isToday){
     const held = cacheRead(dayKey);
     if(Array.isArray(held)) rows = held;
+  } else {
+    /* TODAY, BRIEFLY (a3.1). A finished day is kept for ever; today was
+       re-read every time the tab was shown — so tapping between Visits and
+       Payment while looking something up cost a round trip each way. The
+       day's arrivals do not change inside a minute, and the window's own
+       storage forgets this the moment the app is closed, so it can never
+       show yesterday's list as today's. */
+    const at = Number(sessionStorage.getItem('day:' + today) || 0);
+    if(at && (Date.now() - at) < 60000){
+      const held = cacheRead(dayKey);
+      if(Array.isArray(held)) rows = held;
+    }
   }
   if(rows === null){
     let got = null;
@@ -1963,6 +1936,7 @@ async function renderVisits(){
              It is written every time it is read, so it is never more stale
              than the last successful read, and the bar above says so. */
           cacheWrite(dayKey, got);
+          if(isToday){ try{ sessionStorage.setItem('day:' + today, String(Date.now())); }catch(e){} }
         }
       }
     }catch(err){
@@ -2184,7 +2158,7 @@ async function renderPayment(){
   const list = document.getElementById('payList');
   const entries = await loadAllEntries().catch(() => null);
   if(entries === null){
-    list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>';
+    list.innerHTML = nothingHere();
     document.getElementById('moneyTotals').innerHTML = '';
     return;
   }
@@ -2262,7 +2236,7 @@ async function renderBilling(){
   const list = document.getElementById('billList');
   const bills = await loadBills().catch(() => null);
   if(bills === null){
-    list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>';
+    list.innerHTML = nothingHere();
     document.getElementById('billTotals').innerHTML = '';
     return;
   }
@@ -2359,7 +2333,7 @@ async function renderMoneyMoved(){
     loadBills().catch(() => null), loadAllEntries().catch(() => null)
   ]);
   if(bills === null || entries === null){
-    list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>';
+    list.innerHTML = nothingHere();
     document.getElementById('billTotals').innerHTML = '';
     return;
   }
@@ -2455,7 +2429,7 @@ function moneyMovedRows(bills, entries, from, to){
 async function renderLab(){
   const list = document.getElementById('labList');
   const cases = await deviceCached('labs', () => loadLabCases()).catch(() => null);
-  if(cases === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
+  if(cases === null){ list.innerHTML = nothingHere(); return; }
   const dir = await getDirectory();
   const live = (cases || []).filter(c => c && !c.struckAt);
   /* The desk's own three stages, and its own thresholds, so the phone and
@@ -2525,7 +2499,7 @@ function setFuFilter(k){ fuFilter = (fuFilter === k) ? null : k; renderFollowups
 async function renderFollowups(){
   const list = document.getElementById('fuList');
   const all = await deviceCached('fups', () => loadFollowupsD()).catch(() => null);
-  if(all === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
+  if(all === null){ list.innerHTML = nothingHere(); return; }
   const dir = await getDirectory();
   const today = todayStr();
   /* Open entries, plus anything closed TODAY — so a call made this morning
@@ -2684,7 +2658,7 @@ async function renderPtMoneyList(body, which){
     loadBills().catch(() => null), loadAllEntries().catch(() => null), getDirectory()
   ]);
   if(bills === null || entries === null){
-    body.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return;
+    body.innerHTML = nothingHere(); return;
   }
   const map = computePendingFromData(bills, entries);
   const rows = Object.keys(map)
@@ -2711,7 +2685,7 @@ async function renderPtImplants(body){
   body.innerHTML = '<div class="spin">Reading&hellip;</div>';
   const [log, dir] = await Promise.all([
     deviceCached('implants', () => loadImplantLog()).catch(() => null), getDirectory()]);
-  if(log === null){ body.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
+  if(log === null){ body.innerHTML = nothingHere(); return; }
   const live = (log || []).filter(e => e && !e.removedAt)
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
   if(!live.length){ body.innerHTML = '<div class="empty-state">None on record</div>'; return; }
