@@ -169,6 +169,48 @@ body{ padding-bottom:28px; }
 .mt.mt-big .mt-v{ font-size:1.15rem; color:var(--gold-deep); }
 .mt.mt-neg .mt-v{ color:var(--danger); }
 .mt-k{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); margin-top:2px; }
+/* ---- the patient record ---- */
+.ptr-head{ background:var(--white); border:1px solid var(--line); border-radius:14px;
+  padding:14px 16px; margin-bottom:12px; }
+.ptr-name{ font-size:1.25rem; font-weight:700; color:var(--ink); }
+.ptr-sub{ font-size:0.82rem; color:var(--muted); margin-top:2px; }
+.ptr-tel{ display:inline-block; margin-top:9px; font-size:0.86rem; font-weight:600;
+  color:var(--gold-deep); text-decoration:none; background:var(--gold-pale);
+  border-radius:9px; padding:6px 11px; }
+.ptr-chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:9px; }
+.ptr-chip{ font-size:0.7rem; font-weight:700; border-radius:7px; padding:3px 9px; }
+.ptr-ortho{ background:var(--gold-pale); color:var(--gold-deep); }
+.ptr-crm{ background:#EAEFF3; color:#5C6B77; }
+.ptr-money{ display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; padding-top:11px;
+  border-top:1px solid var(--line); }
+.ptr-m{ display:flex; flex-direction:column; }
+.ptr-m b{ font-size:1rem; color:var(--ink); white-space:nowrap; }
+.ptr-m b.neg{ color:var(--danger); }
+.ptr-m b.adv{ color:var(--success); }
+.ptr-m span{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); }
+/* One group of one type. */
+.tc{ background:var(--white); border:1px solid var(--line); border-radius:14px;
+  padding:11px 14px; margin-bottom:9px; }
+.tc-head{ display:flex; align-items:baseline; gap:8px; padding-bottom:7px;
+  border-bottom:1px solid var(--line); }
+.tc-icon{ font-size:0.95rem; }
+.tc-label{ flex:1; font-size:0.74rem; letter-spacing:0.08em; text-transform:uppercase;
+  font-weight:700; color:var(--gold-deep); }
+.tc-count{ font-weight:700; color:var(--brown); font-size:0.85rem; }
+.tc-row{ display:flex; gap:10px; align-items:baseline; padding:8px 0;
+  border-top:1px solid rgba(0,0,0,0.04); font-size:0.86rem; }
+.tc-row:first-of-type{ border-top:0; }
+.tc-row.tappable{ cursor:pointer; }
+.tc-row.tappable:active{ opacity:.6; }
+.tc-row.struck .tc-what{ text-decoration:line-through; opacity:.6; }
+.tc-when{ flex:none; width:84px; font-size:0.74rem; color:var(--muted); }
+.tc-what{ flex:1; min-width:0; color:var(--brown); }
+.tc-chev{ flex:none; color:var(--gold-deep); width:14px; text-align:center; }
+.tc-body{ padding:2px 0 10px 84px; }
+.pt-amt.adv{ color:var(--success); }
+.tabbar{ overflow-x:auto; }
+.tab-btn{ flex:none; padding:10px 9px; }
+
 /* One bill, opened. */
 .bill-body{ margin-top:11px; border-top:1px solid var(--line); padding-top:9px; }
 .bl-row{ display:flex; justify-content:space-between; gap:12px; padding:4px 0; font-size:0.85rem; }
@@ -271,6 +313,7 @@ body{ padding-bottom:28px; }
     <button class="tab-btn" data-tab="billing" onclick="setTab('billing')">Billing</button>
     <button class="tab-btn" data-tab="lab" onclick="setTab('lab')">Lab</button>
     <button class="tab-btn" data-tab="followups" onclick="setTab('followups')">Follow-ups</button>
+    <button class="tab-btn" data-tab="patients" onclick="setTab('patients')">Patients</button>
   </div>
 </div>
 
@@ -345,6 +388,13 @@ body{ padding-bottom:28px; }
     <!-- LAB — the three stages, as the desk keeps them. -->
     <div id="viewLab" class="hidden">
       <div id="labList"><div class="spin">Reading&hellip;</div></div>
+    </div>
+
+    <!-- PATIENTS — four ways in: by name, by what is owed, by what is held
+         in advance, and by the implants placed. Then one record, read only. -->
+    <div id="viewPatients" class="hidden">
+      <div class="period-row" id="ptSubRow"></div>
+      <div id="ptBody"><div class="spin">Reading&hellip;</div></div>
     </div>
 
     <!-- FOLLOW-UPS — who is due a call, oldest first. -->
@@ -900,6 +950,171 @@ async function findDayFile(dateStr){
   return await driveFindChild(cachedDataFolderId, dateStr + '.json', false);
 }
 
+/* ---- the patient side, lifted whole from the app being retired ---- */
+let crmCache = null, crmTried = false;
+let createdCache = null, createdTried = false;
+let orthoIdsCache = null, orthoTried = false;
+let notesCache = null, notesTried = false;
+let visitsIdxCache = null, visitsIdxTried = false;
+let cachedVisitsFolderId = null;
+let implantLogCacheM = null, implantLogTriedM = false;
+function computePendingFromData(bills, entries){
+  const map = {};
+  const ensure = (id) => (map[id] || (map[id] = { totalBilled:0, totalPayments:0, name:'' }));
+  (bills||[]).forEach(b=>{
+    if(!billCountsAsMoney(b) || !b.patientId) return;
+    const rec = ensure(b.patientId);
+    rec.totalBilled += Number(b.grandTotal) || 0;
+    if(b.patientName) rec.name = b.patientName;
+  });
+  (entries||[]).forEach(e=>{
+    (Array.isArray(e.items) ? e.items : []).forEach(it=>{
+      if(!it || !it.patientId) return;
+      if(isVoidedItem(it)) return;
+      if(isReversedItem(it)) return;
+      if(it.method === 'writeoff'){        // reduces the balance, no cash moves
+        const rec = ensure(it.patientId);
+        rec.totalPayments += Number(it.amount) || 0;
+        if(it.patientName) rec.name = it.patientName;
+        return;
+      }
+      const rec = ensure(it.patientId);
+      rec.totalPayments += (it.method === 'refund' ? -1 : 1) * (Number(it.amount) || 0);
+      if(it.patientName) rec.name = it.patientName;
+    });
+  });
+  Object.keys(map).forEach(id => { map[id].pending = map[id].totalBilled - map[id].totalPayments; });
+  return map;
+}
+function isReversedItem(it){ return !!(it && it.reversal); }
+function billCountsAsMoney(b){
+  return !!b && b.status !== 'draft' && !isCancelledBill(b);
+}
+function billCountsAsMoney(b){
+  return !!b && b.status !== 'draft' && !isCancelledBill(b);
+}
+async function loadPatientCrm(){
+  if(crmTried) return crmCache;
+  crmCache = await loadSettingsMap('patient-crm.json'); crmTried = true; return crmCache;
+}
+async function loadPatientCreated(){
+  if(createdTried) return createdCache;
+  createdCache = await loadSettingsMap('patient-created-at.json'); createdTried = true; return createdCache;
+}
+async function loadOrthoIds(){
+  if(orthoTried) return orthoIdsCache;
+  orthoTried = true;
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return (orthoIdsCache = new Set());
+    const fileId = await driveFindChild(settingsId, 'ortho-patients.json', false);
+    if(!fileId) return (orthoIdsCache = new Set());
+    const list = await driveReadJson(fileId);
+    orthoIdsCache = new Set((Array.isArray(list) ? list : [])
+      .map(o => o && o.patientId).filter(Boolean).map(String));
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    orthoIdsCache = new Set();
+  }
+  return orthoIdsCache;
+}
+async function loadPatientNotes(){
+  if(notesTried) return notesCache;
+  notesTried = true;
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return (notesCache = []);
+    const fileId = await driveFindChild(settingsId, 'patient-notes-log.json', false);
+    if(!fileId) return (notesCache = []);
+    const list = await driveReadJson(fileId);
+    notesCache = Array.isArray(list) ? list : [];
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    notesCache = [];
+  }
+  return notesCache;
+}
+async function loadVisitsIndex(){
+  if(visitsIdxTried) return visitsIdxCache;
+  visitsIdxTried = true;
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return (visitsIdxCache = null);
+    const fileId = await driveFindChild(settingsId, 'visits-index.json', false);
+    if(!fileId) return (visitsIdxCache = null);
+    const idx = await driveReadJson(fileId);
+    if(!idx || typeof idx !== 'object' || Array.isArray(idx)) return (visitsIdxCache = null);
+    if(!cachedVisitsFolderId) cachedVisitsFolderId = await driveFindChild(driveFolderId, 'visits', true);
+    if(!cachedVisitsFolderId) return (visitsIdxCache = null);
+    const files = await driveListChildren(cachedVisitsFolderId);
+    const onDisk = new Set(files
+      .map(f => (/^(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name || '') || [])[1])
+      .filter(Boolean));
+    /* EVERY INDEXED DAY MUST HAVE A FILE, but not every file needs an entry.
+
+       The desktop DELETES a day from this index when it has no live visits
+       left — all removed, or the day emptied — while the day's file stays in
+       the folder. Demanding the two sets match exactly meant one such day
+       made them differ for ever, and the phone said it could not show visits
+       from then on, permanently, on every patient. That is the message the
+       clinic saw.
+
+       A file with no entry is therefore not a fault: it is a day the desktop
+       is telling us has nobody on it. An ENTRY WITH NO FILE still is — that
+       is an index describing a folder that has moved on, which is what this
+       check exists to catch. */
+    for(const day of Object.keys(idx)){
+      if(!onDisk.has(day)) return (visitsIdxCache = null);
+    }
+    visitsFileIds = {};
+    files.forEach(f => {
+      const m = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name || '');
+      if(m) visitsFileIds[m[1]] = f.id;
+    });
+    visitsIdxCache = idx;
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    visitsIdxCache = null;
+  }
+  return visitsIdxCache;
+}
+async function loadImplantLog(){
+  if(implantLogTriedM) return implantLogCacheM;
+  implantLogTriedM = true;
+  try{
+    /* IN settings/, NOT THE ROOT (v2.7). The desktop keeps every single-file
+       key in settings/ — the same folder visits-index and the bill log come
+       from. Looking in the root found nothing, so the section sat on
+       "Waiting on the clinic PC" for ever with a file that was there all
+       along. */
+    /* settings/ first, because that is where the desktop keeps its
+       single-file keys — then the root, because a folder synced by a
+       different route may hold it flat. Being wrong about the location cost
+       a section that waited for ever, so it now looks in both rather than
+       insisting on one. */
+    let fileId = null;
+    const settingsId = await getSettingsFolderId();
+    if(settingsId) fileId = await driveFindChild(settingsId, 'implant-log.json', false);
+    if(!fileId && driveFolderId) fileId = await driveFindChild(driveFolderId, 'implant-log.json', false);
+    if(!fileId) return (implantLogCacheM = null);
+    const rows = await driveReadJson(fileId);
+    implantLogCacheM = Array.isArray(rows) ? rows : null;
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    implantLogCacheM = null;
+  }
+  return implantLogCacheM;
+}
+function primaryNumber(map, patientId){
+  const live = patientNumbers(map, patientId);
+  return live.find(x => x && x.primary) || live[0] || null;
+}
+function patientNumbers(map, patientId){
+  const rec = map && map[String(patientId)];
+  const list = (rec && Array.isArray(rec.numbers)) ? rec.numbers : [];
+  return list.filter(x => x && !x.struckAt);
+}
+
 /* ---------------- Drive REST helpers ---------------- */
 /* A stored token can expire mid-session, and an expired token looks exactly
    like a permissions error (401/403) to the code below. Every Drive call
@@ -1216,7 +1431,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '2.4';
+const ADMIN_VERSION = '2.5';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -1310,7 +1525,7 @@ async function doRefresh(){
   await new Promise(r => setTimeout(r, 400));
 }
 const ADMIN_VIEWS = { visits:'viewVisits', payment:'viewPayment', billing:'viewBilling',
-                      lab:'viewLab', followups:'viewFollowups' };
+                      lab:'viewLab', followups:'viewFollowups', patients:'viewPatients' };
 function setTab(t){
   currentTab = t;
   document.querySelectorAll('.tab-btn').forEach(b =>
@@ -1329,6 +1544,7 @@ function renderCurrent(){
   if(currentTab === 'billing')   return renderBilling();
   if(currentTab === 'lab')       return renderLab();
   if(currentTab === 'followups') return renderFollowups();
+  if(currentTab === 'patients')  return renderPatientsTab();
   return renderVisits();
 }
 
@@ -2101,6 +2317,262 @@ async function renderFollowups(){
       + '</div><div class="pt-side"><div class="pt-f"><b>' + escapeHtml(waited)
         + '</b><span>waiting</span></div></div></div></div>';
   }).join('');
+}
+
+
+/* ========================= PATIENTS ====================================
+   Four ways in — by name, by what is owed, by what is held in advance, and
+   by the implants placed — then one record. Read only throughout.
+
+   The sub-pages each read only what they need, and only when opened: a name
+   search costs the directory alone, and the two money lists are the only
+   ones that touch bills and payments. */
+let ptSub = 'search';                 // search | pending | advance | implants
+let ptQuery = '';
+let ptOpen = null;                    // the patient whose record is showing
+let ptSearchTimer = null;
+const PT_SUBS = [['search','Search'], ['pending','Pending'], ['advance','Advance'], ['implants','Implants']];
+
+function setPtSub(k){ ptSub = k; ptOpen = null; ptQuery = ''; renderPatientsTab(); }
+function ptSearch(v){
+  ptQuery = String(v || '').trim();
+  clearTimeout(ptSearchTimer);
+  ptSearchTimer = setTimeout(renderPatientsTab, 180);
+}
+function openPt(pid){ ptOpen = String(pid); expandedType = null; renderPatientsTab(); }
+function closePt(){ ptOpen = null; renderPatientsTab(); }
+
+async function renderPatientsTab(){
+  const row = document.getElementById('ptSubRow');
+  const body = document.getElementById('ptBody');
+  row.innerHTML = PT_SUBS.map(x =>
+    '<button type="button" class="per-chip' + (ptSub === x[0] ? ' on' : '') + '"'
+    + ' onclick="setPtSub(\'' + x[0] + '\')">' + x[1] + '</button>').join('');
+  if(ptOpen) return renderPtRecord(body, ptOpen);
+  if(ptSub === 'search')   return renderPtSearch(body);
+  if(ptSub === 'implants') return renderPtImplants(body);
+  return renderPtMoneyList(body, ptSub);          // pending | advance
+}
+
+/* ---- by name ---- */
+async function renderPtSearch(body){
+  const dir = await getDirectory();
+  const con = await loadPatientContacts().catch(() => null);
+  const q = ptQuery.toLowerCase();
+  const input = '<input type="text" class="search-input" id="ptInput" placeholder="Search a name or patient ID"'
+    + ' value="' + escapeHtml(ptQuery) + '" oninput="ptSearch(this.value)" autocomplete="off">';
+  if(q.length < 2){ body.innerHTML = input + '<div class="empty-state">Type a name or an ID</div>'; return; }
+  const hits = Object.keys(dir || {})
+    .filter(pid => String(dir[pid] || '').toLowerCase().includes(q) || String(pid).toLowerCase().includes(q))
+    .sort((a, b) => {
+      const na = String(dir[a]||'').toLowerCase(), nb = String(dir[b]||'').toLowerCase();
+      return (na.startsWith(q) ? 0 : 1) - (nb.startsWith(q) ? 0 : 1) || na.localeCompare(nb);
+    });
+  if(!hits.length){ body.innerHTML = input + '<div class="empty-state">No one by that name</div>'; return; }
+  const shown = hits.slice(0, 30);
+  body.innerHTML = input + shown.map(pid => ptRowHtml(pid, dir[pid], whoLine(con, pid), '')).join('')
+    + (hits.length > shown.length
+        ? '<div class="empty-state">' + (hits.length - shown.length) + ' more \u2014 type a little further</div>' : '');
+}
+function ptRowHtml(pid, name, sub, right){
+  return '<div class="pt-card tappable" onclick="openPt(' + JSON.stringify(String(pid)).replace(/"/g,'&quot;') + ')">'
+    + '<div class="pt-top"><div class="pt-main">'
+    + '<div class="pt-name">' + escapeHtml(name || 'Unknown patient') + '</div>'
+    + '<div class="pt-sub">' + escapeHtml(String(pid)) + (sub ? ' \u00b7 ' + escapeHtml(sub) : '') + '</div>'
+    + '</div>' + (right ? '<div class="pt-side">' + right + '</div>' : '') + '</div></div>';
+}
+
+/* ---- what is owed, and what is held ----
+   Pending and Advance are the same arithmetic read from either end: billed
+   minus paid. A negative balance is money the clinic is holding. */
+async function renderPtMoneyList(body, which){
+  body.innerHTML = '<div class="spin">Reading&hellip;</div>';
+  const [bills, entries, dir] = await Promise.all([
+    loadBills().catch(() => null), loadAllEntries().catch(() => null), getDirectory()
+  ]);
+  if(bills === null || entries === null){
+    body.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return;
+  }
+  const map = computePendingFromData(bills, entries);
+  const rows = Object.keys(map)
+    .map(pid => ({ pid, ...map[pid] }))
+    .filter(r => which === 'pending' ? r.pending > 0.5 : r.pending < -0.5)
+    .sort((a, b) => which === 'pending' ? b.pending - a.pending : a.pending - b.pending);
+  const total = rows.reduce((t, r) => t + Math.abs(r.pending), 0);
+  const head = totalBlock(which === 'pending' ? 'pending' : 'held in advance', fmtINR(total),
+    [['patients', String(rows.length)]], '');
+  if(!rows.length){
+    body.innerHTML = head + '<div class="empty-state">'
+      + (which === 'pending' ? 'Nothing outstanding' : 'Nothing held in advance') + '</div>';
+    return;
+  }
+  body.innerHTML = head + rows.slice(0, 200).map(r =>
+    ptRowHtml(r.pid, (dir && dir[r.pid]) || r.name, 'billed ' + fmtINR(r.totalBilled)
+      + ' \u00b7 paid ' + fmtINR(r.totalPayments),
+      '<div class="pt-amt' + (which === 'advance' ? ' adv' : ' neg') + '">'
+        + fmtINR(Math.abs(r.pending)) + '</div>')).join('');
+}
+
+/* ---- the implants placed ---- */
+async function renderPtImplants(body){
+  body.innerHTML = '<div class="spin">Reading&hellip;</div>';
+  const [log, dir] = await Promise.all([loadImplantLog().catch(() => null), getDirectory()]);
+  if(log === null){ body.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
+  const live = (log || []).filter(e => e && !e.removedAt)
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  if(!live.length){ body.innerHTML = '<div class="empty-state">None on record</div>'; return; }
+  /* Grouped by brand, because that is the question the shelf asks. */
+  const byCo = {};
+  live.forEach(e => { const c = String(e.company || 'Unknown').trim(); (byCo[c] = byCo[c] || []).push(e); });
+  const cos = Object.keys(byCo).sort((a, b) => byCo[b].length - byCo[a].length);
+  body.innerHTML = totalBlock('implants placed', String(live.length),
+      cos.slice(0, 6).map(c => [c, String(byCo[c].length)]), '')
+    + live.slice(0, 200).map(e => {
+      const size = [e.dia, e.len].filter(v => v != null && v !== '').join(' \u00d7 ');
+      return ptRowHtml(e.patientId, (dir && dir[String(e.patientId)]) || e.patientName,
+        String(e.tooth || '\u2014') + (e.company ? ' \u00b7 ' + e.company : '') + (size ? ' \u00b7 ' + size : '')
+          + (e.placedAt ? ' \u00b7 ' + e.placedAt : ''),
+        '<div class="pt-f"><b>' + escapeHtml(e.date ? shortDateMobile(e.date) : '\u2014') + '</b>'
+          + '<span>placed</span></div>');
+    }).join('')
+    + (live.length > 200 ? '<div class="empty-state">' + (live.length - 200) + ' more</div>' : '');
+}
+
+
+/* ---- one patient's record -------------------------------------------
+   The header carries what the desk's header carries: who they are, how to
+   reach them, what they owe, and the tags the desk gives them. Below it the
+   timeline BY TYPE — the desk's own grouping and its own order, with every
+   row opening to the thing behind it. */
+const PT_TYPES = [
+  ['prescription', '\u211e',       'Prescriptions'],
+  ['visit',        '\uD83D\uDCC5', 'Visits'],
+  ['bill',         '\uD83E\uDDFE', 'Bills'],
+  ['payment',      '\uD83D\uDCB3', 'Payments'],
+  ['labcase',      '\uD83E\uDDB7', 'Lab cases'],
+  ['implant',      '\uD83E\uDDB7', 'Implants'],
+  ['followup',     '\uD83D\uDCDE', 'Follow-ups'],
+  ['note',         '\uD83D\uDCDD', 'Notes']
+];
+let expandedType = null;            // which group is unfolded past its first few
+let ptRowOpen = null;               // which single row is opened
+const PT_FIRST_PAGE = 4;
+function togglePtType(t){ expandedType = (expandedType === t) ? null : t; renderPatientsTab(); }
+function togglePtRow(k){ ptRowOpen = (ptRowOpen === k) ? null : k; renderPatientsTab(); }
+
+async function renderPtRecord(body, pid){
+  body.innerHTML = '<div class="spin">Reading&hellip;</div>';
+  const [dir, con, crm, created, ortho, notes, rx, bills, entries, labs, fups, implants] =
+    await Promise.all([
+      getDirectory(), loadPatientContacts().catch(()=>null), loadPatientCrm().catch(()=>({})),
+      loadPatientCreated().catch(()=>({})), loadOrthoIds().catch(()=>new Set()),
+      loadPatientNotes().catch(()=>[]), getRxIndex(), loadBills().catch(()=>[]),
+      loadAllEntries().catch(()=>[]), loadLabCases().catch(()=>[]),
+      loadFollowupsD().catch(()=>[]), loadImplantLog().catch(()=>[])
+    ]);
+  if(ptOpen !== pid) return;                    // they went back while it read
+  const P = String(pid);
+  const name = (dir && dir[P]) || 'Unknown patient';
+  const money = computePendingFromData(bills || [], entries || []);
+  const bal = (money[P] || { pending:0, totalBilled:0, totalPayments:0 });
+
+  /* ---- header ---- */
+  const who = whoLine(con, P);
+  const phone = primaryNumber(con, P);
+  const madeOn = created && created[P] ? String(created[P]).slice(0, 10) : '';
+  const crmRow = (crm && crm[P]) || {};
+  const chips = [];
+  if(ortho && ortho.has && ortho.has(P)) chips.push(['ortho', 'Long treatment']);
+  if(crmRow.status) chips.push(['crm', String(crmRow.status)]);
+  const balTone = bal.pending > 0.5 ? 'neg' : bal.pending < -0.5 ? 'adv' : '';
+  const balWord = bal.pending > 0.5 ? 'pending' : bal.pending < -0.5 ? 'in advance' : 'settled';
+  let h = '<button type="button" class="btn ghost" onclick="closePt()" style="margin:4px 0 12px;">&lsaquo; Back</button>'
+    + '<div class="ptr-head">'
+      + '<div class="ptr-name">' + escapeHtml(name) + '</div>'
+      + '<div class="ptr-sub">' + escapeHtml(P) + (who ? ' \u00b7 ' + escapeHtml(who) : '') + '</div>'
+      + (phone ? '<a class="ptr-tel" href="tel:' + escapeHtml(String(phone).replace(/\s+/g,'')) + '">'
+                 + '\uD83D\uDCDE ' + escapeHtml(String(phone)) + '</a>' : '')
+      + (chips.length ? '<div class="ptr-chips">' + chips.map(c =>
+            '<span class="ptr-chip ptr-' + c[0] + '">' + escapeHtml(c[1]) + '</span>').join('') + '</div>' : '')
+      + '<div class="ptr-money">'
+        + '<div class="ptr-m"><b class="' + balTone + '">' + fmtINR(Math.abs(bal.pending)) + '</b><span>' + balWord + '</span></div>'
+        + '<div class="ptr-m"><b>' + fmtINR(bal.totalBilled) + '</b><span>billed</span></div>'
+        + '<div class="ptr-m"><b>' + fmtINR(bal.totalPayments) + '</b><span>paid</span></div>'
+        + (madeOn ? '<div class="ptr-m"><b>' + escapeHtml(shortDateMobile(madeOn)) + '</b><span>on record</span></div>' : '')
+      + '</div>'
+    + '</div>';
+
+  /* ---- everything this patient has, as typed events ---- */
+  const mine = { prescription:[], visit:[], bill:[], payment:[], labcase:[], implant:[], followup:[], note:[] };
+  (rx || []).filter(r => r && String(r.patientId) === P).forEach(r =>
+    mine.prescription.push({ when:String(r.date || r.createdAt || '').slice(0,10),
+      what: rxWhat(r), struck: rxIsStruck(r), body: () => rxDetailHtml(r) }));
+  (bills || []).filter(b => b && String(b.patientId) === P).forEach(b =>
+    mine.bill.push({ when:String(b.date || '').slice(0,10),
+      what: (b.billNo ? '#' + b.billNo + ' \u00b7 ' : '') + fmtINR(Number(b.grandTotal)||0)
+            + (isCreditNote(b) ? ' \u00b7 credit note' : ''),
+      struck: isCancelledBill(b), body: () => billLinesHtml(b) }));
+  (entries || []).forEach(e => (e.items || []).forEach(it => {
+    if(!it || String(it.patientId) !== P || isVoidedItem(it)) return;
+    mine.payment.push({ when:String(e.date || '').slice(0,10),
+      what: fmtINR((it.method === 'refund' ? -1 : 1) * (Number(it.amount)||0)) + ' \u00b7 ' + (it.method || 'cash'),
+      struck: isReversedItem(it) });
+  }));
+  (labs || []).filter(c => c && String(c.patientId) === P).forEach(c =>
+    mine.labcase.push({ when:String(c.dateSent || c.dateLogged || '').slice(0,10),
+      what: [c.workType, c.lab, (labStageOf(c)||{}).label].filter(Boolean).join(' \u00b7 '),
+      struck: !!c.struckAt }));
+  (implants || []).filter(e => e && String(e.patientId) === P && !e.removedAt).forEach(e =>
+    mine.implant.push({ when:String(e.date || '').slice(0,10),
+      what: [e.tooth, e.company, [e.dia, e.len].filter(v=>v!=null&&v!=='').join(' \u00d7 '), e.placedAt]
+              .filter(Boolean).join(' \u00b7 ') }));
+  (fups || []).filter(f => f && String(f.patientId) === P).forEach(f =>
+    mine.followup.push({ when:String(f.sourceDate || '').slice(0,10),
+      what: fuDef(f).label + (f.reason ? ' \u00b7 ' + f.reason : ''), struck: fuDef(f).resolved }));
+  (notes || []).filter(n => n && String(n.patientId) === P).forEach(n =>
+    mine.note.push({ when:String(n.date || n.createdAt || '').slice(0,10),
+      what: String(n.text || n.note || ''), struck: !!n.struckAt }));
+
+  /* Visits come from the index, which holds only the dates. */
+  const vIdx = await loadVisitsIndex().catch(()=>null);
+  if(vIdx && typeof vIdx === 'object'){
+    (Array.isArray(vIdx[P]) ? vIdx[P] : []).forEach(dt =>
+      mine.visit.push({ when:String(dt).slice(0,10), what:'Visited' }));
+  }
+
+  let any = false;
+  PT_TYPES.forEach(([t, icon, label]) => {
+    const rows = (mine[t] || []).sort((a, b) => String(b.when).localeCompare(String(a.when)));
+    /* A type this patient has nothing of is not a card — an empty "0 lab
+       cases" panel is noise on every record in the clinic. */
+    if(!rows.length) return;
+    any = true;
+    const open = expandedType === t;
+    const shown = open ? rows : rows.slice(0, PT_FIRST_PAGE);
+    const hidden = rows.length - shown.length;
+    h += '<div class="tc"><div class="tc-head">'
+      + '<span class="tc-icon">' + icon + '</span>'
+      + '<span class="tc-label">' + escapeHtml(label) + '</span>'
+      + '<span class="tc-count">' + rows.length + '</span></div>'
+      + shown.map((ev, i) => {
+          const key = t + ':' + i;
+          const isOpen = ptRowOpen === key && ev.body;
+          return '<div class="tc-row' + (ev.struck ? ' struck' : '') + (ev.body ? ' tappable' : '') + '"'
+            + (ev.body ? ' onclick="togglePtRow(\'' + key + '\')"' : '') + '>'
+            + '<span class="tc-when">' + escapeHtml(ev.when ? shortDateMobile(ev.when) : '\u2014') + '</span>'
+            + '<span class="tc-what">' + escapeHtml(ev.what || '') + '</span>'
+            + (ev.body ? '<span class="tc-chev">' + (isOpen ? '\u2013' : '+') + '</span>' : '')
+            + '</div>'
+            + (isOpen ? '<div class="tc-body">' + ev.body() + '</div>' : '');
+        }).join('')
+      + (hidden > 0 ? '<button type="button" class="pt-more" onclick="togglePtType(\'' + t + '\')">'
+                      + hidden + ' more</button>'
+         : (open && rows.length > PT_FIRST_PAGE
+            ? '<button type="button" class="pt-more" onclick="togglePtType(\'' + t + '\')">Show fewer</button>' : ''))
+      + '</div>';
+  });
+  if(!any) h += '<div class="empty-state">Nothing on record for this patient</div>';
+  body.innerHTML = h;
 }
 
 /* ---- boot ---------------------------------------------------------------
