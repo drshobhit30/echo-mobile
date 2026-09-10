@@ -235,6 +235,7 @@ body{ padding-bottom:28px; }
 .ptr-nonum{ margin-top:9px; font-size:0.82rem; color:var(--muted); }
 
 /* One bill, opened. */
+.mm-why{ margin-top:6px; font-size:0.8rem; color:var(--brown); font-style:italic; }
 .bill-body{ margin-top:11px; border-top:1px solid var(--line); padding-top:9px; }
 .bl-row{ display:flex; justify-content:space-between; gap:12px; padding:4px 0; font-size:0.85rem; }
 .bl-name{ color:var(--brown); min-width:0; }
@@ -392,6 +393,7 @@ body{ padding-bottom:28px; }
 
     <!-- BILLING — what was raised, over the same period. -->
     <div id="viewBilling" class="hidden">
+      <div class="period-row" id="billSubRow"></div>
       <div class="period-row" id="billPeriod"></div>
       <div class="daynav">
         <button type="button" class="daynav-btn" onclick="stepMoney(-1)">&lsaquo;</button>
@@ -399,7 +401,7 @@ body{ padding-bottom:28px; }
         <button type="button" class="daynav-btn" id="billNextBtn" onclick="stepMoney(1)">&rsaquo;</button>
       </div>
       <div id="billTotals"></div>
-      <div class="sec-head"><span class="sec-title">Bills</span>
+      <div class="sec-head"><span class="sec-title" id="billSecTitle">Bills</span>
         <span class="count-badge" id="billCount">0</span></div>
       <div id="billList"><div class="spin">Reading&hellip;</div></div>
     </div>
@@ -1511,7 +1513,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '2.7';
+const ADMIN_VERSION = '2.9';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -2241,13 +2243,21 @@ function atLatestPeriod(){
 function rollOrSet(id, n){ const el = document.getElementById(id); if(el) el.textContent = String(n); }
 
 /* ---------------------------- BILLING ---------------------------------- */
+let billSub = 'bills';                 // bills | moved
+function setBillSub(k){ billSub = k; openBill = null; splitOpen = false; renderCurrent(); }
 async function renderBilling(){
+  const sub = document.getElementById('billSubRow');
+  if(sub) sub.innerHTML = [['bills','Bills'],['moved','Money moved']].map(x =>
+    '<button type="button" class="per-chip' + (billSub === x[0] ? ' on' : '') + '"'
+    + ' onclick="setBillSub(\'' + x[0] + '\')">' + x[1] + '</button>').join('');
+  if(billSub === 'moved') return renderMoneyMoved();
   const chips = document.getElementById('billPeriod');
   if(chips) chips.innerHTML = periodChipsHtml();
   document.getElementById('billLabel').textContent = moneyLabelText();
   const nb = document.getElementById('billNextBtn');
   if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
 
+  document.getElementById('billSecTitle').textContent = 'Bills';
   const list = document.getElementById('billList');
   const bills = await loadBills().catch(() => null);
   if(bills === null){
@@ -2283,8 +2293,10 @@ async function renderBilling(){
         + ' tappable" onclick="toggleBill(\'' + key + '\')">'
       + '<div class="pt-top"><div class="pt-main">'
       + '<div class="pt-name">' + escapeHtml(name) + '</div>'
+      /* The desk writes billNumber; billNo was my own invention and meant
+         every bill on this list showed without its number. */
       + '<div class="pt-sub">' + escapeHtml(String(b.patientId || ''))
-        + (b.billNo ? ' \u00b7 ' + escapeHtml(String(b.billNo)) : '')
+        + (b.billNumber || b.billNo ? ' \u00b7 ' + escapeHtml(String(b.billNumber || b.billNo)) : '')
         + (moneyPeriod === 'day' ? '' : ' \u00b7 ' + escapeHtml(shortDateMobile(b.date))) + '</div>'
       + (credit ? '<div class="pt-tag pt-tag-wait">credit note</div>' : '')
       + (cancelled ? '<div class="pt-tag pt-tag-none">cancelled'
@@ -2331,6 +2343,108 @@ function billLinesHtml(b){
       '<div class="bl-row"><div class="bl-name">' + f[0] + '</div><div class="bl-amt">' + f[1] + '</div></div>'
     ).join('') + '</div>';
   return h + '</div>';
+}
+
+async function renderMoneyMoved(){
+  document.getElementById('billLabel').textContent = moneyLabelText();
+  const nb = document.getElementById('billNextBtn');
+  if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
+  document.getElementById('billSecTitle').textContent = 'Taken out of the books';
+  const list = document.getElementById('billList');
+  const [bills, entries] = await Promise.all([
+    loadBills().catch(() => null), loadAllEntries().catch(() => null)
+  ]);
+  if(bills === null || entries === null){
+    list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>';
+    document.getElementById('billTotals').innerHTML = '';
+    return;
+  }
+  const k = moneyKey();
+  const from = k.length === 10 ? k : k.length === 7 ? k + '-01' : k + '-01-01';
+  const to   = k.length === 10 ? k : k.length === 7 ? k + '-31' : k + '-12-31';
+  const rows = moneyMovedRows(bills, entries, from, to);
+  const cash = rows.filter(r => r.kind !== 'Written off');
+  const total = cash.reduce((t, r) => t + Math.abs(r.amount || 0), 0);
+  const off   = rows.filter(r => r.kind === 'Written off')
+                    .reduce((t, r) => t + Math.abs(r.amount || 0), 0);
+  const byKind = {};
+  rows.forEach(r => { byKind[r.kind] = (byKind[r.kind] || 0) + 1; });
+  document.getElementById('billTotals').innerHTML = totalBlock('taken out of the books',
+    fmtINR(total), Object.keys(byKind).map(k2 => [k2, String(byKind[k2])]),
+    off ? fmtINR(off) + ' written off' : '');
+  rollOrSet('billCount', rows.length);
+  if(!rows.length){ list.innerHTML = '<div class="empty-state">Nothing was taken out</div>'; return; }
+  list.innerHTML = rows.slice(0, 200).map(r =>
+      '<div class="pt-card"><div class="pt-top"><div class="pt-main">'
+    + '<div class="pt-name">' + escapeHtml(r.who) + '</div>'
+    + '<div class="pt-sub">' + escapeHtml(shortDateMobile(r.date))
+      + (r.ref ? ' \u00b7 ' + escapeHtml(String(r.ref)) : '')
+      + (r.by ? ' \u00b7 by ' + escapeHtml(r.by) : '') + '</div>'
+    + '<div class="pt-tag pt-tag-wait">' + escapeHtml(r.kind) + '</div>'
+    /* The reason is the point of the screen: an act with no reason given is
+       said to have none, rather than left blank as though none was asked. */
+    + '<div class="mm-why">' + escapeHtml(r.reason || 'no reason recorded') + '</div>'
+    + '</div><div class="pt-side"><div class="pt-amt neg">'
+      + (r.amount == null ? '\u2014' : fmtINR(Math.abs(r.amount))) + '</div></div>'
+    + '</div></div>').join('');
+}
+
+/* ======================= MONEY MOVED ====================================
+   Every cancellation, reversal and write-off in one place.
+
+   These acts are permanent by design, and what keeps that safe is not a
+   second lock but visibility: one place an owner can see who took money out
+   of the books, when, and why. Scattered across the bills, the day entries
+   and the stock log, they are findable only by somebody who already suspects
+   something.
+
+   The desk's own rule throughout, including the one that matters most: an
+   act is dated by WHEN IT HAPPENED, not when the bill was raised. A bill
+   from March cancelled in August belongs to August.
+
+   It lives under Billing rather than as a tile of its own, and follows the
+   same period — the old phone showed today only, which answered "what moved
+   today" and never "what moved last month". */
+function moneyMovedRows(bills, entries, from, to){
+  const rows = [];
+  const inRange = d => d && d >= from && d <= to;
+
+  (bills || []).forEach(b => {
+    if(!b || !isCancelledBill(b)) return;
+    const when = b.cancellation.cancelledAt ? localDateOf(b.cancellation.cancelledAt) : b.date;
+    if(!inRange(when)) return;
+    rows.push({ date: when,
+      kind: isCreditNote(b) ? 'Credit note cancelled' : 'Bill cancelled',
+      who: (b.patientName || '\u2014') + (b.patientId ? ' (' + b.patientId + ')' : ''),
+      amount: -(Number(b.grandTotal) || 0),
+      reason: b.cancellation.reason || '',
+      by: b.cancellation.cancelledBy || '',
+      ref: b.billNumber || b.billNo || '' });
+  });
+
+  (entries || []).forEach(e => {
+    (Array.isArray(e.items) ? e.items : []).forEach(it => {
+      if(!it) return;
+      const who = (it.patientName || '\u2014') + (it.patientId ? ' (' + it.patientId + ')' : '');
+      const amt = Number(it.amount) || 0;
+      if(isVoidedItem(it)){
+        const when = it.voidedAt ? localDateOf(it.voidedAt) : e.date;
+        if(inRange(when)) rows.push({ date: when, kind:'Payment cancelled', who,
+          amount:-amt, reason:'', by:'', ref:e.date });
+      } else if(it.reversal){
+        const when = it.reversal.reversedAt ? localDateOf(it.reversal.reversedAt) : e.date;
+        if(inRange(when)) rows.push({ date: when, kind:'Payment reversed', who,
+          amount:-amt, reason: it.reversal.reason || '',
+          by: it.reversal.reversedBy || '', ref:e.date });
+      } else if(it.method === 'writeoff'){
+        /* Not cash: the balance was forgiven, no rupee left a till. It is
+           still money out of the books and belongs on this screen. */
+        if(inRange(e.date)) rows.push({ date:e.date, kind:'Written off', who,
+          amount:-amt, reason: it.note || '', by: it.by || '', ref:e.date });
+      }
+    });
+  });
+  return rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
 /* ------------------------------- LAB ------------------------------------ */
@@ -2474,21 +2588,39 @@ let ptOpen = null;                    // the patient whose record is showing
 let ptSearchTimer = null;
 const PT_SUBS = [['search','Search'], ['pending','Pending'], ['advance','Advance'], ['implants','Implants']];
 
-function setPtSub(k){ ptSub = k; ptOpen = null; ptQuery = ''; renderPatientsTab(); }
+function setPtSub(k){
+  ptSub = k; ptOpen = null; ptQuery = '';
+  const b = document.getElementById('ptBody');
+  if(b) b.innerHTML = '';           // the box belongs to Search alone
+  renderPatientsTab();
+}
 function ptSearch(v){
   ptQuery = String(v || '').trim();
   clearTimeout(ptSearchTimer);
   ptSearchTimer = setTimeout(renderPatientsTab, 180);
 }
-function openPt(pid){ ptOpen = String(pid); expandedType = null; renderPatientsTab(); }
-function closePt(){ ptOpen = null; renderPatientsTab(); }
+function openPt(pid){
+  ptOpen = String(pid); expandedType = null; ptRowOpen = null;
+  const b = document.getElementById('ptBody');
+  if(b) b.innerHTML = '';
+  renderPatientsTab();
+}
+function closePt(){
+  ptOpen = null;
+  const b = document.getElementById('ptBody');
+  if(b) b.innerHTML = '';           // so Search rebuilds its box and refocuses
+  renderPatientsTab();
+}
 
 async function renderPatientsTab(){
   const row = document.getElementById('ptSubRow');
   const body = document.getElementById('ptBody');
-  row.innerHTML = PT_SUBS.map(x =>
+  /* Rewriting the chips on every keystroke is wasted work and, on a phone,
+     a visible flicker beside the field being typed into. */
+  const wantChips = PT_SUBS.map(x =>
     '<button type="button" class="per-chip' + (ptSub === x[0] ? ' on' : '') + '"'
     + ' onclick="setPtSub(\'' + x[0] + '\')">' + x[1] + '</button>').join('');
+  if(row.innerHTML !== wantChips) row.innerHTML = wantChips;
   if(ptOpen) return renderPtRecord(body, ptOpen);
   if(ptSub === 'search')   return renderPtSearch(body);
   if(ptSub === 'implants') return renderPtImplants(body);
@@ -2496,22 +2628,38 @@ async function renderPatientsTab(){
 }
 
 /* ---- by name ---- */
+/* THE BOX MUST SURVIVE THE TYPING (a2.8). Every keystroke re-rendered the
+   whole page, and rewriting innerHTML destroys the input element inside it —
+   so the field lost focus and the caret mid-word, and you had to tap back in
+   to carry on. The box is written once; only the results beneath it are
+   replaced. */
 async function renderPtSearch(body){
+  if(!document.getElementById('ptInput')){
+    body.innerHTML = '<input type="text" class="search-input" id="ptInput"'
+      + ' placeholder="Search a name or patient ID" autocomplete="off"'
+      + ' oninput="ptSearch(this.value)">'
+      + '<div id="ptResults"></div>';
+    const el = document.getElementById('ptInput');
+    el.value = ptQuery;
+    /* Coming back to the tab puts the cursor where it was, rather than at
+       the start of what is already typed. */
+    el.focus({ preventScroll:true });
+    el.setSelectionRange(ptQuery.length, ptQuery.length);
+  }
+  const out = document.getElementById('ptResults');
   const dir = await getDirectory();
   const con = await loadPatientContacts().catch(() => null);
   const q = ptQuery.toLowerCase();
-  const input = '<input type="text" class="search-input" id="ptInput" placeholder="Search a name or patient ID"'
-    + ' value="' + escapeHtml(ptQuery) + '" oninput="ptSearch(this.value)" autocomplete="off">';
-  if(q.length < 2){ body.innerHTML = input + '<div class="empty-state">Type a name or an ID</div>'; return; }
+  if(q.length < 2){ out.innerHTML = '<div class="empty-state">Type a name or an ID</div>'; return; }
   const hits = Object.keys(dir || {})
     .filter(pid => String(dir[pid] || '').toLowerCase().includes(q) || String(pid).toLowerCase().includes(q))
     .sort((a, b) => {
       const na = String(dir[a]||'').toLowerCase(), nb = String(dir[b]||'').toLowerCase();
       return (na.startsWith(q) ? 0 : 1) - (nb.startsWith(q) ? 0 : 1) || na.localeCompare(nb);
     });
-  if(!hits.length){ body.innerHTML = input + '<div class="empty-state">No one by that name</div>'; return; }
+  if(!hits.length){ out.innerHTML = '<div class="empty-state">No one by that name</div>'; return; }
   const shown = hits.slice(0, 30);
-  body.innerHTML = input + shown.map(pid => ptRowHtml(pid, dir[pid], whoLine(con, pid), '')).join('')
+  out.innerHTML = shown.map(pid => ptRowHtml(pid, dir[pid], whoLine(con, pid), '')).join('')
     + (hits.length > shown.length
         ? '<div class="empty-state">' + (hits.length - shown.length) + ' more \u2014 type a little further</div>' : '');
 }
