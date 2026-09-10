@@ -208,8 +208,14 @@ body{ padding-bottom:28px; }
 .tc-chev{ flex:none; color:var(--gold-deep); width:14px; text-align:center; }
 .tc-body{ padding:2px 0 10px 84px; }
 .pt-amt.adv{ color:var(--success); }
-.tabbar{ overflow-x:auto; }
-.tab-btn{ flex:none; padding:10px 9px; }
+/* Six across a phone: a mark above a short word, no wrapping, no scrolling. */
+.tabbar{ display:flex; gap:0; overflow:visible; }
+.tab-btn{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center;
+  gap:3px; padding:8px 2px 7px; font-size:0.62rem; letter-spacing:0.02em; }
+.tab-btn span{ white-space:nowrap; }
+.ti{ width:20px; height:20px; display:block; }
+.ptr-tellabel{ font-weight:500; opacity:.7; }
+.ptr-nonum{ margin-top:9px; font-size:0.82rem; color:var(--muted); }
 
 /* One bill, opened. */
 .bill-body{ margin-top:11px; border-top:1px solid var(--line); padding-top:9px; }
@@ -308,12 +314,8 @@ body{ padding-bottom:28px; }
   <div class="tabbar">
     <!-- "Visits", not "Today": the day can be moved back, so the tab that
          said Today was lying the moment somebody used the arrows. -->
-    <button class="tab-btn active" data-tab="visits" onclick="setTab('visits')">Visits</button>
-    <button class="tab-btn" data-tab="payment" onclick="setTab('payment')">Payment</button>
-    <button class="tab-btn" data-tab="billing" onclick="setTab('billing')">Billing</button>
-    <button class="tab-btn" data-tab="lab" onclick="setTab('lab')">Lab</button>
-    <button class="tab-btn" data-tab="followups" onclick="setTab('followups')">Follow-ups</button>
-    <button class="tab-btn" data-tab="patients" onclick="setTab('patients')">Patients</button>
+    <!-- Built in script so the marks live in one place; the labels are the
+         short forms that fit six across a phone. -->
   </div>
 </div>
 
@@ -1105,6 +1107,14 @@ async function loadImplantLog(){
   }
   return implantLogCacheM;
 }
+function fmtPhoneMobile(e164){
+  const d = String(e164 || '').replace(/\D/g, '');
+  if(d.indexOf('91') === 0 && d.length > 7){
+    const local = d.slice(2);
+    return '+91 ' + (local.length > 6 ? local.slice(0, local.length - 5) + ' ' + local.slice(-5) : local);
+  }
+  return d ? '+' + d : '';
+}
 function primaryNumber(map, patientId){
   const live = patientNumbers(map, patientId);
   return live.find(x => x && x.primary) || live[0] || null;
@@ -1431,7 +1441,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '2.5';
+const ADMIN_VERSION = '2.6';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -1524,12 +1534,45 @@ async function doRefresh(){
   setTab(currentTab);
   await new Promise(r => setTimeout(r, 400));
 }
+
+/* THE MENU'S OWN MARKS (a2.6). Six word-tabs would not fit a phone: "Follow-
+   ups" wrapped onto two lines and shoved the row out of shape. A drawn mark
+   above a short word fits, and reads faster than either alone.
+
+   Drawn, not fetched: each is a handful of bytes of SVG, sharp at any size,
+   and there is no second request for a picture of a wallet. */
+function svgIcon(paths, extra){
+  return '<svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"'
+    + (extra || '') + '>' + paths + '</svg>';
+}
+const ICON = {
+  visits:   svgIcon('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>'),
+  payment:  svgIcon('<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/>'),
+  billing:  svgIcon('<path d="M6 2h12v20l-3-2-3 2-3-2-3 2Z"/><path d="M9 7h6M9 11h6M9 15h4"/>'),
+  lab:      svgIcon('<path d="M12 3c3 0 4 1.6 4 4 0 2-.7 3.2-1 5.5-.3 2.4-.4 6.5-1.7 6.5-1 0-.9-3-1.3-4.6-.4 1.6-.3 4.6-1.3 4.6-1.3 0-1.4-4.1-1.7-6.5C8.7 10.2 8 9 8 7c0-2.4 1-4 4-4Z"/>'),
+  followups:svgIcon('<path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2.2 2A16 16 0 0 1 3 6.2 2 2 0 0 1 5 4Z"/>'),
+  patients: svgIcon('<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>'),
+  tel:      svgIcon('<path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2.2 2A16 16 0 0 1 3 6.2 2 2 0 0 1 5 4Z"/>',
+                    ' style="width:15px;height:15px;vertical-align:-2px;margin-right:5px"')
+};
 const ADMIN_VIEWS = { visits:'viewVisits', payment:'viewPayment', billing:'viewBilling',
                       lab:'viewLab', followups:'viewFollowups', patients:'viewPatients' };
+const ADMIN_TABS = [
+  ['visits','Visits'], ['payment','Payments'], ['billing','Bills'],
+  ['lab','Lab'], ['followups','Calls'], ['patients','Patients']
+];
+function paintTabs(){
+  const bar = document.querySelector('.tabbar');
+  if(!bar) return;
+  bar.innerHTML = ADMIN_TABS.map(([k, label]) =>
+    '<button type="button" class="tab-btn' + (currentTab === k ? ' active' : '') + '"'
+    + ' data-tab="' + k + '" onclick="setTab(\'' + k + '\')">'
+    + ICON[k] + '<span>' + label + '</span></button>').join('');
+}
 function setTab(t){
   currentTab = t;
-  document.querySelectorAll('.tab-btn').forEach(b =>
-    b.classList.toggle('active', b.getAttribute('data-tab') === t));
+  paintTabs();
   Object.keys(ADMIN_VIEWS).forEach(k =>
     document.getElementById(ADMIN_VIEWS[k]).classList.toggle('hidden', k !== t));
   closeRx();
@@ -2478,7 +2521,12 @@ async function renderPtRecord(body, pid){
 
   /* ---- header ---- */
   const who = whoLine(con, P);
-  const phone = primaryNumber(con, P);
+  /* A NUMBER IS A RECORD, NOT A STRING (a2.6). primaryNumber returns the
+     whole entry — number, label, whether it is the primary — and printing it
+     straight into the page rendered "[object Object]". The dialable form is
+     .e164; the readable form is what fmtPhoneMobile makes of it. */
+  const phoneRec = primaryNumber(con, P);
+  const phone = phoneRec && phoneRec.e164 ? String(phoneRec.e164) : '';
   const madeOn = created && created[P] ? String(created[P]).slice(0, 10) : '';
   const crmRow = (crm && crm[P]) || {};
   const chips = [];
@@ -2490,8 +2538,10 @@ async function renderPtRecord(body, pid){
     + '<div class="ptr-head">'
       + '<div class="ptr-name">' + escapeHtml(name) + '</div>'
       + '<div class="ptr-sub">' + escapeHtml(P) + (who ? ' \u00b7 ' + escapeHtml(who) : '') + '</div>'
-      + (phone ? '<a class="ptr-tel" href="tel:' + escapeHtml(String(phone).replace(/\s+/g,'')) + '">'
-                 + '\uD83D\uDCDE ' + escapeHtml(String(phone)) + '</a>' : '')
+      + (phone ? '<a class="ptr-tel" href="tel:' + escapeHtml(phone) + '">'
+                 + ICON.tel + escapeHtml(fmtPhoneMobile(phone))
+                 + (phoneRec.label ? ' <span class="ptr-tellabel">' + escapeHtml(phoneRec.label) + '</span>' : '')
+                 + '</a>' : '<div class="ptr-nonum">No number on file</div>')
       + (chips.length ? '<div class="ptr-chips">' + chips.map(c =>
             '<span class="ptr-chip ptr-' + c[0] + '">' + escapeHtml(c[1]) + '</span>').join('') + '</div>' : '')
       + '<div class="ptr-money">'
@@ -2629,6 +2679,7 @@ window.addEventListener('load', () => {
   const ver = document.getElementById('appVer');
   if(ver) ver.textContent = ADMIN_VERSION;
   paintGreeting();
+  paintTabs();
   wirePull();
   const saved = localStorage.getItem('echoDental_driveFolderId') || '';
   if(saved){ driveFolderId = saved; const el = document.getElementById('folderIdInput'); if(el) el.value = saved; }
