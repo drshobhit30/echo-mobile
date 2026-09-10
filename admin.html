@@ -144,6 +144,22 @@ body{ padding-bottom:28px; }
   color:var(--muted); cursor:pointer; transition:background .09s ease, transform .09s ease; }
 .per-chip:active{ transform:translateY(1px); }
 .per-chip.on{ background:var(--gold-deep); border-color:var(--gold-deep); color:#fff; }
+.tot{ margin:10px 0 2px; background:var(--gold-pale); border:1px solid var(--gold-light);
+  border-radius:14px; padding:13px 16px; cursor:pointer;
+  transition:transform .09s ease, filter .09s ease; }
+.tot:active{ transform:translateY(1px); filter:brightness(0.985); }
+.tot-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.tot-v{ font-size:1.6rem; font-weight:700; color:var(--gold-deep); line-height:1.1;
+  /* Never abbreviated: it is the number the page is for. */
+  white-space:nowrap; }
+.tot-k{ font-size:0.66rem; letter-spacing:0.09em; text-transform:uppercase;
+  color:var(--muted); margin-top:3px; }
+.tot-chev{ font-size:1.2rem; color:var(--gold-deep); width:16px; text-align:center; }
+.tot-split{ display:flex; flex-wrap:wrap; gap:14px 22px; margin-top:12px; padding-top:11px;
+  border-top:1px solid var(--gold-light); }
+.tot-s{ display:flex; flex-direction:column; }
+.tot-sv{ font-weight:700; font-size:1rem; color:var(--brown); white-space:nowrap; }
+.tot-sk{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); }
 .mt-row{ display:flex; gap:8px; margin:10px 0 2px; }
 .mt{ flex:1; background:var(--white); border:1px solid var(--line); border-radius:12px;
   padding:10px 12px; min-width:0; }
@@ -1177,7 +1193,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '2.2';
+const ADMIN_VERSION = '2.3';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -1745,9 +1761,28 @@ function inPeriod(dateStr){
   const k = moneyKey();
   return d.slice(0, k.length) === k;
 }
-function tile(label, value, tone){
-  return '<div class="mt' + (tone ? ' mt-' + tone : '') + '">'
-    + '<div class="mt-v">' + value + '</div><div class="mt-k">' + label + '</div></div>';
+/* THE FIGURE IS THE PAGE (a2.3). Four tiles in a row meant the money did not
+   fit its own box: ₹20,65,... told you nothing, and it was the total — the
+   one number the page exists for — that got cut. The total now has the width
+   to itself and is never abbreviated; the split is a tap away, which is where
+   it belongs, because you look at a split after you have read the total. */
+let splitOpen = false;
+function toggleSplit(){ splitOpen = !splitOpen; renderCurrent(); }
+function totalBlock(label, value, parts, note){
+  const shown = (parts || []).filter(p => p[1]);
+  return '<div class="tot' + (splitOpen ? ' tot-open' : '') + '"'
+      + (shown.length ? ' onclick="toggleSplit()"' : '') + '>'
+    + '<div class="tot-row">'
+      + '<div><div class="tot-v">' + value + '</div>'
+        + '<div class="tot-k">' + label + (note ? ' \u00b7 ' + note : '') + '</div></div>'
+      + (shown.length ? '<div class="tot-chev">' + (splitOpen ? '\u2013' : '+') + '</div>' : '')
+    + '</div>'
+    + (splitOpen && shown.length
+        ? '<div class="tot-split">' + shown.map(p =>
+            '<div class="tot-s"><span class="tot-sv">' + p[1] + '</span>'
+            + '<span class="tot-sk">' + p[0] + '</span></div>').join('') + '</div>'
+        : '')
+    + '</div>';
 }
 
 /* ---------------------------- PAYMENT ---------------------------------- */
@@ -1794,12 +1829,20 @@ async function renderPayment(){
                   name: (dir && dir[String(it.patientId)]) || it.patientName || 'Unknown patient' });
     });
   });
-  const modes = ['cash','upi','card','bank'].filter(m => byMode[m]);
-  document.getElementById('moneyTotals').innerHTML =
-    '<div class="mt-row">' + tile('collected', fmtINR(total), 'big')
-    + modes.slice(0, 3).map(m => tile(m, fmtINR(byMode[m]))).join('') + '</div>';
+  /* Every method, not the top three: a split that hides one of its own parts
+     does not add up to the figure above it. */
+  document.getElementById('moneyTotals').innerHTML = totalBlock('collected', fmtINR(total),
+    ['cash','upi','card','bank'].map(m => [m, byMode[m] ? fmtINR(byMode[m]) : '']), '');
   rollOrSet('payCount', rows.length);
-  if(!rows.length){ list.innerHTML = '<div class="empty-state">Nothing taken</div>'; return; }
+  if(!rows.length){
+    /* A day can carry a total without carrying the payments that made it —
+       the desk allows a lump sum to be entered on its own. Saying "nothing
+       taken" under a figure of two lakh is the page contradicting itself. */
+    list.innerHTML = '<div class="empty-state">'
+      + (total ? 'Entered as a day total, without the individual payments' : 'Nothing taken')
+      + '</div>';
+    return;
+  }
   rows.sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.amt - a.amt);
   list.innerHTML = rows.slice(0, 200).map(r =>
       '<div class="pt-card"><div class="pt-top"><div class="pt-main">'
@@ -1841,10 +1884,10 @@ async function renderBilling(){
     const amt = Number(b.grandTotal) || 0;
     if(isCreditNote(b)) credited += amt; else if(!isCancelledBill(b)) billed += amt;
   });
-  document.getElementById('billTotals').innerHTML =
-    '<div class="mt-row">' + tile('billed', fmtINR(billed - credited), 'big')
-    + tile('bills', String(mine.filter(b => !isCreditNote(b)).length))
-    + (credited ? tile('credited', fmtINR(credited), 'neg') : '') + '</div>';
+  document.getElementById('billTotals').innerHTML = totalBlock('billed', fmtINR(billed - credited),
+    [['raised', fmtINR(billed)],
+     ['credited', credited ? fmtINR(credited) : ''],
+     ['bills', String(mine.filter(b => !isCreditNote(b)).length)]], '');
   rollOrSet('billCount', mine.length);
   if(!mine.length){ list.innerHTML = '<div class="empty-state">Nothing billed</div>'; return; }
   mine.sort((a, b) => String(b.date).localeCompare(String(a.date)));
