@@ -169,6 +169,29 @@ body{ padding-bottom:28px; }
 .mt.mt-big .mt-v{ font-size:1.15rem; color:var(--gold-deep); }
 .mt.mt-neg .mt-v{ color:var(--danger); }
 .mt-k{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); margin-top:2px; }
+/* One bill, opened. */
+.bill-body{ margin-top:11px; border-top:1px solid var(--line); padding-top:9px; }
+.bl-row{ display:flex; justify-content:space-between; gap:12px; padding:4px 0; font-size:0.85rem; }
+.bl-name{ color:var(--brown); min-width:0; }
+.bl-amt{ font-weight:600; color:var(--ink); white-space:nowrap; }
+.bl-foot{ margin-top:7px; padding-top:7px; border-top:1px solid rgba(0,0,0,0.07); }
+.bl-foot .bl-row:last-child .bl-name,
+.bl-foot .bl-row:last-child .bl-amt{ font-weight:700; color:var(--gold-deep); }
+/* Follow-up statuses, in the colours the desk gives them. */
+.fu-strip{ display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 4px; }
+.fu-chip{ border:1px solid var(--line); background:var(--white); border-radius:9px;
+  padding:6px 10px; font-size:0.72rem; font-weight:600; color:var(--brown); cursor:pointer;
+  transition:transform .09s ease; }
+.fu-chip:active{ transform:translateY(1px); }
+.fu-chip b{ font-weight:800; }
+.fu-chip.on{ box-shadow:inset 0 0 0 2px currentColor; }
+.fu-tag{ font-weight:700; }
+.fu-urgent { color:#B14A3D; background:#FBEAE6; }
+.fu-watch  { color:#8A5F26; background:#F3E6CE; }
+.fu-warn   { color:#5C6B77; background:#EAEFF3; }
+.fu-pend   { color:#7A5A28; background:#F6EEDF; }
+.fu-ok     { color:#3E7D5A; background:#E4F1E9; }
+.fu-neutral{ color:#8a7a63; background:#F1EDE6; }
 .pt-amt{ font-weight:700; font-size:0.98rem; color:var(--ink); white-space:nowrap; }
 .pt-amt.neg{ color:var(--danger); }
 .pt-card.struck{ opacity:0.6; }
@@ -1193,7 +1216,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '2.3';
+const ADMIN_VERSION = '2.4';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -1735,7 +1758,7 @@ function moneyLabelText(){
   }
   return moneyDay.slice(0, 4);
 }
-function setMoneyPeriod(p){ moneyPeriod = p; renderCurrent(); }
+function setMoneyPeriod(p){ moneyPeriod = p; openBill = null; renderCurrent(); }
 function stepMoney(delta){
   const [y, m, d] = moneyDay.split('-').map(Number);
   let dt;
@@ -1748,7 +1771,7 @@ function stepMoney(delta){
      a worse answer than a control that will not go there. */
   if(cand.slice(0, moneyPeriod === 'day' ? 10 : moneyPeriod === 'month' ? 7 : 4)
      > todayStr().slice(0, moneyPeriod === 'day' ? 10 : moneyPeriod === 'month' ? 7 : 4)) return;
-  moneyDay = cand;
+  moneyDay = cand; openBill = null;
   renderCurrent();
 }
 function periodChipsHtml(){
@@ -1891,20 +1914,66 @@ async function renderBilling(){
   rollOrSet('billCount', mine.length);
   if(!mine.length){ list.innerHTML = '<div class="empty-state">Nothing billed</div>'; return; }
   mine.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  list.innerHTML = mine.slice(0, 200).map(b => {
+  list.innerHTML = mine.slice(0, 200).map((b, i) => {
     const cancelled = isCancelledBill(b), credit = isCreditNote(b);
     const name = (dir && dir[String(b.patientId)]) || b.patientName || 'Unknown patient';
-    return '<div class="pt-card' + (cancelled ? ' struck' : '') + '"><div class="pt-top"><div class="pt-main">'
+    const key = 'b:' + i;
+    const open = openBill === key;
+    /* A TOTAL IS NOT A BILL (a2.4). The row said what was owed and nothing
+       about what for; the lines are already in the index, so opening the row
+       shows them rather than sending anyone to the desk to find out. */
+    return '<div class="pt-card' + (cancelled ? ' struck' : '') + (open ? ' pt-open' : '')
+        + ' tappable" onclick="toggleBill(\'' + key + '\')">'
+      + '<div class="pt-top"><div class="pt-main">'
       + '<div class="pt-name">' + escapeHtml(name) + '</div>'
       + '<div class="pt-sub">' + escapeHtml(String(b.patientId || ''))
         + (b.billNo ? ' \u00b7 ' + escapeHtml(String(b.billNo)) : '')
         + (moneyPeriod === 'day' ? '' : ' \u00b7 ' + escapeHtml(shortDateMobile(b.date))) + '</div>'
       + (credit ? '<div class="pt-tag pt-tag-wait">credit note</div>' : '')
-      + (cancelled ? '<div class="pt-tag pt-tag-none">cancelled</div>' : '')
+      + (cancelled ? '<div class="pt-tag pt-tag-none">cancelled'
+          + (b.cancellation && b.cancellation.reason ? ' \u00b7 ' + escapeHtml(b.cancellation.reason) : '')
+          + '</div>' : '')
       + '</div><div class="pt-side"><div class="pt-amt' + (credit ? ' neg' : '') + '">'
-        + fmtINR(Number(b.grandTotal) || 0) + '</div></div></div></div>';
+        + fmtINR(Number(b.grandTotal) || 0) + '</div></div></div>'
+      + (open ? billLinesHtml(b) : '')
+      + '</div>';
   }).join('')
   + (mine.length > 200 ? '<div class="empty-state">' + (mine.length - 200) + ' more \u2014 narrow the period</div>' : '');
+}
+
+/* What one bill is made of. The index already carries the lines, so this
+   costs no extra read — it was simply never shown. */
+let openBill = null;
+function toggleBill(k){ openBill = (openBill === k) ? null : k; renderBilling(); }
+function billLinesHtml(b){
+  const items = (b.items || b.lines || []).filter(Boolean);
+  const money = n => fmtINR(Number(n) || 0);
+  let h = '<div class="pt-body bill-body">';
+  if(items.length){
+    h += items.map(it => {
+      const qty = Number(it.qty || it.quantity || 1) || 1;
+      const rate = Number(it.rate || it.price || 0) || 0;
+      const amt  = it.amount != null ? Number(it.amount) : qty * rate;
+      return '<div class="bl-row"><div class="bl-name">' + escapeHtml(String(it.name || it.item || it.description || 'Item'))
+        + (qty > 1 ? ' <span class="muted">\u00d7' + qty + '</span>' : '')
+        + (it.discount ? ' <span class="muted">\u2212' + escapeHtml(String(it.discount)) + '%</span>' : '')
+        + '</div><div class="bl-amt">' + money(amt) + '</div></div>';
+    }).join('');
+  } else {
+    h += '<div class="muted" style="font-size:0.84rem;">No lines recorded on this bill.</div>';
+  }
+  /* Only the figures the bill actually carries: a zero discount printed on
+     every bill is noise, and a total invented here could disagree with the
+     one above it. */
+  const foot = [];
+  if(b.subTotal != null) foot.push(['Sub-total', money(b.subTotal)]);
+  if(Number(b.discountAmount)) foot.push(['Discount', '\u2212' + money(b.discountAmount)]);
+  if(Number(b.taxAmount)) foot.push(['Tax', money(b.taxAmount)]);
+  foot.push(['Total', money(b.grandTotal)]);
+  h += '<div class="bl-foot">' + foot.map(f =>
+      '<div class="bl-row"><div class="bl-name">' + f[0] + '</div><div class="bl-amt">' + f[1] + '</div></div>'
+    ).join('') + '</div>';
+  return h + '</div>';
 }
 
 /* ------------------------------- LAB ------------------------------------ */
@@ -1919,10 +1988,12 @@ async function renderLab(){
   /* labStageOf returns an OBJECT with a .key, and its key for a case at the
      lab is 'sent'. Matching the returned object against a string quietly put
      every case in no group at all. */
+  /* The desk's own words for its own stages — labStageOf already carries
+     them, so the phone stops inventing synonyms for them. */
   const groups = [
-    ['sent',     'At the lab',              7],
-    ['received', 'Back, waiting to fit',    7],
-    ['logged',   'Logged, not picked up',   2]
+    ['sent',     'Sent to lab',      7],
+    ['received', 'Received',         7],
+    ['logged',   'Waiting pick-up',  2]
   ];
   const today = todayStr();
   const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
@@ -1958,31 +2029,77 @@ async function renderLab(){
 }
 
 /* ---------------------------- FOLLOW-UPS -------------------------------- */
+/* A FOLLOW-UP HAS A STATUS, NOT A DUE DATE (a2.4). This page looked for a
+   dueDate the desk does not write, found none, and reported "Nobody to call"
+   on a list that was never empty. The desk keeps four open statuses and two
+   that close an entry; these are its own definitions, copied. */
+const FU_DEFS = {
+  pending:           { label:'Pending',            tone:'pend',   priority:0, resolved:false },
+  needs_doctor_call: { label:'Needs Doctor Call',  tone:'urgent', priority:0, resolved:false },
+  not_received:      { label:'Call Not Received',  tone:'warn',   priority:1, resolved:false },
+  discomfort:        { label:'Slight Discomfort',  tone:'watch',  priority:2, resolved:false },
+  all_ok:            { label:'All OK',             tone:'ok',     priority:3, resolved:true  },
+  not_needed:        { label:'Not Needed',         tone:'neutral',priority:3, resolved:true  }
+};
+const FU_ALIASES = { call_done: 'all_ok' };
+function fuKey(f){ const raw = f && f.status; return (raw && FU_ALIASES[raw]) || raw; }
+function fuDef(f){ return FU_DEFS[fuKey(f)] || FU_DEFS.pending; }
+let fuFilter = null;
+function setFuFilter(k){ fuFilter = (fuFilter === k) ? null : k; renderFollowups(); }
+
 async function renderFollowups(){
   const list = document.getElementById('fuList');
   const all = await loadFollowupsD().catch(() => null);
   if(all === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
   const dir = await getDirectory();
   const today = todayStr();
-  const dueDate = f => String(f.dueDate || f.date || '');
-  /* Due today AND overdue, together: showing only what is due today hides
-     that last week's calls were never made. */
-  const mine = (all || [])
-    .filter(f => f && !f.doneAt && !f.struckAt && dueDate(f) && dueDate(f) <= today)
-    .sort((a, b) => dueDate(a).localeCompare(dueDate(b)));
-  rollOrSet('fuCount', mine.length);
-  if(!mine.length){ list.innerHTML = '<div class="empty-state">Nobody to call</div>'; return; }
-  list.innerHTML = mine.map(f => {
-    const d = dueDate(f), late = d < today;
+  /* Open entries, plus anything closed TODAY — so a call made this morning
+     does not vanish the moment it is marked, and the day's work stays
+     visible. Ordered as the desk orders it: by priority, then by who has
+     been waiting longest. */
+  const active = (all || [])
+    .filter(f => f && (!fuDef(f).resolved || String(f.updatedAt || '').slice(0, 10) === today))
+    .sort((a, b) => {
+      const ra = fuDef(a).resolved, rb = fuDef(b).resolved;
+      if(ra !== rb) return ra ? 1 : -1;
+      const pa = fuDef(a).priority, pb = fuDef(b).priority;
+      if(pa !== pb) return pa - pb;
+      return String(a.sourceDate || '').localeCompare(String(b.sourceDate || ''));
+    });
+  const openOnes = active.filter(f => !fuDef(f).resolved);
+  rollOrSet('fuCount', openOnes.length);
+
+  /* One chip per status, counting only what is still open. Tapping filters;
+     tapping again clears. */
+  const counts = {};
+  openOnes.forEach(f => { const k = fuKey(f) || 'pending'; counts[k] = (counts[k] || 0) + 1; });
+  const chipKeys = ['needs_doctor_call','discomfort','not_received','pending'];
+  const chips = chipKeys.filter(k => counts[k]).map(k =>
+    '<button type="button" class="fu-chip fu-' + FU_DEFS[k].tone + (fuFilter === k ? ' on' : '') + '"'
+    + ' onclick="setFuFilter(\'' + k + '\')"><b>' + counts[k] + '</b> '
+    + escapeHtml(FU_DEFS[k].label) + '</button>').join('');
+  const strip = chips ? '<div class="fu-strip">' + chips + '</div>' : '';
+
+  const shown = fuFilter ? active.filter(f => fuKey(f) === fuFilter && !fuDef(f).resolved) : active;
+  if(!shown.length){
+    list.innerHTML = strip + '<div class="empty-state">'
+      + (fuFilter ? 'None with that status' : 'Nobody waiting on a call') + '</div>';
+    return;
+  }
+  list.innerHTML = strip + shown.map(f => {
+    const def = fuDef(f);
     const name = (dir && dir[String(f.patientId)]) || f.patientName || 'Unknown patient';
-    return '<div class="pt-card"><div class="pt-top"><div class="pt-main">'
+    const since = String(f.sourceDate || '').slice(0, 10);
+    const waited = since ? agoWords(since).replace(' ago', '') : '\u2014';
+    return '<div class="pt-card' + (def.resolved ? ' struck' : '') + '">'
+      + '<div class="pt-top"><div class="pt-main">'
       + '<div class="pt-name">' + escapeHtml(name) + '</div>'
       + '<div class="pt-sub">' + escapeHtml(String(f.patientId || ''))
-        + (f.reason ? ' \u00b7 ' + escapeHtml(f.reason) : '') + '</div>'
-      + (late ? '<div class="pt-tag pt-tag-wait">overdue</div>'
-              : '<div class="pt-tag pt-tag-today">due today</div>')
-      + '</div><div class="pt-side"><div class="pt-f"><b>'
-        + escapeHtml(agoWords(d).replace(' ago', '')) + '</b><span>due</span></div></div></div></div>';
+        + (f.reason ? ' \u00b7 ' + escapeHtml(f.reason) : '')
+        + (since ? ' \u00b7 ' + escapeHtml(shortDateMobile(since)) : '') + '</div>'
+      + '<div class="pt-tag fu-tag fu-' + def.tone + '">' + escapeHtml(def.label) + '</div>'
+      + '</div><div class="pt-side"><div class="pt-f"><b>' + escapeHtml(waited)
+        + '</b><span>waiting</span></div></div></div></div>';
   }).join('');
 }
 
