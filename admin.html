@@ -1,0 +1,2003 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Echo Nexus Admin</title>
+<link rel="manifest" href="admin.webmanifest">
+<meta name="theme-color" content="#FDFAF3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Echo Admin">
+<link rel="apple-touch-icon" href="icon-192.png"><script src="https://accounts.google.com/gsi/client" async defer></script><style>:root{
+    --gold-deep:#8A5F26;
+    --gold:#AF7933;
+    --muted:#8a7a63;
+    --shadow: 0 8px 24px rgba(74,59,40,0.10);
+    --radius: 14px;
+    --gold-light:#D7B47B;
+    --gold-pale:#F3E6CE;
+    --brown:#4A3B28;
+    --ink:#2E2419;
+    --cream:#FBF7EF;
+    --white:#FFFFFF;
+    --success:#3E7D5A;
+    --success-bg:#E4F1E9;
+    --danger:#B14A3D;
+    --danger-bg:#FBEAE6;
+    --line:#E7DCC5;
+  }
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; background:var(--cream); color:var(--brown);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+body{ padding-bottom:28px; }
+.wrap{ max-width:760px; margin:0 auto; padding:0 14px 24px; }
+.topbar{ position:sticky; top:0; z-index:20; background:var(--white); border-bottom:1px solid var(--line);
+  padding:12px 14px 0; }
+.hd-row{ display:flex; align-items:center; gap:12px; }
+/* Both ends take equal share, so what sits between them lands in the middle
+   however long the name or the clinic line runs. */
+.hd-hello{ flex:1; cursor:pointer; }
+.hd-logo{ flex:none; display:block; width:26px; height:26px; border-radius:6px; }
+.hd-greet{ font-size:0.78rem; color:var(--muted); }
+.hd-who{ font-size:1.12rem; font-weight:700; color:var(--ink); margin-top:1px; }
+.hd-mark{ flex:1; text-align:right; white-space:nowrap; }
+.hd-title{ font-size:0.92rem; font-weight:700; color:var(--gold-deep); }
+.hd-v{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted);
+  font-weight:500; margin-top:3px; }
+.hd-v b{ background:var(--gold-pale); color:var(--gold-deep); border-radius:5px; padding:0 5px; }
+/* The pull cue takes no room at rest. */
+.signin-bar{ margin:10px 14px 0; padding:9px 12px; border-radius:10px; cursor:pointer;
+  background:var(--gold-pale); border:1px solid var(--gold-light); color:var(--gold-deep);
+  font-size:0.8rem; text-align:center; }
+.signin-bar:active{ filter:brightness(0.96); }
+.pull-cue{ height:0; opacity:0; overflow:hidden; display:flex; align-items:center; justify-content:center;
+  font-size:0.74rem; letter-spacing:0.05em; color:var(--gold-deep); font-weight:600; }
+.tabbar{ display:flex; gap:6px; margin-top:10px; }
+.tab-btn{ flex:1; border:0; background:transparent; font-family:inherit; font-weight:600;
+  font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);
+  padding:10px 6px; border-bottom:2px solid transparent; cursor:pointer; }
+.tab-btn{ transition:color .12s ease, border-color .12s ease; }
+.tab-btn.active{ color:var(--gold-deep); border-bottom-color:var(--gold-deep); }
+.tab-btn:active{ color:var(--gold); }
+.sec-head{ display:flex; align-items:baseline; justify-content:space-between; margin:18px 0 8px; }
+.sec-title{ font-family:inherit; font-size:0.72rem; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--gold-deep); font-weight:600; }
+.count-badge{ font-family:inherit; font-weight:700; color:var(--brown); }
+.row{ background:var(--white); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+  margin-bottom:8px; }
+.row.tappable{ cursor:pointer; }
+.row{ transition:transform .09s ease, background .09s ease; }
+.row.tappable:active{ background:var(--gold-pale); transform:translateY(1px); }
+.row-name{ font-weight:700; font-size:0.98rem; color:#1A1410; }
+.row-sub{ font-size:0.8rem; color:var(--muted); margin-top:2px; }
+.row-when{ font-size:0.78rem; color:var(--gold-deep); font-weight:600; }
+.row-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+.pill{ display:inline-block; background:var(--gold-pale); color:var(--gold-deep); border-radius:6px;
+  padding:1px 8px; font-size:0.72rem; font-weight:700; margin-left:6px; }
+.struck{ opacity:0.55; }
+.struck .row-name{ text-decoration:line-through; }
+.empty-state{ text-align:center; color:var(--muted); padding:22px 8px; font-size:0.86rem; }
+/* ---- the patient card ------------------------------------------------
+   Colour and weight only: no images, no fonts, nothing to download. The
+   press feel is a 1px shift and a shade change, which the phone renders on
+   the compositor and costs nothing to run. */
+.pt-card{ position:relative; background:var(--white); border:1px solid var(--line);
+  border-radius:14px; padding:12px 14px 12px 16px; margin-bottom:9px; overflow:hidden;
+  transition:transform .09s ease, box-shadow .09s ease, border-color .09s ease; }
+.pt-card::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:var(--gold-light); opacity:.55; }
+.pt-card.tappable{ cursor:pointer; }
+.pt-card.tappable:active{ transform:translateY(1px) scale(0.997); background:var(--cream); }
+.pt-card.pt-open{ border-color:var(--gold-light); box-shadow:0 2px 10px rgba(74,59,40,0.07); }
+.pt-card.pt-open::before{ background:var(--gold); opacity:1; }
+.pt-top{ display:flex; align-items:flex-start; gap:9px; }
+.pt-no{ flex:none; min-width:22px; height:22px; line-height:22px; text-align:center;
+  border-radius:6px; background:var(--gold-pale); color:var(--gold-deep);
+  font-size:0.72rem; font-weight:700; }
+.pt-card.pt-open .pt-no{ background:var(--gold-deep); color:#fff; }
+.pt-main{ flex:1; min-width:0; }
+.pt-who{ font-weight:600; font-size:0.82rem; color:var(--muted); }
+/* The column the time used to sit alone in. */
+.pt-side{ flex:none; text-align:right; }
+.pt-side .pt-f{ margin-top:6px; }
+.pt-side .pt-f b{ display:block; font-size:0.85rem; font-weight:700; color:var(--brown); }
+.pt-side .pt-f span{ font-size:0.62rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); }
+.pt-name{ font-weight:700; font-size:1rem; color:var(--ink); }
+.pt-time{ font-size:0.8rem; font-weight:600; color:var(--gold-deep); white-space:nowrap; }
+.pt-sub{ font-size:0.78rem; color:var(--muted); margin-top:2px; }
+.pt-tag{ display:inline-block; margin-top:6px; font-size:0.75rem; font-weight:600;
+  padding:3px 9px; border-radius:7px; background:var(--gold-pale); color:var(--gold-deep); }
+.pt-tag-today{ background:var(--success-bg); color:var(--success); }
+.pt-tag-none{ background:transparent; color:var(--muted); padding-left:0; }
+.pt-tag-wait{ background:var(--danger-bg); color:var(--danger); }
+/* The two figures a card carries before it is opened. */
+
+
+/* ---- prescriptions inside the card ---- */
+.pt-body{ margin-top:11px; border-top:1px solid var(--line); }
+.rx-line + .rx-line{ border-top:1px solid rgba(0,0,0,0.05); }
+.rx-line-head{ display:flex; align-items:flex-start; gap:9px;
+  padding:10px 0; cursor:pointer; transition:opacity .09s ease; }
+.rx-mark{ flex:none; width:22px; height:22px; line-height:21px; text-align:center;
+  border-radius:6px; border:1px solid var(--line); color:var(--gold-deep);
+  font-size:0.82rem; font-weight:700; background:var(--cream); }
+.rx-line-open .rx-mark{ background:var(--gold-pale); border-color:var(--gold-light); }
+.rx-line-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.rx-line-meta{ font-size:0.72rem; color:var(--muted); }
+.rx-chev{ flex:none; color:var(--muted); font-size:1rem; line-height:22px; width:14px; text-align:center; }
+.rx-line-open .rx-chev{ color:var(--gold-deep); }
+.rx-detail{ padding-left:31px; }
+.rx-line-head:active{ opacity:.55; }
+.rx-line-what{ font-weight:600; font-size:0.9rem; color:var(--brown); }
+.rx-line-open .rx-line-what{ color:var(--gold-deep); }
+
+.rx-line.struck .rx-line-what{ text-decoration:line-through; opacity:.6; }
+.rx-detail{ padding:2px 0 12px; }
+.rxs-when{ font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:6px; }
+.pt-more{ display:block; width:100%; margin:4px 0 2px; border:1px dashed var(--line);
+  background:transparent; color:var(--gold-deep); font-weight:600; font-size:0.78rem;
+  padding:9px; border-radius:9px; cursor:pointer; transition:background .09s ease; }
+.pt-more:active{ background:var(--gold-pale); }
+
+/* ---- the money pages ---- */
+.period-row{ display:flex; gap:6px; margin:14px 0 4px; }
+.per-chip{ flex:1; border:1px solid var(--line); background:var(--white); border-radius:10px;
+  padding:9px 0; font-size:0.76rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;
+  color:var(--muted); cursor:pointer; transition:background .09s ease, transform .09s ease; }
+.per-chip:active{ transform:translateY(1px); }
+.per-chip.on{ background:var(--gold-deep); border-color:var(--gold-deep); color:#fff; }
+.mt-row{ display:flex; gap:8px; margin:10px 0 2px; }
+.mt{ flex:1; background:var(--white); border:1px solid var(--line); border-radius:12px;
+  padding:10px 12px; min-width:0; }
+.mt-v{ font-weight:700; font-size:0.95rem; color:var(--ink); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; }
+.mt.mt-big{ flex:1.4; background:var(--gold-pale); border-color:var(--gold-light); }
+.mt.mt-big .mt-v{ font-size:1.15rem; color:var(--gold-deep); }
+.mt.mt-neg .mt-v{ color:var(--danger); }
+.mt-k{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); margin-top:2px; }
+.pt-amt{ font-weight:700; font-size:0.98rem; color:var(--ink); white-space:nowrap; }
+.pt-amt.neg{ color:var(--danger); }
+.pt-card.struck{ opacity:0.6; }
+.pt-card.struck .pt-name{ text-decoration:line-through; }
+/* Five tabs need to fit a narrow phone. */
+.tabbar{ gap:2px; }
+.tab-btn{ font-size:0.72rem; padding:10px 2px; letter-spacing:0.03em; }
+
+.daynav{ display:flex; align-items:center; gap:6px; margin:14px 0 4px; }
+.daynav-btn{ width:40px; height:40px; border:1px solid var(--line); background:var(--white);
+  border-radius:11px; font-size:1.2rem; color:var(--gold-deep); cursor:pointer; line-height:1; }
+.daynav-btn{ transition:transform .09s ease, background .09s ease; }
+.daynav-btn:active{ background:var(--gold-pale); transform:translateY(1px); }
+.daynav-label{ flex:1; text-align:center; font-weight:700; font-size:0.95rem; color:var(--brown); }
+.daycal{ position:relative; display:inline-flex; align-items:center; justify-content:center;
+  width:40px; height:40px; border:1px solid var(--line); border-radius:11px; background:var(--white);
+  font-size:1rem; cursor:pointer; }
+.daycal input{ position:absolute; inset:0; width:100%; height:100%; opacity:0; margin:0; padding:0; border:0; }
+.search-input{ width:100%; border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+  font-size:1rem; font-family:inherit; background:var(--white); color:var(--brown); margin:14px 0 4px; }
+.search-input:focus{ outline:2px solid var(--gold); outline-offset:1px; }
+.hidden{ display:none !important; }
+.muted{ color:var(--muted); }
+.gate{ text-align:center; padding:60px 20px; }
+.gate h1{ font-family:inherit; font-size:1.1rem; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--gold-deep); margin:0 0 6px; }
+.gate p{ color:var(--muted); font-size:0.88rem; margin:0 0 20px; }
+.btn{ transition:transform .09s ease, filter .09s ease; border:0; background:var(--gold-deep); color:#fff; font-family:inherit; font-weight:600;
+  letter-spacing:0.06em; text-transform:uppercase; font-size:0.82rem; padding:12px 22px; border-radius:11px;
+  cursor:pointer; }
+.btn:active{ transform:translateY(1px); filter:brightness(0.94); }
+.btn.ghost{ background:transparent; color:var(--gold-deep); border:1px solid var(--line); }
+.status-bar{ padding:10px 14px; font-size:0.84rem; text-align:center; }
+.status-bar.err{ background:var(--danger-bg); color:var(--danger); }
+.spin{ text-align:center; padding:26px; color:var(--muted); font-size:0.86rem; }
+/* The prescription itself, opened in place. */
+.rx-sheet{ background:var(--white); border:1px solid var(--gold-light); border-radius:12px;
+  padding:14px 16px; margin:0 0 10px; }
+.rxs-h{ font-family:inherit; font-weight:700; color:var(--brown); margin-bottom:8px; }
+.rxs-k{ font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--gold-deep);
+  font-weight:600; margin-top:10px; }
+.rxs-v{ font-size:0.9rem; color:var(--brown); white-space:pre-wrap; }
+.rxs-med{ border-top:1px solid rgba(0,0,0,0.06); padding:6px 0 4px; font-size:0.9rem; font-weight:600; }
+.rxs-dose{ font-size:0.8rem; color:var(--muted); font-weight:400; }
+.rxs-close{ display:block; width:100%; margin-top:14px; border:1px solid var(--line); background:transparent;
+  color:var(--gold-deep); font-family:inherit; font-weight:600; letter-spacing:0.06em;
+  text-transform:uppercase; font-size:0.78rem; padding:10px; border-radius:10px; cursor:pointer; }
+</style></head><body>
+<div class="topbar">
+  <!-- The greeting leads and the mark sits quietly beside it: this is her app
+       before it is the clinic's system. Tapping the name sets it. -->
+  <div class="hd-row">
+    <div class="hd-hello" onclick="askName()">
+      <div class="hd-greet" id="hdGreet">Good day,</div>
+      <div class="hd-who" id="hdWho">Doctor</div>
+    </div>
+    <!-- THE MARK (v2.5). The same Nexus icon the desktop uses, taken as its
+         SVG rather than its PNG: 743 bytes against 5.6KB, no extra request,
+         and sharp at any size because it is drawn rather than pixels.
+         It sits between the greeting and the clinic name, centred against
+         both — the two sides flex equally so it stays in the middle of the
+         row, and align-items centres it vertically. -->
+    <img class="hd-logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2326211B'/%3E%3Cstop offset='1' stop-color='%23181410'/%3E%3C/linearGradient%3E%3ClinearGradient id='t' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23E2B877'/%3E%3Cstop offset='1' stop-color='%23A6722E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23b)'/%3E%3Cpath fill='url(%23t)' d='M16 6c-5.3 0-8.8 2.7-8.8 7 0 3.5 1.5 4.9 2.1 8.8.5 3 .9 4.9 2.6 4.9 1.8 0 2.1-2.1 2.5-5.6.2-1.8.5-2.7 1.6-2.7s1.4.9 1.6 2.7c.4 3.5.7 5.6 2.5 5.6 1.7 0 2.1-1.9 2.6-4.9.6-3.9 2.1-5.3 2.1-8.80-4.3-3.5-7-8.8-7z'/%3E%3C/svg%3E">
+    <!-- The clinic is the heading; the app and its build sit under it as the
+         small print. The corner used to hold only a version number, which is
+         why it read as empty. -->
+    <div class="hd-mark">
+      <div class="hd-title">Echo Dental Clinic</div>
+      <div class="hd-v">Nexus <b>A</b> <span id="appVer"></span></div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <!-- "Visits", not "Today": the day can be moved back, so the tab that
+         said Today was lying the moment somebody used the arrows. -->
+    <button class="tab-btn active" data-tab="visits" onclick="setTab('visits')">Visits</button>
+    <button class="tab-btn" data-tab="payment" onclick="setTab('payment')">Payment</button>
+    <button class="tab-btn" data-tab="billing" onclick="setTab('billing')">Billing</button>
+    <button class="tab-btn" data-tab="lab" onclick="setTab('lab')">Lab</button>
+    <button class="tab-btn" data-tab="followups" onclick="setTab('followups')">Follow-ups</button>
+  </div>
+</div>
+
+<div id="pullCue" class="pull-cue"><span id="pullText">Pull to refresh</span></div>
+<!-- Offered, not imposed: the record stays readable underneath. -->
+<div id="signInBar" class="signin-bar hidden" onclick="tapToSignIn()">
+  Showing what was last read &middot; <b>tap to sign in</b>
+</div>
+
+<div class="wrap">
+  <!-- ================= SETUP ================= -->
+  <div id="setupScreen" class="gate">
+    <h1>Echo Nexus Admin</h1>
+    <p>Visits, prescriptions and the clinic's money. Read only.</p>
+    <button class="btn" id="signInBtn">Sign in with Google</button>
+    <div id="signInStatus" class="status-bar"></div>
+    <div id="folderCard" class="hidden" style="margin-top:22px;">
+      <input type="text" class="search-input" id="folderIdInput" placeholder="Drive folder ID">
+      <button class="btn" id="saveFolderBtn" style="margin-top:10px;">Connect</button>
+      <div id="folderStatus" class="status-bar"></div>
+    </div>
+  </div>
+
+  <!-- ================= APP ================= -->
+  <div id="appScreen" class="hidden">
+    <div id="viewVisits">
+      <div class="daynav">
+        <button type="button" class="daynav-btn" onclick="stepDay(-1)">&lsaquo;</button>
+        <div class="daynav-label" id="visitDate">&mdash;</div>
+        <button type="button" class="daynav-btn" id="nextDayBtn" onclick="stepDay(1)">&rsaquo;</button>
+        <label class="daycal" title="Pick a date">&#128197;
+          <input type="date" id="dayPicker" onchange="pickDay(this.value)">
+        </label>
+      </div>
+      <div class="sec-head">
+        <span class="sec-title">Visited</span>
+        <span class="count-badge" id="visitCount">0</span>
+      </div>
+      <div id="visitList"><div class="spin">Reading&hellip;</div></div>
+    </div>
+
+    <!-- PAYMENT — the money in, for a day / month / year, split by how it
+         came. The Patients page went: looking a patient up is lite's job, and
+         this app is here for the money. -->
+    <div id="viewPayment" class="hidden">
+      <div class="period-row" id="payPeriod"></div>
+      <div class="daynav">
+        <button type="button" class="daynav-btn" onclick="stepMoney(-1)">&lsaquo;</button>
+        <div class="daynav-label" id="moneyLabel">&mdash;</div>
+        <button type="button" class="daynav-btn" id="moneyNextBtn" onclick="stepMoney(1)">&rsaquo;</button>
+      </div>
+      <div id="moneyTotals"></div>
+      <div class="sec-head"><span class="sec-title">Payments</span>
+        <span class="count-badge" id="payCount">0</span></div>
+      <div id="payList"><div class="spin">Reading&hellip;</div></div>
+    </div>
+
+    <!-- BILLING — what was raised, over the same period. -->
+    <div id="viewBilling" class="hidden">
+      <div class="period-row" id="billPeriod"></div>
+      <div class="daynav">
+        <button type="button" class="daynav-btn" onclick="stepMoney(-1)">&lsaquo;</button>
+        <div class="daynav-label" id="billLabel">&mdash;</div>
+        <button type="button" class="daynav-btn" id="billNextBtn" onclick="stepMoney(1)">&rsaquo;</button>
+      </div>
+      <div id="billTotals"></div>
+      <div class="sec-head"><span class="sec-title">Bills</span>
+        <span class="count-badge" id="billCount">0</span></div>
+      <div id="billList"><div class="spin">Reading&hellip;</div></div>
+    </div>
+
+    <!-- LAB — the three stages, as the desk keeps them. -->
+    <div id="viewLab" class="hidden">
+      <div id="labList"><div class="spin">Reading&hellip;</div></div>
+    </div>
+
+    <!-- FOLLOW-UPS — who is due a call, oldest first. -->
+    <div id="viewFollowups" class="hidden">
+      <div class="sec-head"><span class="sec-title">Due</span>
+        <span class="count-badge" id="fuCount">0</span></div>
+      <div id="fuList"><div class="spin">Reading&hellip;</div></div>
+    </div>
+  </div>
+</div>
+<script>
+const GOOGLE_CLIENT_ID = '792126159558-tm5nu32d1pgni6c4h955ab7bu8s0ja2s.apps.googleusercontent.com';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+
+/* ---------------- Small helpers (mirrors the desktop app's own) ---------------- */
+function pad2(n){ return String(n).padStart(2, '0'); }
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+/* ---- Rolling figures --------------------------------------------------
+   The desktop app counts its totals up rather than snapping them in, and
+   the phone should not feel more static than the machine at the desk. The
+   last value is kept ON the element (__rollVal) rather than parsed back
+   out of the text — ₹1,20,000 does not parse, and a re-render must roll
+   from what is actually on screen, not from zero.
+
+   Three deliberate guards: a cancelled frame if a second render lands
+   mid-roll (otherwise two animations fight over one element and the
+   figure flickers); an instant set when the value has not changed, so an
+   idle refresh does not re-animate the whole screen; and an instant set
+   when the phone asks for reduced motion or when there is no animation
+   frame to use at all — the number being RIGHT never depends on the
+   animation running. Intermediate frames are rounded to whole rupees so
+   paise do not flicker; the final frame prints the exact value. */
+/* Figures roll AFTER the screen clears, not behind the blur.
+
+   A render paints its numbers and the overlay is still up, so the count-up
+   happened underneath it: by the time the blur lifted the roll was over or
+   most of the way through, and what the eye caught was a smear of digits
+   settling. The animation existed and nobody ever saw it.
+
+   Deferred rolls queue here and are released the moment loading ends. The
+   element still gets its FINAL value immediately, so nothing is left blank
+   or stale if the release never comes — the roll is decoration, the figure
+   is not. */
+let _loadingUp = false;
+let _pendingRolls = [];
+
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const ITEM_MODE_LABELS = { cash:'Cash', upi:'UPI', card:'Card', bank:'Bank', refund:'Refund', writeoff:'Write-off' };
+
+/* ---------------- Money doctrine, ported verbatim from the desktop app ----
+   The phone must never disagree with the screen at the clinic, so these
+   four functions mirror isVoidedItem / reversalExcludesFromDayTotals /
+   computeItemTotals / entryModeTotals exactly. Before this, the mobile page
+   read entry.cash/upi/card/bank straight — the LEGACY stored fields — so a
+   normal item-based day showed a ₹0 header above a list of real payments.
+   Keep these in step with the desktop's versions if those ever change. */
+
+/* ---------------- Auth state ---------------- */
+let accessToken = null;
+let tokenClient = null;
+let driveFolderId = localStorage.getItem('echoDental_driveFolderId') || '';
+let currentDate = todayStr();
+
+/* The token used to live only in memory, so EVERY open — and every pull to
+   refresh — threw the person back to a sign-in tap. Google's tokens last
+   about an hour, so keeping one until it actually expires means most opens
+   need no interaction at all; and when it has expired, we ask Google for a
+   fresh one SILENTLY (prompt:'') first, which works without any tap while
+   the phone still has a live Google session and the earlier consent stands.
+   A visible sign-in is now the last resort rather than the routine.
+
+   A 2-minute safety margin is subtracted so a token can't expire mid-load.
+   What is stored is a read-only Drive token on the owner's own phone —
+   it can view the clinic backup and nothing else, and it dies within the
+   hour. Sign Out below clears it. */
+const TOKEN_KEY = 'echoDental_driveToken';
+function saveToken(token, expiresInSec){
+  try{
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({
+      token: token,
+      expiresAt: Date.now() + ((Number(expiresInSec) || 3600) - 120) * 1000
+    }));
+  }catch(e){ /* private mode / storage full — the session still works */ }
+}
+function loadStoredToken(){
+  try{
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if(!raw) return null;
+    const rec = JSON.parse(raw);
+    if(!rec || !rec.token || !rec.expiresAt) return null;
+    if(Date.now() >= rec.expiresAt){ localStorage.removeItem(TOKEN_KEY); return null; }
+    return rec.token;
+  }catch(e){ return null; }
+}
+function clearStoredToken(){
+  accessToken = null;
+  try{ localStorage.removeItem(TOKEN_KEY); }catch(e){}
+}
+
+function setStatus(elId, text, isError){
+  const el = document.getElementById(elId);
+  el.textContent = text;
+  el.style.color = isError ? 'var(--danger)' : '#9a8362';
+}
+
+/* ---------------- Google sign-in ---------------- */
+function initGoogleAuth(){
+  if(typeof google === 'undefined' || !google.accounts){
+    setStatus('signInStatus', 'Google sign-in script did not load — check your connection and reload.', true);
+    return;
+  }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: DRIVE_SCOPE,
+    callback: (resp) => {
+      if(resp.error){
+        // A silent attempt that fails is normal and must stay quiet: it just
+        // means a tap is needed after all.
+        if(silentAttemptInFlight){
+          silentAttemptInFlight = false;
+          setStatus('signInStatus', 'Tap to sign in.', false);
+          /* Only worth saying if there is nothing on screen to read; with the
+             record already showing, the offer waits until a read wants it. */
+          if(!haveStoredData()) showSetup();
+          return;
+        }
+        setStatus('signInStatus', 'Sign-in failed: ' + resp.error, true);
+        return;
+      }
+      silentAttemptInFlight = false;
+      accessToken = resp.access_token;
+      saveToken(resp.access_token, resp.expires_in);
+      setStatus('signInStatus', 'Signed in.', false);
+      /* The offer goes, and whatever could not be read is read now. */
+      showSignInNeeded(false);
+      document.getElementById('folderCard').classList.remove('hidden');
+      if(driveFolderId){
+        document.getElementById('folderIdInput').value = driveFolderId;
+        directoryTried = false; rxIndexTried = false; contactsTried = false;
+        refreshScheduled = false;
+        connectAndLoad();
+      }
+    },
+    error_callback: () => {   // popup blocked or silent attempt declined
+      silentAttemptInFlight = false;
+      setStatus('signInStatus', 'Tap to sign in.', false);
+    }
+  });
+
+  /* Straight back in, no tap: a stored token that is still good. */
+  const stored = loadStoredToken();
+  if(stored && driveFolderId){
+    accessToken = stored;
+    document.getElementById('folderIdInput').value = driveFolderId;
+    connectAndLoad();
+    return;
+  }
+  /* Otherwise try to get one WITHOUT any interaction before showing a button. */
+  if(driveFolderId) requestTokenSilently();
+}
+
+let silentAttemptInFlight = false;
+function requestTokenSilently(){
+  if(!tokenClient) return false;
+  silentAttemptInFlight = true;
+  setStatus('signInStatus', 'Reconnecting…', false);
+  try{ tokenClient.requestAccessToken({ prompt: '' }); return true; }
+  catch(e){ silentAttemptInFlight = false; return false; }
+}
+
+document.getElementById('signInBtn').addEventListener('click', () => {
+  if(!tokenClient){ setStatus('signInStatus', 'Still loading Google sign-in — try again in a moment.', true); return; }
+  silentAttemptInFlight = false;
+  tokenClient.requestAccessToken();
+});
+document.getElementById('saveFolderBtn').addEventListener('click', () => {
+  const val = document.getElementById('folderIdInput').value.trim();
+  if(!val){ setStatus('folderStatus', 'Paste your folder ID first.', true); return; }
+  driveFolderId = val;
+  localStorage.setItem('echoDental_driveFolderId', val);
+  connectAndLoad();
+});
+
+/* Any Drive call made without a token is not an error to hide: it is the one
+   moment the tap is genuinely needed, so it raises the offer.
+
+   It gets its OWN error type, deliberately. Callers re-raise TokenExpiredError
+   so a session that dies mid-use can re-authenticate; "there was never a token
+   this session" is a different thing and must not travel that path, or every
+   render would throw before it could show the copy already on the device. */
+function noteTokenNeeded(){ showSignInNeeded(true); }
+function NoTokenError(){ this.name = 'NoTokenError'; this.message = 'Not signed in'; }
+NoTokenError.prototype = Object.create(Error.prototype);
+/* ======================= THE MONEY, THE LAB, THE CALLS ==================
+   Every loader below is lifted unchanged from the app this one replaces, so
+   the phone and the desk read the same files the same way and cannot drift
+   apart. What is new here is only how they are shown.
+
+   None of it runs until its tab is opened. */
+/* Only the state the lifted loaders do NOT declare for themselves.
+
+   These five went missing on the way over and every one of them was fatal in
+   the same quiet way: an undefined name throws a ReferenceError, the loader's
+   own catch swallows it, and the page reports "Waiting on the clinic PC" —
+   which reads as a data problem when it is really a missing line. addDays was
+   stripped from lite as unused; the three bills flags and the catch-up limit
+   are declared far from the loaders that use them. */
+const CATCHUP_DAY_LIMIT = 7;
+let cachedBills = null;
+let entriesIndexInFlight = null;
+let entriesRevalidate = true;
+let entriesSeenModified = null;
+let todaySeenModified = null;
+let billsInFlight = null;
+let billsSeenModified = null;   // modifiedTime of the index already held
+let billsRevalidate = true;
+function addDays(dateStr, delta){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+
+
+let cachedLabcasesFolderId = null;
+let cachedEntriesIndex = null, entriesIndexTried = false;
+let todayEntryCache = null;
+let labCasesCache = null, labCasesTried = false;
+let followupsCacheD = null, followupsTriedD = false;
+
+async function loadEntriesIndex(){
+  if(entriesIndexTried && !entriesRevalidate) return cachedEntriesIndex;
+  if(entriesIndexInFlight) return await entriesIndexInFlight;
+  entriesIndexInFlight = (async () => {
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return null;
+    const fileId = await driveFindChild(settingsId, 'entries-index.json', false);
+    const seenAt = lastFoundModifiedTime;
+    if(!fileId) return null;
+    if(cachedEntriesIndex && seenAt && seenAt === entriesSeenModified) return cachedEntriesIndex;
+    const idx = await driveReadJson(fileId);
+    entriesSeenModified = seenAt;
+    if(!idx || !Array.isArray(idx.entries)) return null;
+    const map = {};
+    idx.entries.forEach(e => { if(e && e.date) map[e.date] = e; });
+    cachedEntriesIndex = map;
+  }catch(err){
+    cachedEntriesIndex = null;      // never fatal: the per-day path still works
+  }
+  /* Set only once the attempt has actually FINISHED — the whole point of the
+     fix. A missing index legitimately caches null here, and the per-day
+     fallback covers it. */
+  entriesIndexTried = true;
+  entriesRevalidate = false;
+  return cachedEntriesIndex;
+  })();
+  try{
+    return await entriesIndexInFlight;
+  }finally{
+    entriesIndexInFlight = null;
+  }
+}
+async function loadDayEntry(dateStr, token){
+  renderDayNav(dateStr);
+  if(dateStr !== todayStr()){
+    const idx = await loadEntriesIndex();
+    /* Only trust the index for a day it actually CONTAINS.
+       THE BUG THIS FIXES: the desktop adds a day to the index the next time
+       it runs, so a day that has just ended is not in it yet. With the
+       clinic PC shut overnight, yesterday was missing — and treating
+       "absent from the index" as "no money that day" showed ₹0 over a full
+       day's takings. Absent from the index means UNKNOWN, not zero, so we
+       go and read the day's own file. */
+    if(idx && Object.prototype.hasOwnProperty.call(idx, dateStr)){
+      const entry = idx[dateStr] || null;
+      if(token !== undefined && !paintAllowed(token)) return;
+      renderPayments(entry, entry && Array.isArray(entry.items) ? entry.items : []);
+      return;
+    }
+  }
+  const fileId = await findDayFile(dateStr);
+  const seenAt = lastFoundModifiedTime;
+  if(!fileId){
+    if(token !== undefined && !paintAllowed(token)) return;
+    renderPayments(null, []);
+    return;
+  }
+  /* Today's file is re-checked on every render, as it must be — it is the
+     one that keeps changing. But an unchanged file need not be downloaded
+     again, and between two taps it usually has not changed. */
+  let entry;
+  if(dateStr === todayStr() && todayEntryCache && seenAt && seenAt === todaySeenModified){
+    entry = todayEntryCache;
+  } else {
+    entry = await driveReadJson(fileId);
+    if(dateStr === todayStr()){ todayEntryCache = entry; todaySeenModified = seenAt; }
+  }
+  const items = Array.isArray(entry.items) ? entry.items : [];
+  if(token !== undefined && !paintAllowed(token)) return;
+  renderPayments(entry, items);
+}
+async function loadBills(){
+  if(cachedBills && !billsRevalidate) return cachedBills;
+  if(billsInFlight) return await billsInFlight;
+  billsInFlight = (async () => {
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(settingsId){
+      const fileId = await driveFindChild(settingsId, 'bills-index.json', false);
+      const seenAt = lastFoundModifiedTime;
+      if(fileId){
+        /* The whole point: unchanged file, no download. */
+        if(cachedBills && seenAt && seenAt === billsSeenModified){
+          billsRevalidate = false;
+          return cachedBills;
+        }
+        const idx = await driveReadJson(fileId);
+        if(idx && Array.isArray(idx.bills)){
+          cachedBills = idx.bills;
+          billsSeenModified = seenAt;
+          billsRevalidate = false;
+          return cachedBills;
+        }
+      }
+    }
+    // No index (older desktop build): read the bills folder itself. Slow, but
+    // correct — and it means the phone is never simply blank.
+    const billsFolderId = await driveFindChild(driveFolderId, 'bills', true);
+    if(!billsFolderId){ cachedBills = []; return cachedBills; }
+    const files = (await driveListChildren(billsFolderId)).filter(f => f.name.endsWith('.json'));
+    const all = await Promise.all(files.map(f => driveReadJson(f.id).catch(() => null)));
+    cachedBills = all.filter(Boolean);
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    cachedBills = cachedBills || [];
+  }
+  billsRevalidate = false;
+  return cachedBills;
+  })();
+  try{
+    return await billsInFlight;
+  }finally{
+    /* Cleared either way. A failed fetch must not leave a poisoned promise
+       that every later caller keeps awaiting. */
+    billsInFlight = null;
+  }
+}
+async function loadAllEntries(){
+  const idx = await loadEntriesIndex();
+  const out = idx ? Object.keys(idx).map(d => idx[d]) : [];
+  const have = new Set(out.filter(Boolean).map(e => e.date));
+  const today = todayStr();
+
+  /* Walk back from today until the index takes over, so the newest days —
+     the ones that matter most — are always fetched first. */
+  const missing = [];
+  let cursor = today;
+  for(let i = 0; i < CATCHUP_DAY_LIMIT; i++){
+    if(have.has(cursor)) break;
+    missing.push(cursor);
+    cursor = addDays(cursor, -1);
+  }
+  /* One listing tells us which of these days exist and where they are, so
+     the seven lookups are gone. The reads that remain run TOGETHER rather
+     than one after another — they are independent, and waiting for each in
+     turn was most of the cold-open delay. */
+  const list = await listRecentDays();
+  const fetches = missing.map(async (d) => {
+    try{
+      const fileId = list
+        ? (Object.prototype.hasOwnProperty.call(list, d) ? list[d].id : null)
+        : await driveFindChild(cachedDataFolderId, d + '.json', false);
+      if(!fileId) return null;
+      return await driveReadJson(fileId);
+    }catch(err){
+      if(err && err.name === 'TokenExpiredError') throw err;
+      /* A day that cannot be read is left out rather than counted as zero —
+         the same distinction as above. */
+      return null;
+    }
+  });
+  const fetched = await Promise.all(fetches);
+  fetched.forEach(e => { if(e) out.push(e); });
+  return out.filter(Boolean);
+}
+async function loadLabCases(){
+  if(labCasesTried) return labCasesCache;
+  labCasesTried = true;
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return (labCasesCache = null);
+    const fileId = await driveFindChild(settingsId, 'labcases-index.json', false);
+    if(!fileId) return (labCasesCache = null);
+    const idx = await driveReadJson(fileId);
+    if(!idx || !Array.isArray(idx.cases) || !Array.isArray(idx.keys)) return (labCasesCache = null);
+    if(!cachedLabcasesFolderId) cachedLabcasesFolderId = await driveFindChild(driveFolderId, 'labcases', true);
+    if(!cachedLabcasesFolderId) return (labCasesCache = null);
+    const files = await driveListChildren(cachedLabcasesFolderId);
+    const onDisk = files.map(f => String(f.name || '').replace(/\.json$/, ''))
+                        .filter(Boolean).map(n => 'labcase:' + n).sort();
+    const inIndex = idx.keys.slice().sort();
+    if(onDisk.length !== inIndex.length) return (labCasesCache = null);
+    for(let i = 0; i < onDisk.length; i++) if(onDisk[i] !== inIndex[i]) return (labCasesCache = null);
+    labCasesCache = idx.cases;
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    labCasesCache = null;
+  }
+  return labCasesCache;
+}
+async function loadSettingsListD(fileName){
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return [];
+    const fileId = await driveFindChild(settingsId, fileName, false);
+    if(!fileId) return [];
+    const l = await driveReadJson(fileId);
+    return Array.isArray(l) ? l : [];
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    return [];
+  }
+}
+async function loadFollowupsD(){
+  if(followupsTriedD) return followupsCacheD;
+  followupsCacheD = await loadSettingsListD('followups.json'); followupsTriedD = true; return followupsCacheD;
+}
+function labStageOf(c){
+  if(!c) return { key:'logged', label:'Waiting pick-up' };
+  if(c.dateDelivered) return { key:'delivered', label:'Delivered' };
+  if(c.dateReceived)  return { key:'received',  label:'Received' };
+  if(c.dateSent)      return { key:'sent',      label:'Sent to lab' };
+  return { key:'logged', label:'Waiting pick-up' };
+}
+function isCreditNote(b){ return !!(b && b.docType === 'credit'); }
+function isCancelledBill(b){ return !!(b && b.cancellation); }
+function isReversedItem(it){ return !!(it && it.reversal); }
+function billCountsAsMoney(b){
+  return !!b && b.status !== 'draft' && !isCancelledBill(b);
+}
+function isCancelledBill(b){ return !!(b && b.cancellation); }
+function isReversedItem(it){ return !!(it && it.reversal); }
+function billCountsAsMoney(b){
+  return !!b && b.status !== 'draft' && !isCancelledBill(b);
+}
+function isVoidedItem(it){ return !!(it && it.voided); }
+function localDateOf(iso){
+  if(!iso) return null;
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return null;
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+function localDateOf(iso){
+  if(!iso) return null;
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return null;
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+function reversalExcludesFromDayTotals(it){
+  if(!it || !it.reversal) return false;
+  if(!it.time) return true;   // no timestamp to compare — be conservative
+  return localDateOf(it.reversal.reversedAt) === localDateOf(it.time);
+}
+function computeItemTotals(items){
+  const t = { cash:0, upi:0, card:0, bank:0 };
+  (items||[]).forEach(it=>{
+    if(isVoidedItem(it)) return;                       // cancelled — counts as nothing
+    if(it.method === 'refund'){ t.cash -= (Number(it.amount)||0); return; }  // money leaving the drawer
+    if(it.method === 'writeoff') return;               // no money changed hands
+    if(reversalExcludesFromDayTotals(it)) return;      // reversed same day
+    if(Object.prototype.hasOwnProperty.call(t, it.method)) t[it.method] += (Number(it.amount)||0);
+    else t.cash += (Number(it.amount)||0);             // unknown method folds into cash, never vanishes
+  });
+  return t;
+}
+function entryModeTotals(e){
+  if(!e) return { cash:0, upi:0, card:0, bank:0 };
+  const stored = {
+    cash: Number(e.cash)||0, upi: Number(e.upi)||0,
+    card: Number(e.card)||0, bank: Number(e.bank)||0
+  };
+  if(!(e.items && e.items.length)) return stored;
+  const derived = computeItemTotals(e.items);
+  // Whichever source accounts for more money, taken WHOLE — so the split
+  // always sums to the figure beside it, and a day can never quietly shrink.
+  const storedSum  = stored.cash + stored.upi + stored.card + stored.bank;
+  const derivedSum = derived.cash + derived.upi + derived.card + derived.bank;
+  return derivedSum >= storedSum ? derived : stored;
+}
+function fmtINR(n){
+  n = Number(n) || 0;
+  return new Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits: (n % 1 === 0 ? 0 : 2) }).format(n);
+}
+
+/* Two more that lite had stripped as unused: loadAllEntries walks back
+   through recent days with them. */
+/* The day books live in data/. The app this was lifted from resolved that
+   folder in its own boot routine, which did not come across — so every walk
+   through recent days was querying the children of `null` and finding
+   nothing. Resolved here instead, next to the only code that needs it. */
+async function ensureDataFolder(){
+  if(!cachedDataFolderId) cachedDataFolderId = await driveFindChild(driveFolderId, 'data', true);
+  return cachedDataFolderId;
+}
+async function listRecentDays(){
+  if(!(await ensureDataFolder())) return {};
+  if(dayListCache && !dayListRevalidate) return dayListCache;
+  if(dayListInFlight) return await dayListInFlight;
+  dayListInFlight = (async () => {
+    try{
+      const q = encodeURIComponent("'" + cachedDataFolderId + "' in parents and trashed=false");
+      const res = await driveFetch('https://www.googleapis.com/drive/v3/files?q=' + q
+        + '&orderBy=name desc&pageSize=' + DAY_LIST_SIZE
+        + '&fields=files(id,name,modifiedTime)', 'Drive listing failed');
+      const data = await res.json();
+      const map = {};
+      let oldest = null;
+      (data.files || []).forEach(f => {
+        const m = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name || '');
+        if(!m) return;
+        map[m[1]] = { id: f.id, modifiedTime: f.modifiedTime || null };
+        if(!oldest || m[1] < oldest) oldest = m[1];
+      });
+      dayListCache = map;
+      dayListOldest = oldest;
+      dayListRevalidate = false;
+      return map;
+    }catch(err){
+      if(err && err.name === 'TokenExpiredError') throw err;
+      /* A failed listing must not break the app: callers fall back to the
+         per-name lookup they used before. */
+      return null;
+    }
+  })();
+  try{ return await dayListInFlight; }
+  finally{ dayListInFlight = null; }
+}
+async function findDayFile(dateStr){
+  const list = await listRecentDays();
+  if(list){
+    if(Object.prototype.hasOwnProperty.call(list, dateStr)){
+      lastFoundModifiedTime = list[dateStr].modifiedTime;
+      return list[dateStr].id;
+    }
+    /* Inside the listed range and absent means it genuinely does not exist
+       — no request needed to confirm that. */
+    if(dayListOldest && dateStr >= dayListOldest){
+      lastFoundModifiedTime = null;
+      return null;
+    }
+  }
+  return await driveFindChild(cachedDataFolderId, dateStr + '.json', false);
+}
+
+/* ---------------- Drive REST helpers ---------------- */
+/* A stored token can expire mid-session, and an expired token looks exactly
+   like a permissions error (401/403) to the code below. Every Drive call
+   goes through here so that case is handled ONCE: throw a marked error the
+   loader recognises, rather than showing the person a bare status code for
+   something that is really just "your hour is up". */
+class TokenExpiredError extends Error {
+  constructor(){ super('Session expired'); this.name = 'TokenExpiredError'; }
+}
+async function driveFetch(url, whatFailed){
+  /* No token: do not spend a round trip proving it. Raise the offer of a tap
+     and fail the read — callers already cope with a failed read by leaving
+     what is on screen alone. */
+  if(!accessToken){ noteTokenNeeded(); throw new NoTokenError(); }
+  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+  if(res.status === 401 || res.status === 403){
+    clearStoredToken();
+    noteTokenNeeded();
+    throw new TokenExpiredError();
+  }
+  if(!res.ok) throw new Error(whatFailed + ' (' + res.status + ')');
+  return res;
+}
+/* modifiedTime comes back in the same request as the id — one extra field,
+   no extra round trip — and it is what tells us how old the CLINIC's data
+   is, as opposed to how recently this phone fetched it. */
+let lastFoundModifiedTime = null;
+async function driveFindChild(parentId, name, isFolder){
+  const mimeQ = isFolder ? " and mimeType='application/vnd.google-apps.folder'" : "";
+  const q = encodeURIComponent(`'${parentId}' in parents and name='${name}'${mimeQ} and trashed=false`);
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)`,
+                               'Drive lookup failed');
+  const data = await res.json();
+  const hit = data.files && data.files[0];
+  lastFoundModifiedTime = hit ? (hit.modifiedTime || null) : null;
+  return hit ? hit.id : null;
+}
+/* ONE listing instead of a lookup per file.
+
+   Day files are named YYYY-MM-DD.json, so sorting by name descending is
+   sorting by date descending: a single request returns the newest N days
+   with their ids AND modifiedTimes. Everything that used to cost a
+   round-trip-per-day now reads from this — today's file, the catch-up
+   sweep, and the freshness footer.
+
+   Before: the catch-up loop alone made 14 sequential requests (a lookup
+   then a read, seven times) to fetch at most seven small files. On mobile
+   data that was seconds of blur before anything was readable.
+
+   Revalidated on the same rule as the money caches: the listing is how we
+   learn that today's file changed, so it cannot be cached for the session. */
+const DAY_LIST_SIZE = 40;
+let dayListCache = null;          // { 'YYYY-MM-DD': {id, modifiedTime} }
+let dayListOldest = null;         // the earliest date the listing covers
+let dayListInFlight = null;
+let dayListRevalidate = true;
+/* One place to ask "where is this day's file?", listing first, lookup only
+   for dates older than the listing reaches. */
+async function driveReadJson(fileId){
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+                               'File read failed');
+  return await res.json();
+}
+
+/* ---------------- Data loading ---------------- */
+let cachedDataFolderId = null;
+/* The settings folder was looked up separately by bills, entries and ortho —
+   three identical round trips per refresh cycle, while the data folder next
+   to it was cached. Folder ids do not change. */
+let cachedSettingsFolderId = null;
+async function getSettingsFolderId(){
+  if(cachedSettingsFolderId) return cachedSettingsFolderId;
+  cachedSettingsFolderId = await driveFindChild(driveFolderId, 'settings', true);
+  return cachedSettingsFolderId;
+}
+
+function shortDateMobile(dateStr){
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  if(!y || !m || !d) return String(dateStr);
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN',
+    { day:'2-digit', month:'short', year:'numeric' });
+}
+function rxIsStruck(rec){ return !!(rec && rec.struckAt); }
+function rxDayLabel(rec){
+  const d = String((rec && (rec.date || rec.createdAt)) || '').slice(0, 10);
+  const [y, m, dd] = d.split('-').map(Number);
+  if(!y || !m || !dd) return '\u2014';
+  return new Date(y, m - 1, dd).toLocaleDateString('en-IN',
+    { day:'2-digit', month:'short', year:'numeric' });
+}
+function rxWhat(rec){
+  const said = String((rec && rec.treatment) || '').trim()
+            || String((rec && rec.advice) || '').trim();
+  if(said) return said;
+  const meds = ((rec && rec.medicines) || []).map(m => m && m.name).filter(Boolean);
+  if(meds.length) return meds.join(', ');
+  return String((rec && rec.complaints) || '').trim() || 'Consultation';
+}
+function rxMedCount(rec){
+  const n = ((rec && rec.medicines) || []).filter(m => m && m.name).length;
+  return n ? (n + (n === 1 ? ' medicine' : ' medicines')) : 'no medicines';
+}
+function rxDayLabel(rec){
+  const d = String((rec && (rec.date || rec.createdAt)) || '').slice(0, 10);
+  const [y, m, dd] = d.split('-').map(Number);
+  if(!y || !m || !dd) return '\u2014';
+  return new Date(y, m - 1, dd).toLocaleDateString('en-IN',
+    { day:'2-digit', month:'short', year:'numeric' });
+}
+function visitWasRemoved(v){ return !!(v && v.removedAt); }
+/* A visit removed at the desk keeps its last status in the file — it is
+   struck, not deleted — so the raw status of a removed visit still says what
+   the patient was doing when somebody took them off the day. It must never
+   be read as their state.
+
+   And a day that is not today is CLOSED: by the next morning nobody is in a
+   chair, so an unfinished visit is done, marked auto because nobody said so.
+   Without this the phone showed last Tuesday's half-finished visit as still
+   in the chair. visitDayIsOpen is one line on the desktop — the day is open
+   if it is today — and is inlined here for the same reason. */
+function effectiveVisitStatusM(v, dateStr){
+  const raw = (v && v.status) || 'waiting';
+  if(!v || v.removedAt) return { status: raw, auto: false };
+  if(dateStr === todayStr()) return { status: raw, auto: false };
+  if(raw === 'done') return { status: 'done', auto: false };
+  return { status: 'done', auto: true };
+}
+/* THE STATE THE BORROWED LOADERS KEEP. These were declared elsewhere in the
+   phone app and did not travel with the functions, so both loaders threw on
+   their first line — and the throw was swallowed by their own catch, which
+   is why it showed as empty data rather than an error. */
+let directoryCache = null, directoryTried = false;
+let rxIndexCache = null, rxIndexTried = false;
+let cachedRxFolderId = null;
+
+/* PUT BACK (v1.1). Stripping "unused" code from the borrowed layer took two
+   functions that ARE used: loadSettingsMap, which loadPatientDirectory reads
+   the patient names through, and driveListChildren, which loadPrescriptions
+   uses to check the index against the folder. Without them every visit read
+   "Unknown patient" and every prescription "waiting on the clinic PC" — the
+   app looked broken in exactly the way a permissions problem looks, which is
+   the wrong lesson to hand somebody on their first open. */
+async function loadSettingsMap(fileName, state){
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return {};
+    const fileId = await driveFindChild(settingsId, fileName, false);
+    if(!fileId) return {};
+    const m = await driveReadJson(fileId);
+    return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    return {};
+  }
+}
+async function driveListChildren(parentId){
+  let files = [];
+  let pageToken = null;
+  do{
+    const q = encodeURIComponent(`'${parentId}' in parents and trashed=false`);
+    let url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name)&pageSize=1000`;
+    if(pageToken) url += '&pageToken=' + pageToken;
+    const res = await driveFetch(url, 'Drive listing failed');
+    const data = await res.json();
+    files = files.concat(data.files || []);
+    pageToken = data.nextPageToken || null;
+  } while(pageToken);
+  return files;
+}
+/* The check that used to block the first paint. It compares what the index
+   claims against what is on the folder, and only speaks up when they differ. */
+/* ONCE A DAY, NOT EVERY OPEN (v1.5). This lists every prescription file the
+   clinic has ever written — the single heaviest request the app makes. It
+   guards against an index the desktop failed to update, which is rare; run
+   it once in twelve hours rather than on every open, and the cost stops
+   being paid for a fault that is usually not there. */
+const CACHE_KEY_VERIFIED = 'echoAdmin_verified';
+let rxVerifyDone = false;
+async function verifyRxIndexLater(idx){
+  if(rxVerifyDone) return;
+  rxVerifyDone = true;
+  const last = Number(localStorage.getItem(CACHE_KEY_VERIFIED) || 0);
+  if(last && (Date.now() - last) < 12 * 60 * 60 * 1000) return;
+  try{
+    if(!cachedRxFolderId) cachedRxFolderId = await driveFindChild(driveFolderId, 'prescriptions', true);
+    if(!cachedRxFolderId) return;
+    const files = await driveListChildren(cachedRxFolderId);
+    const onDisk = files.map(f => String(f.name || '').replace(/\.json$/, ''))
+                        .filter(Boolean).map(x => 'rx:' + x).sort();
+    const inIndex = (idx.keys || []).slice().sort();
+    let same = onDisk.length === inIndex.length;
+    if(same) for(let i = 0; i < onDisk.length; i++) if(onDisk[i] !== inIndex[i]){ same = false; break; }
+    try{ localStorage.setItem(CACHE_KEY_VERIFIED, String(Date.now())); }catch(e){}
+    if(same) return;
+    /* The index is behind the folder: say so rather than show a record that
+       may be missing someone's latest prescription. */
+    rxIndexCache = null;
+    repaint();
+  }catch(err){ /* a failed check leaves what was already shown alone */ }
+}
+/* AGE AND SEX (v2.0). They live in patient-contacts.json beside the names —
+   one more small file from settings/, kept on the device like the rest, so
+   the cost is one read on a cold start and nothing afterwards.
+
+   The file also holds phone numbers. They are not read here and not shown:
+   this app answers "who is this and what have they had", and a number on
+   screen turns it into something else. */
+let contactsCache = null, contactsTried = false;
+const CACHE_KEY_CON = 'echoAdmin_con';
+async function loadPatientContacts(){
+  if(contactsTried) return contactsCache;
+  contactsTried = true;
+  const held = cacheRead(CACHE_KEY_CON);
+  if(held && Object.keys(held).length){ contactsCache = held; scheduleRefreshBehind(); return contactsCache; }
+  contactsCache = await loadSettingsMap('patient-contacts.json');
+  if(contactsCache && Object.keys(contactsCache).length) cacheWrite(CACHE_KEY_CON, contactsCache);
+  return contactsCache;
+}
+/* An age recorded years ago is not today's age, so the year it was taken is
+   said rather than quietly adding the difference — the desk does the same. */
+function ageTextOf(contacts, patientId){
+  const rec = contacts && contacts[String(patientId)];
+  if(!rec || rec.age === undefined || rec.age === null || rec.age === '') return '';
+  const yr = rec.ageRecordedOn ? String(rec.ageRecordedOn).slice(0, 4) : '';
+  const thisYear = todayStr().slice(0, 4);
+  if(!yr || yr === thisYear) return String(rec.age);
+  return rec.age + ' (' + yr + ')';
+}
+function sexTextOf(contacts, patientId){
+  const rec = contacts && contacts[String(patientId)];
+  const v = rec && rec.sex ? String(rec.sex).trim() : '';
+  if(!v) return '';
+  const c = v[0].toUpperCase();
+  return (c === 'M' || c === 'F') ? c : v;
+}
+function whoLine(contacts, patientId){
+  const a = ageTextOf(contacts, patientId), x = sexTextOf(contacts, patientId);
+  return [x, a].filter(Boolean).join(' \u00b7 ');
+}
+async function loadPatientDirectory(){
+  if(directoryTried) return directoryCache;
+  directoryTried = true;
+  const held = cachedDirectory();
+  if(held && Object.keys(held).length){
+    /* Answer from the device now; the wire catches up behind. */
+    directoryCache = held;
+    scheduleRefreshBehind();
+    return directoryCache;
+  }
+  directoryCache = await loadSettingsMap('patients.json');
+  if(directoryCache && Object.keys(directoryCache).length) cacheWrite(CACHE_KEY_DIR, directoryCache);
+  return directoryCache;
+}
+async function loadPrescriptions(){
+  if(rxIndexTried) return rxIndexCache;
+  rxIndexTried = true;
+  const heldRx = cachedRxIndex();
+  if(heldRx && heldRx.length){
+    rxIndexCache = heldRx;
+    scheduleRefreshBehind();
+    return rxIndexCache;
+  }
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return (rxIndexCache = null);
+    const fileId = await driveFindChild(settingsId, 'prescriptions-index.json', false);
+    if(!fileId) return (rxIndexCache = null);
+    const idx = await driveReadJson(fileId);
+    if(!idx || !Array.isArray(idx.list) || !Array.isArray(idx.keys)) return (rxIndexCache = null);
+    /* USE IT NOW, CHECK IT AFTER (v1.3). The index was verified against the
+       prescriptions folder before a single record was shown — a listing of
+       every prescription file the clinic has ever written, on the critical
+       path, every cold start. The index is used immediately and the check
+       runs behind it; if the folder turns out to disagree, the index is
+       dropped and the page repaints. Correct either way, but only slow in
+       the rare case where it was actually wrong. */
+    rxIndexCache = idx.list;
+    cacheWrite(CACHE_KEY_RX, idx.list);
+    verifyRxIndexLater(idx);
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    rxIndexCache = null;
+  }
+  return rxIndexCache;
+}
+
+/* ==========================================================================
+   ECHO DENTAL — ADMIN. A copy of lite, taken at lite v2.6, to grow the
+   owner's own read-only view: the same visits and prescriptions, plus the
+   clinic's money.
+
+   It is a SEPARATE FILE on purpose. Lite is on other people's phones and
+   must not carry code it never runs; and the two keep separate caches, so
+   neither one's Refresh empties the other's. The token and the folder id are
+   shared deliberately — those belong to the person, not to the app.
+
+   What it inherits from lite, unchanged and already proven:
+
+     VISITS    who was marked as visited today, and the prescription written
+               for each — the full record, as the desk shows it.
+     PATIENTS  a name, and every prescription ever recorded for that person,
+               newest first, each with its age in words.
+
+   It carries no money, no lab, no stock and no dashboard, because the people
+   who read it have no reason to see any of that. And it writes nothing: the
+   Drive scope is drive.readonly, so there is no path from this app back to
+   the clinic's files even if one were coded by mistake.
+   ========================================================================== */
+/* The build, on screen. When somebody says it is behaving oddly, the first
+   question is which copy they are holding — a phone can sit on a cached one
+   for days. */
+/* Its own line of versions, starting where lite's leaves off in spirit but
+   numbered from a1 so the two can never be mistaken for each other in a
+   screenshot. */
+const LITE_VERSION = 'a2.0';
+let currentTab = 'visits';
+let openRx = null;
+/* Which patient, if any, has had their older prescriptions unfolded. */
+let openAllFor = null;
+/* Which prescription inside the open card is expanded. null means "the
+   newest one", which is what a freshly opened card shows. */
+let openLine = null;
+function showAllFor(pid){ openAllFor = String(pid); repaint(); }
+function toggleLine(k){ openLine = (openLine === k) ? '' : k; repaint(); }
+
+/* WHOSE APP THIS IS. The name is kept on the device, so the same file greets
+   whoever is holding it — the associate by name, reception by theirs. Tapping
+   the greeting sets it; until then it says "Doctor", which is true of the
+   person it was built for and harmless for anyone else. */
+const CACHE_KEY_NAME = 'echoAdmin_name';
+function greetingWord(){
+  const h = new Date().getHours();
+  if(h < 12) return 'Good morning,';
+  if(h < 17) return 'Good afternoon,';
+  return 'Good evening,';
+}
+function paintGreeting(){
+  const g = document.getElementById('hdGreet'), n = document.getElementById('hdWho');
+  if(g) g.textContent = greetingWord();
+  if(n) n.textContent = (localStorage.getItem(CACHE_KEY_NAME) || 'Doctor');
+}
+function askName(){
+  const now = localStorage.getItem(CACHE_KEY_NAME) || '';
+  const v = window.prompt('Name to greet you by', now);
+  if(v === null) return;                       // cancelled: leave it alone
+  const clean = String(v).trim().slice(0, 28);
+  try{
+    if(clean) localStorage.setItem(CACHE_KEY_NAME, clean);
+    else localStorage.removeItem(CACHE_KEY_NAME);
+  }catch(e){}
+  paintGreeting();
+}
+
+/* PULL TO REFRESH (v2.2). The refresh button is gone, so the gesture has to
+   do what it did: clear what the device holds and read Drive again. The
+   browser's own pull would reload the page and keep the cache, which is the
+   opposite of what somebody pulling down wants.
+
+   It arms only at the very top of the page, so a pull halfway down a long
+   list scrolls as normal. */
+let pullStartY = null, pullDist = 0, pullArmed = false, pullBusy = false;
+const PULL_TRIGGER = 70;
+function pullSetText(t){ const el = document.getElementById('pullText'); if(el) el.textContent = t; }
+function pullShow(px){
+  const cue = document.getElementById('pullCue');
+  if(!cue) return;
+  cue.style.height = Math.min(px, 64) + 'px';
+  cue.style.opacity = Math.min(px / PULL_TRIGGER, 1);
+}
+function pullReset(){
+  pullStartY = null; pullDist = 0; pullArmed = false; pullBusy = false;
+  const cue = document.getElementById('pullCue');
+  if(cue){ cue.style.height = '0px'; cue.style.opacity = '0'; }
+  pullSetText('Pull to refresh');
+}
+function wirePull(){
+  document.addEventListener('touchstart', e => {
+    if(pullBusy || window.scrollY > 0 || !e.touches || e.touches.length !== 1) return;
+    pullStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if(pullStartY === null || pullBusy) return;
+    pullDist = e.touches[0].clientY - pullStartY;
+    if(pullDist <= 0){ pullReset(); return; }
+    pullShow(pullDist * 0.5);
+    const armed = pullDist > PULL_TRIGGER;
+    if(armed !== pullArmed){ pullArmed = armed; pullSetText(armed ? 'Release to refresh' : 'Pull to refresh'); }
+  }, { passive: true });
+  document.addEventListener('touchend', () => {
+    if(pullStartY === null || pullBusy) return;
+    if(!pullArmed){ pullReset(); return; }
+    pullBusy = true; pullSetText('Reading\u2026');
+    doRefresh().then(pullReset).catch(pullReset);
+  }, { passive: true });
+}
+/* Exactly what the button did: drop every layer the device holds, then read. */
+async function doRefresh(){
+  directoryCache = null; directoryTried = false;
+  rxIndexCache = null; rxIndexTried = false;
+  cachedRxFolderId = null; cachedSettingsFolderId = null;
+  contactsCache = null; contactsTried = false;
+  rxVerifyDone = false; refreshScheduled = false;
+  openRx = null; openLine = null; openAllFor = null;
+  cacheClear(); forgetIds();
+  setTab(currentTab);
+  await new Promise(r => setTimeout(r, 400));
+}
+const ADMIN_VIEWS = { visits:'viewVisits', payment:'viewPayment', billing:'viewBilling',
+                      lab:'viewLab', followups:'viewFollowups' };
+function setTab(t){
+  currentTab = t;
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.getAttribute('data-tab') === t));
+  Object.keys(ADMIN_VIEWS).forEach(k =>
+    document.getElementById(ADMIN_VIEWS[k]).classList.toggle('hidden', k !== t));
+  closeRx();
+  renderCurrent();
+}
+/* NOTHING IS READ FOR A TAB THAT IS NOT OPEN (a2.0). The bills and payments
+   indexes are the largest files the clinic has; reading them on boot would
+   slow down every open for the sake of a page that may never be looked at.
+   Each tab fetches what it needs the moment it is shown, and not before. */
+function renderCurrent(){
+  if(currentTab === 'payment')   return renderPayment();
+  if(currentTab === 'billing')   return renderBilling();
+  if(currentTab === 'lab')       return renderLab();
+  if(currentTab === 'followups') return renderFollowups();
+  return renderVisits();
+}
+
+/* HOW LONG AGO, in the words a person would use. The desktop says "2 days
+   ago" and "3 months ago" rather than a date nobody subtracts in their head;
+   this says the same, with the date underneath for anyone who wants it. */
+function agoWords(dateStr){
+  const d = String(dateStr || '').slice(0, 10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return '';
+  const [y, m, dd] = d.split('-').map(Number);
+  const then = new Date(y, m - 1, dd), now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - then) / 86400000);
+  if(days < 0) return 'later today';
+  if(days === 0) return 'today';
+  if(days === 1) return 'yesterday';
+  if(days < 7) return days + ' days ago';
+  if(days < 14) return 'last week';
+  if(days < 31) return Math.floor(days / 7) + ' weeks ago';
+  const months = Math.round(days / 30.4);
+  if(months < 12) return months + (months === 1 ? ' month ago' : ' months ago');
+  const years = Math.floor(days / 365);
+  const rem = Math.round((days - years * 365) / 30.4);
+  return years + (years === 1 ? ' year' : ' years') + (rem ? ' ' + rem + 'm' : '') + ' ago';
+}
+
+/* One cache, not two. This used to keep its own copy on top of the loader's,
+   so Refresh cleared the outer one and got the stale inner one back. */
+async function getRxIndex(){
+  try{ return await loadPrescriptions(); }
+  catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    return null;
+  }
+}
+/* WHAT THE PHONE KEEPS (v1.4). Every open re-read the whole patient
+   directory and prescriptions index before showing anything, over whatever
+   signal the phone had. Both are now kept on the device: the page paints
+   from what is already there and re-reads behind it, so a second open is
+   immediate and a slow signal delays only the update, not the answer.
+
+   Kept deliberately small in consequence: nothing is written that was not
+   already on screen, and Refresh still clears it. If the browser refuses the
+   write — the index can be large and storage is capped — the app carries on
+   reading over the wire, which is exactly what it did before. */
+const CACHE_KEY_DIR = 'echoAdmin_dir', CACHE_KEY_RX = 'echoAdmin_rx', CACHE_KEY_AT = 'echoAdmin_at';
+function cacheRead(key){
+  try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+function cacheWrite(key, value){
+  try{
+    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(CACHE_KEY_AT, String(Date.now()));
+    return true;
+  }catch(e){
+    /* Out of room: drop the big one and keep the small one rather than lose
+       both. Names alone still spare the slowest read on the search page. */
+    try{ localStorage.removeItem(CACHE_KEY_RX); }catch(e2){}
+    return false;
+  }
+}
+function cacheClear(){
+  [CACHE_KEY_DIR, CACHE_KEY_RX, CACHE_KEY_AT, CACHE_KEY_CON, 'echoAdmin_verified']
+    .forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+  /* And every day that was kept, or Refresh could not correct one. */
+  try{
+    const doomed = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.indexOf('echoAdmin_day_') === 0) doomed.push(k);
+    }
+    doomed.forEach(k => localStorage.removeItem(k));
+  }catch(e){}
+}
+async function getDirectory(){
+  try{ return (await loadPatientDirectory()) || {}; }catch(e){ return {}; }
+}
+
+/* EVERY LOOKUP, REMEMBERED (v1.5). A Drive id never changes, but the app was
+   asking for the same ones on every open: which folder is 'settings', which
+   file is 'patients.json', which is today's day file. Each question is a
+   round trip. They are resolved once and kept on the device, so a second
+   open spends its network on the data itself rather than on finding it
+   again. An id that has gone stale simply fails to read, and the entry is
+   dropped and asked for afresh. */
+const CACHE_KEY_IDS = 'echoAdmin_ids';
+let idMap = cacheRead(CACHE_KEY_IDS) || {};
+let idInFlight = {};
+const _findChildDirect = driveFindChild;
+driveFindChild = async function(parentId, name, isFolder){
+  if(!parentId) return null;
+  const key = parentId + '/' + name;
+  if(idMap[key]) return idMap[key];
+  /* Two callers wanting the same folder at the same moment asked twice; they
+     now share the one request. */
+  if(idInFlight[key]) return idInFlight[key];
+  idInFlight[key] = (async () => {
+    const id = await _findChildDirect(parentId, name, isFolder);
+    if(id){ idMap[key] = id; cacheWrite(CACHE_KEY_IDS, idMap); }
+    delete idInFlight[key];
+    return id;
+  })();
+  return idInFlight[key];
+};
+function forgetIds(){ idMap = {}; idInFlight = {}; try{ localStorage.removeItem(CACHE_KEY_IDS); }catch(e){} }
+/* The cached pair, if the device has them. Used to paint; never trusted as
+   the last word — a re-read always follows. */
+function cachedDirectory(){ return cacheRead(CACHE_KEY_DIR); }
+function cachedRxIndex(){ return cacheRead(CACHE_KEY_RX); }
+/* Both loaders ask for the catch-up read; it should happen once a session,
+   not once per loader. */
+let refreshScheduled = false;
+function scheduleRefreshBehind(){
+  if(refreshScheduled) return;
+  refreshScheduled = true;
+  setTimeout(refreshBehind, 0);
+}
+let refreshingInBackground = false;
+/* Straight to Drive, deliberately NOT through the loaders above — they would
+   hand back the very cache this exists to replace. Only a real difference
+   repaints, so a background check on unchanged data is invisible. */
+async function refreshBehind(){
+  if(refreshingInBackground) return;
+  refreshingInBackground = true;
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return;
+    let changed = false;
+
+    const dirId = await driveFindChild(settingsId, 'patients.json', false);
+    if(dirId){
+      const dir = await driveReadJson(dirId);
+      if(dir && typeof dir === 'object' && Object.keys(dir).length
+         && JSON.stringify(dir) !== JSON.stringify(cachedDirectory())){
+        directoryCache = dir; cacheWrite(CACHE_KEY_DIR, dir); changed = true;
+      }
+    }
+
+    const conId = await driveFindChild(settingsId, 'patient-contacts.json', false);
+    if(conId){
+      const con = await driveReadJson(conId);
+      if(con && typeof con === 'object' && Object.keys(con).length
+         && JSON.stringify(con) !== JSON.stringify(cacheRead(CACHE_KEY_CON))){
+        contactsCache = con; cacheWrite(CACHE_KEY_CON, con); changed = true;
+      }
+    }
+
+    const rxId = await driveFindChild(settingsId, 'prescriptions-index.json', false);
+    if(rxId){
+      const idx = await driveReadJson(rxId);
+      if(idx && Array.isArray(idx.list)){
+        const held = cachedRxIndex();
+        if(!held || held.length !== idx.list.length
+           || JSON.stringify(held[0] || null) !== JSON.stringify(idx.list[0] || null)){
+          rxIndexCache = idx.list; cacheWrite(CACHE_KEY_RX, idx.list); changed = true;
+        }
+        verifyRxIndexLater(idx);
+      }
+    }
+    if(changed) repaint();
+  }catch(e){ /* offline or expired: what is on screen stays */ }
+  finally{ refreshingInBackground = false; }
+}
+function rxFor(all, patientId){
+  const byDate = (a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || ''));
+  return (all || [])
+    .filter(r => r && String(r.patientId) === String(patientId))
+    /* Struck ones sink rather than vanish — the desk strikes, it does not
+       erase, and a reader who cannot see the correction cannot trust it. */
+    .sort((a, b) => (rxIsStruck(a) ? 1 : 0) - (rxIsStruck(b) ? 1 : 0) || byDate(a, b));
+}
+
+/* THE WHOLE PRESCRIPTION, opened where it was tapped rather than in a sheet
+   that covers the list: on a phone the thing you were reading should still
+   be on screen when you close what you opened. */
+/* The contents of one prescription, with no box of its own — the card it
+   sits in provides that. */
+function rxDetailHtml(rec){
+  const row = (k, v) => v ? '<div class="rxs-k">' + k + '</div><div class="rxs-v">' + escapeHtml(v) + '</div>' : '';
+  const meds = ((rec.medicines) || []).filter(m => m && m.name);
+  return '<div class="rx-detail">'
+    + (rxIsStruck(rec) ? '<div class="muted" style="font-size:0.8rem;">Struck'
+        + (rec.struckReason ? ' \u00b7 ' + escapeHtml(rec.struckReason) : '') + '</div>' : '')
+    + row('Complaints', rec.complaints)
+    + row('Investigations', rec.investigations)
+    + row('Treatment', rec.treatment)
+    + (meds.length
+        ? '<div class="rxs-k">Medicines</div>' + meds.map(m =>
+            '<div class="rxs-med">' + escapeHtml(m.name)
+            + '<div class="rxs-dose">'
+            + escapeHtml([m.dose, m.duration, m.food ? m.food + ' food' : ''].filter(Boolean).join(' \u00b7 ') || '\u2014')
+            + '</div></div>').join('')
+        : '')
+    + row('Advice', rec.advice)
+    + (!meds.length && !rec.treatment && !rec.advice && !rec.complaints && !rec.investigations
+        ? '<div class="muted" style="font-size:0.86rem;">Nothing was written on this one.</div>' : '')
+    + '</div>';
+}
+/* The Patients page still shows one prescription at a time in its own box. */
+function rxSheetHtml(rec, key){
+  return '<div class="rx-sheet">' + rxDetailHtml(rec)
+    + '<button type="button" class="rxs-close" onclick="closeRx()">Close</button></div>';
+}
+function toggleRx(key){
+  openRx = (openRx === key) ? null : key;
+  openAllFor = null;          // closing a patient folds their history again
+  openLine = null;            // and the next one opens on its newest again
+  repaint();
+}
+function closeRx(){ openRx = null; repaint(); }
+function repaint(){ renderCurrent(); }
+
+/* ---------------------------- VISITS ------------------------------------ */
+/* WHICH DAY IS BEING READ. Today when the app opens; the arrows walk back a
+   day at a time and the picker jumps. Never forward of today, because there
+   are no visits in the future and a blank page is a worse answer than a
+   control that will not go there. */
+let viewDay = todayStr();
+function stepDay(delta){
+  const [y, m, d] = viewDay.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + delta);
+  const cand = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0')
+             + '-' + String(dt.getDate()).padStart(2,'0');
+  if(cand > todayStr()) return;
+  viewDay = cand; openRx = null; renderVisits();
+}
+function pickDay(v){
+  const d = String(v || '');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d) || d > todayStr()){
+    const el = document.getElementById('dayPicker'); if(el) el.value = viewDay;
+    return;
+  }
+  viewDay = d; openRx = null; renderVisits();
+}
+async function renderVisits(){
+  const list = document.getElementById('visitList');
+  const today = viewDay;
+  const isToday = today === todayStr();
+  document.getElementById('visitDate').textContent =
+    shortDateMobile(today) + (isToday ? ' \u00b7 Today' : '');
+  const pick = document.getElementById('dayPicker');
+  if(pick){ pick.value = today; pick.max = todayStr(); }
+  const nextBtn = document.getElementById('nextDayBtn');
+  if(nextBtn) nextBtn.style.visibility = isToday ? 'hidden' : 'visible';
+  /* The names and the day are independent reads, so they go together rather
+     than one after the other: on a phone connection the two round trips were
+     costing twice what they needed to. */
+  /* The names and the index may already be on the device from last time; the
+     day itself is always read, because that is what changed. */
+  const dirPromise = getDirectory();
+  const rxPromise = getRxIndex();
+  const conPromise = loadPatientContacts().catch(() => null);
+  /* A DAY THAT IS OVER CANNOT CHANGE. Yesterday's arrivals are read once and
+     kept; only today is re-read, because only today is still happening. */
+  const dayKey = 'echoAdmin_day_' + today;
+  let rows = null;
+  if(!isToday){
+    const held = cacheRead(dayKey);
+    if(Array.isArray(held)) rows = held;
+  }
+  if(rows === null){
+    let got = null;
+    try{
+      const folder = await driveFindChild(driveFolderId, 'visits', true);
+      if(folder){
+        const fid = await driveFindChild(folder, today + '.json', false);
+        if(fid){
+          const l = await driveReadJson(fid);
+          got = Array.isArray(l) ? l : [];
+          /* TODAY IS KEPT TOO (v2.6). It was not, because today changes — but
+             the alternative, when there is no token, is an empty Visits page
+             on an app that plainly has the day's arrivals from an hour ago.
+             It is written every time it is read, so it is never more stale
+             than the last successful read, and the bar above says so. */
+          cacheWrite(dayKey, got);
+        }
+      }
+    }catch(err){
+      if(err && err.name === 'TokenExpiredError') throw err;
+      got = null;
+    }
+    if(got !== null) rows = got;
+    else {
+      const held = cacheRead(dayKey);
+      rows = Array.isArray(held) ? held : [];
+    }
+  }
+  /* A struck visit is not an arrival. It is dropped here rather than shown
+     greyed: this app is a list of who to see, and a cancelled arrival is not
+     one of them. */
+  rows = rows.filter(v => v && !visitWasRemoved(v));
+  const [dir, all, contacts] = await Promise.all([dirPromise, rxPromise, conPromise]);
+  document.getElementById('visitCount').textContent = String(rows.length);
+  if(!rows.length){
+    list.innerHTML = '<div class="empty-state">' + (isToday ? 'Nobody yet today' : 'Nobody came') + '</div>';
+    return;
+  }
+  /* NEWEST FIRST (v1.6). The last person through the door is the one being
+     asked about; the morning's arrivals are history by the evening. */
+  rows.sort((a, b) => String(b.arrivedAt || '').localeCompare(String(a.arrivedAt || '')));
+  /* NUMBERED (v1.8). The desk counts arrivals from the first of the day, so
+     the phone counts the same way: newest first on screen, but the number is
+     the order they came, which is the number the desk will say out loud. */
+  const total = rows.length;
+  list.innerHTML = rows.map((v, idx) => {
+    const srNo = total - idx;
+    const pid = String(v.patientId);
+    const name = (dir && dir[pid]) || v.patientName || 'Unknown patient';
+    const t = v.arrivedAt ? new Date(v.arrivedAt) : null;
+    const stamp = (t && !isNaN(t.getTime()))
+      ? t.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) : '';
+    /* EVERY prescription this patient has, newest first — not only the one
+       written on the day being viewed. Somebody in the chair is asked about
+       in the light of what came before, and three is what fits on a phone
+       without scrolling past the next patient. The rest are one tap away. */
+    const mine = all === null ? [] : rxFor(all, pid);
+    const onDay = mine.filter(r => String(r.date || '').slice(0, 10) === today);
+    /* Everything written before the day being viewed — what "last seen"
+       actually means. */
+    const before = mine.filter(r => String(r.date || '').slice(0, 10) < today);
+    const key = 'v:' + pid;
+    const open = openRx === key && mine.length;
+    const showAll = openAllFor === pid;
+    const shown = showAll ? mine : mine.slice(0, 3);
+    const hidden = mine.length - shown.length;
+    /* ONE CARD PER PATIENT (v1.7). Each prescription used to be its own box,
+       so an opened patient became a stack of loose panels and you could not
+       see where one person ended and the next began. Everything about a
+       person now sits inside their card, and the card is what opens.
+
+       Inside it: the newest prescription OPEN, because that is the one being
+       asked about; the two before it as closed lines you can tap; anything
+       older folded behind a single count. */
+    let body = '';
+    if(open){
+      body = '<div class="pt-body">' + shown.map((r, i) => {
+        const rkey = key + ':' + i;
+        /* The newest starts open. After that the reader decides. */
+        const isOpen = (openLine === null) ? (i === 0) : (openLine === rkey);
+        /* A PRESCRIPTION IS A RECORD, NOT A LINE (v1.8). It now carries the
+           ℞ mark, its own date, how long ago, and how many medicines — so a
+           closed one still says what it is, and an open one is plainly a
+           document rather than an indented paragraph. */
+        return '<div class="rx-line' + (isOpen ? ' rx-line-open' : '') + (rxIsStruck(r) ? ' struck' : '') + '">'
+          + '<div class="rx-line-head" onclick="event.stopPropagation(); toggleLine(\'' + rkey + '\')">'
+            + '<span class="rx-mark">\u211e</span>'
+            + '<span class="rx-line-main">'
+              + '<span class="rx-line-what">' + escapeHtml(rxWhat(r)) + '</span>'
+              + '<span class="rx-line-meta">' + escapeHtml(rxDayLabel(r))
+                + ' \u00b7 ' + escapeHtml(agoWords(r.date || r.createdAt))
+                + ' \u00b7 ' + escapeHtml(rxMedCount(r))
+                + (rxIsStruck(r) ? ' \u00b7 struck' : '') + '</span>'
+            + '</span>'
+            + '<span class="rx-chev">' + (isOpen ? '\u2013' : '+') + '</span>'
+          + '</div>'
+          + (isOpen ? rxDetailHtml(r) : '')
+          + '</div>';
+      }).join('')
+      + (hidden > 0
+          ? '<button type="button" class="pt-more" onclick="event.stopPropagation(); showAllFor('
+            + JSON.stringify(pid).replace(/"/g,'&quot;') + ')">' + hidden + ' older</button>'
+          : '')
+      + '</div>';
+    }
+    /* THE RIGHT COLUMN EARNS ITS KEEP (v2.1). The time sat alone in the top
+       corner with the whole column empty beneath it, while the two figures
+       ran along the bottom. Time, last seen and the record count now stack
+       down that column — the card is shorter and nothing is blank.
+
+       Age and sex join the name as "(57/F)", where they read as part of who
+       the person is rather than as another field on the ID line.
+
+       "Last seen" is the newest prescription BEFORE the day being viewed —
+       not the newest overall, or somebody prescribed for an hour ago would
+       read as last seen today, which answers nothing. */
+    const who = whoLine(contacts, pid);
+    const lastSeen = before.length
+      ? escapeHtml(agoWords(before[0].date || before[0].createdAt).replace(' ago', '')) : '\u2014';
+    return '<div class="pt-card' + (open ? ' pt-open' : '') + (mine.length ? ' tappable' : '') + '"'
+        + (mine.length ? ' onclick="toggleRx(\'' + key + '\')"' : '') + '>'
+      + '<div class="pt-top">'
+        + '<span class="pt-no">' + srNo + '</span>'
+        + '<div class="pt-main">'
+          + '<div class="pt-name">' + escapeHtml(name)
+            + (who ? ' <span class="pt-who">(' + escapeHtml(who) + ')</span>' : '') + '</div>'
+          + '<div class="pt-sub">' + escapeHtml(pid)
+            + (v.cameFor ? ' \u00b7 ' + escapeHtml(v.cameFor) : '') + '</div>'
+          + (all === null
+              ? '<div class="pt-tag pt-tag-wait">waiting on the clinic PC</div>'
+              : (onDay.length ? '<div class="pt-tag pt-tag-today">' + escapeHtml(rxWhat(onDay[0])) + '</div>' : ''))
+        + '</div>'
+        + '<div class="pt-side">'
+          + '<div class="pt-time">' + escapeHtml(stamp) + '</div>'
+          + (all === null ? ''
+              : '<div class="pt-f"><b>' + lastSeen + '</b><span>last seen</span></div>'
+                + '<div class="pt-f"><b>' + mine.length + ' \u211e</b><span>on record</span></div>')
+        + '</div>'
+      + '</div>'
+      + body
+      + '</div>';
+  }).join('');
+}
+
+/* The Patients page is gone from this app (a2.0). Looking a patient up and
+   reading their prescriptions is what lite is for; admin is the money, the
+   lab and the calls. The visit card still carries each patient's own
+   prescriptions, which is the only place the owner asked for them here. */
+
+
+/* ===================== PAYMENT · BILLING · LAB · CALLS ==================
+   Four pages, all read only. The money pages share one period and one date,
+   because "what came in" and "what was raised" are the same question asked
+   two ways, and moving one and not the other is how you end up comparing
+   April's takings with May's bills. */
+let moneyPeriod = 'day';                 // day | month | year
+let moneyDay = todayStr();
+function moneyKey(){
+  return moneyPeriod === 'day' ? moneyDay
+       : moneyPeriod === 'month' ? moneyDay.slice(0, 7)
+       : moneyDay.slice(0, 4);
+}
+function moneyLabelText(){
+  if(moneyPeriod === 'day')  return shortDateMobile(moneyDay) + (moneyDay === todayStr() ? ' \u00b7 Today' : '');
+  if(moneyPeriod === 'month'){
+    const [y, m] = moneyDay.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month:'long', year:'numeric' });
+  }
+  return moneyDay.slice(0, 4);
+}
+function setMoneyPeriod(p){ moneyPeriod = p; renderCurrent(); }
+function stepMoney(delta){
+  const [y, m, d] = moneyDay.split('-').map(Number);
+  let dt;
+  if(moneyPeriod === 'day')        dt = new Date(y, m - 1, d + delta);
+  else if(moneyPeriod === 'month') dt = new Date(y, m - 1 + delta, 1);
+  else                             dt = new Date(y + delta, 0, 1);
+  const cand = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0')
+             + '-' + String(dt.getDate()).padStart(2, '0');
+  /* Never past today: there is no money in the future, and an empty page is
+     a worse answer than a control that will not go there. */
+  if(cand.slice(0, moneyPeriod === 'day' ? 10 : moneyPeriod === 'month' ? 7 : 4)
+     > todayStr().slice(0, moneyPeriod === 'day' ? 10 : moneyPeriod === 'month' ? 7 : 4)) return;
+  moneyDay = cand;
+  renderCurrent();
+}
+function periodChipsHtml(){
+  return ['day','month','year'].map(p =>
+    '<button type="button" class="per-chip' + (moneyPeriod === p ? ' on' : '') + '"'
+    + ' onclick="setMoneyPeriod(\'' + p + '\')">' + p[0].toUpperCase() + p.slice(1) + '</button>').join('');
+}
+function inPeriod(dateStr){
+  const d = String(dateStr || '');
+  const k = moneyKey();
+  return d.slice(0, k.length) === k;
+}
+function tile(label, value, tone){
+  return '<div class="mt' + (tone ? ' mt-' + tone : '') + '">'
+    + '<div class="mt-v">' + value + '</div><div class="mt-k">' + label + '</div></div>';
+}
+
+/* ---------------------------- PAYMENT ---------------------------------- */
+async function renderPayment(){
+  const chips = document.getElementById('payPeriod');
+  if(chips) chips.innerHTML = periodChipsHtml();
+  document.getElementById('moneyLabel').textContent = moneyLabelText();
+  const nb = document.getElementById('moneyNextBtn');
+  if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
+
+  const list = document.getElementById('payList');
+  const entries = await loadAllEntries().catch(() => null);
+  if(entries === null){
+    list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>';
+    document.getElementById('moneyTotals').innerHTML = '';
+    return;
+  }
+  const dir = await getDirectory();
+  /* One row per payment, not per entry: an entry is a day's book and holds
+     many. A refund counts against the day, as the desk counts it. */
+  const rows = [];
+  const byMode = {};
+  let total = 0;
+  (entries || []).forEach(e => {
+    if(!e || !inPeriod(e.date)) return;
+    (e.items || []).forEach(it => {
+      if(!it || isVoidedItem(it)) return;
+      const amt = (it.method === 'refund' ? -1 : 1) * (Number(it.amount) || 0);
+      total += amt;
+      const mode = String(it.method || 'cash').toLowerCase();
+      byMode[mode] = (byMode[mode] || 0) + amt;
+      rows.push({ date: e.date, pid: String(it.patientId || ''), amt, mode,
+                  name: (dir && dir[String(it.patientId)]) || it.patientName || 'Unknown patient' });
+    });
+  });
+  const modes = Object.keys(byMode).sort((a, b) => byMode[b] - byMode[a]);
+  document.getElementById('moneyTotals').innerHTML =
+    '<div class="mt-row">' + tile('collected', fmtINR(total), 'big')
+    + modes.slice(0, 3).map(m => tile(m, fmtINR(byMode[m]))).join('') + '</div>';
+  rollOrSet('payCount', rows.length);
+  if(!rows.length){ list.innerHTML = '<div class="empty-state">Nothing taken</div>'; return; }
+  rows.sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.amt - a.amt);
+  list.innerHTML = rows.slice(0, 200).map(r =>
+      '<div class="pt-card"><div class="pt-top"><div class="pt-main">'
+    + '<div class="pt-name">' + escapeHtml(r.name) + '</div>'
+    + '<div class="pt-sub">' + escapeHtml(r.pid) + ' \u00b7 ' + escapeHtml(r.mode)
+      + (moneyPeriod === 'day' ? '' : ' \u00b7 ' + escapeHtml(shortDateMobile(r.date))) + '</div>'
+    + '</div><div class="pt-side"><div class="pt-amt' + (r.amt < 0 ? ' neg' : '') + '">'
+      + fmtINR(r.amt) + '</div></div></div></div>').join('')
+    + (rows.length > 200 ? '<div class="empty-state">' + (rows.length - 200) + ' more \u2014 narrow the period</div>' : '');
+}
+function atLatestPeriod(){
+  const k = moneyKey(), t = todayStr();
+  return k === (moneyPeriod === 'day' ? t : moneyPeriod === 'month' ? t.slice(0, 7) : t.slice(0, 4));
+}
+/* rollCount belonged to the app this replaced; a plain set is enough here. */
+function rollOrSet(id, n){ const el = document.getElementById(id); if(el) el.textContent = String(n); }
+
+/* ---------------------------- BILLING ---------------------------------- */
+async function renderBilling(){
+  const chips = document.getElementById('billPeriod');
+  if(chips) chips.innerHTML = periodChipsHtml();
+  document.getElementById('billLabel').textContent = moneyLabelText();
+  const nb = document.getElementById('billNextBtn');
+  if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
+
+  const list = document.getElementById('billList');
+  const bills = await loadBills().catch(() => null);
+  if(bills === null){
+    list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>';
+    document.getElementById('billTotals').innerHTML = '';
+    return;
+  }
+  const dir = await getDirectory();
+  const mine = (bills || []).filter(b => b && inPeriod(b.date) && b.status !== 'draft');
+  /* Credit notes are shown, and counted against the total, because a bill
+     raised and then credited is not money the clinic billed. */
+  let billed = 0, credited = 0;
+  mine.forEach(b => {
+    const amt = Number(b.grandTotal) || 0;
+    if(isCreditNote(b)) credited += amt; else if(!isCancelledBill(b)) billed += amt;
+  });
+  document.getElementById('billTotals').innerHTML =
+    '<div class="mt-row">' + tile('billed', fmtINR(billed - credited), 'big')
+    + tile('bills', String(mine.filter(b => !isCreditNote(b)).length))
+    + (credited ? tile('credited', fmtINR(credited), 'neg') : '') + '</div>';
+  rollOrSet('billCount', mine.length);
+  if(!mine.length){ list.innerHTML = '<div class="empty-state">Nothing billed</div>'; return; }
+  mine.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  list.innerHTML = mine.slice(0, 200).map(b => {
+    const cancelled = isCancelledBill(b), credit = isCreditNote(b);
+    const name = (dir && dir[String(b.patientId)]) || b.patientName || 'Unknown patient';
+    return '<div class="pt-card' + (cancelled ? ' struck' : '') + '"><div class="pt-top"><div class="pt-main">'
+      + '<div class="pt-name">' + escapeHtml(name) + '</div>'
+      + '<div class="pt-sub">' + escapeHtml(String(b.patientId || ''))
+        + (b.billNo ? ' \u00b7 ' + escapeHtml(String(b.billNo)) : '')
+        + (moneyPeriod === 'day' ? '' : ' \u00b7 ' + escapeHtml(shortDateMobile(b.date))) + '</div>'
+      + (credit ? '<div class="pt-tag pt-tag-wait">credit note</div>' : '')
+      + (cancelled ? '<div class="pt-tag pt-tag-none">cancelled</div>' : '')
+      + '</div><div class="pt-side"><div class="pt-amt' + (credit ? ' neg' : '') + '">'
+        + fmtINR(Number(b.grandTotal) || 0) + '</div></div></div></div>';
+  }).join('')
+  + (mine.length > 200 ? '<div class="empty-state">' + (mine.length - 200) + ' more \u2014 narrow the period</div>' : '');
+}
+
+/* ------------------------------- LAB ------------------------------------ */
+async function renderLab(){
+  const list = document.getElementById('labList');
+  const cases = await loadLabCases().catch(() => null);
+  if(cases === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
+  const dir = await getDirectory();
+  const live = (cases || []).filter(c => c && !c.struckAt);
+  /* The desk's own three stages, and its own thresholds, so the phone and
+     the desk never disagree about what is late. */
+  /* labStageOf returns an OBJECT with a .key, and its key for a case at the
+     lab is 'sent'. Matching the returned object against a string quietly put
+     every case in no group at all. */
+  const groups = [
+    ['sent',     'At the lab',              7],
+    ['received', 'Back, waiting to fit',    7],
+    ['logged',   'Logged, not picked up',   2]
+  ];
+  const today = todayStr();
+  const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+  let html = '';
+  groups.forEach(([stage, title, limit]) => {
+    const mine = live.filter(c => (labStageOf(c) || {}).key === stage);
+    html += '<div class="sec-head"><span class="sec-title">' + title + '</span>'
+          + '<span class="count-badge">' + mine.length + '</span></div>';
+    if(!mine.length){ html += '<div class="empty-state">None</div>'; return; }
+    mine.sort((a, b) => String(a.dateSent || a.dateLogged || '').localeCompare(String(b.dateSent || b.dateLogged || '')));
+    html += mine.map(c => {
+      /* Waiting since the stage began, not since the case was first logged:
+         a crown that came back yesterday has been waiting a day, whatever
+         date it was sent. */
+      const since = stage === 'received' ? (c.dateReceived || c.dateSent || c.dateLogged)
+                  : stage === 'sent'     ? (c.dateSent || c.dateLogged)
+                  : (c.dateLogged || '');
+      const age = since ? daysBetween(since, today) : null;
+      const late = age !== null && age > limit;
+      const name = (dir && dir[String(c.patientId)]) || c.patientName || 'Unknown patient';
+      return '<div class="pt-card"><div class="pt-top"><div class="pt-main">'
+        + '<div class="pt-name">' + escapeHtml(name) + '</div>'
+        + '<div class="pt-sub">' + escapeHtml(String(c.patientId || ''))
+          /* The desk's own field names: workType and lab. */
+          + (c.workType ? ' \u00b7 ' + escapeHtml(c.workType) : '')
+          + (c.lab ? ' \u00b7 ' + escapeHtml(c.lab) : '') + '</div>'
+        + (late ? '<div class="pt-tag pt-tag-wait">' + age + ' days \u2014 overdue</div>' : '')
+        + '</div><div class="pt-side"><div class="pt-f"><b>' + (age === null ? '\u2014' : age + 'd')
+          + '</b><span>waiting</span></div></div></div></div>';
+    }).join('');
+  });
+  list.innerHTML = html;
+}
+
+/* ---------------------------- FOLLOW-UPS -------------------------------- */
+async function renderFollowups(){
+  const list = document.getElementById('fuList');
+  const all = await loadFollowupsD().catch(() => null);
+  if(all === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
+  const dir = await getDirectory();
+  const today = todayStr();
+  const dueDate = f => String(f.dueDate || f.date || '');
+  /* Due today AND overdue, together: showing only what is due today hides
+     that last week's calls were never made. */
+  const mine = (all || [])
+    .filter(f => f && !f.doneAt && !f.struckAt && dueDate(f) && dueDate(f) <= today)
+    .sort((a, b) => dueDate(a).localeCompare(dueDate(b)));
+  rollOrSet('fuCount', mine.length);
+  if(!mine.length){ list.innerHTML = '<div class="empty-state">Nobody to call</div>'; return; }
+  list.innerHTML = mine.map(f => {
+    const d = dueDate(f), late = d < today;
+    const name = (dir && dir[String(f.patientId)]) || f.patientName || 'Unknown patient';
+    return '<div class="pt-card"><div class="pt-top"><div class="pt-main">'
+      + '<div class="pt-name">' + escapeHtml(name) + '</div>'
+      + '<div class="pt-sub">' + escapeHtml(String(f.patientId || ''))
+        + (f.reason ? ' \u00b7 ' + escapeHtml(f.reason) : '') + '</div>'
+      + (late ? '<div class="pt-tag pt-tag-wait">overdue</div>'
+              : '<div class="pt-tag pt-tag-today">due today</div>')
+      + '</div><div class="pt-side"><div class="pt-f"><b>'
+        + escapeHtml(agoWords(d).replace(' ago', '')) + '</b><span>due</span></div></div></div></div>';
+  }).join('');
+}
+
+/* ---- boot ---------------------------------------------------------------
+   The same two gates as the main phone app: a Google token, and a folder id.
+   Once both are in hand the two pages are readable; nothing else is fetched
+   until a tab asks for it. */
+let booted = false;
+function showApp(){
+  document.getElementById('setupScreen').classList.add('hidden');
+  document.getElementById('appScreen').classList.remove('hidden');
+}
+function showSetup(){
+  document.getElementById('setupScreen').classList.remove('hidden');
+  document.getElementById('appScreen').classList.add('hidden');
+}
+/* WHAT THE DEVICE ALREADY KNOWS IS ENOUGH TO OPEN ON (v2.6).
+
+   A Google access token lasts about an hour, and this app is opened once or
+   twice a day — so the token is always expired by the time it is wanted, and
+   every open depended on a silent renewal succeeding. When that renewal
+   fails, which it does inside an installed app where the browser partitions
+   its cookies, the sign-in gate covered the whole screen. A tap, every time,
+   to be shown data that was already sitting on the phone.
+
+   The gate is now only for a device that has never been set up. If names and
+   prescriptions are stored here, the app opens on them at once and asks for
+   nothing. The token is fetched quietly behind that, and if it cannot be had
+   quietly, a single line appears offering the tap — while the record stays
+   readable underneath it. */
+function haveStoredData(){
+  const d = cacheRead(CACHE_KEY_DIR);
+  return !!(d && Object.keys(d).length);
+}
+async function connectAndLoad(){
+  if(!driveFolderId){ showSetup(); return; }
+  if(!accessToken && !haveStoredData()){ showSetup(); return; }
+  showApp();
+  booted = true;
+  setTab(currentTab);
+}
+/* The line that appears only when a read wanted a token and there was none.
+   It sits above the list rather than over it: nothing already on screen is
+   taken away to ask for a tap. */
+function showSignInNeeded(show){
+  const bar = document.getElementById('signInBar');
+  if(bar) bar.classList.toggle('hidden', !show);
+}
+function tapToSignIn(){
+  if(!tokenClient) return;
+  silentAttemptInFlight = false;
+  tokenClient.requestAccessToken();
+}
+window.addEventListener('load', () => {
+  const ver = document.getElementById('appVer');
+  if(ver) ver.textContent = LITE_VERSION;
+  paintGreeting();
+  wirePull();
+  const saved = localStorage.getItem('echoDental_driveFolderId') || '';
+  if(saved){ driveFolderId = saved; const el = document.getElementById('folderIdInput'); if(el) el.value = saved; }
+  initGoogleAuth();
+  /* Paint first, authenticate second. A device that has been used before
+     opens on its own copy; the token is chased quietly behind it. */
+  if(driveFolderId) connectAndLoad();
+  if(!loadStoredToken() && driveFolderId) requestTokenSilently();
+});
+
+/* The button is gone; the gesture does its work. */
+
+</script></body></html>
