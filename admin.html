@@ -137,6 +137,30 @@ body{ padding-bottom:28px; }
   padding:9px; border-radius:9px; cursor:pointer; transition:background .09s ease; }
 .pt-more:active{ background:var(--gold-pale); }
 
+/* ---- the money pages ---- */
+.period-row{ display:flex; gap:6px; margin:14px 0 4px; }
+.per-chip{ flex:1; border:1px solid var(--line); background:var(--white); border-radius:10px;
+  padding:9px 0; font-size:0.76rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;
+  color:var(--muted); cursor:pointer; transition:background .09s ease, transform .09s ease; }
+.per-chip:active{ transform:translateY(1px); }
+.per-chip.on{ background:var(--gold-deep); border-color:var(--gold-deep); color:#fff; }
+.mt-row{ display:flex; gap:8px; margin:10px 0 2px; }
+.mt{ flex:1; background:var(--white); border:1px solid var(--line); border-radius:12px;
+  padding:10px 12px; min-width:0; }
+.mt-v{ font-weight:700; font-size:0.95rem; color:var(--ink); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; }
+.mt.mt-big{ flex:1.4; background:var(--gold-pale); border-color:var(--gold-light); }
+.mt.mt-big .mt-v{ font-size:1.15rem; color:var(--gold-deep); }
+.mt.mt-neg .mt-v{ color:var(--danger); }
+.mt-k{ font-size:0.62rem; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); margin-top:2px; }
+.pt-amt{ font-weight:700; font-size:0.98rem; color:var(--ink); white-space:nowrap; }
+.pt-amt.neg{ color:var(--danger); }
+.pt-card.struck{ opacity:0.6; }
+.pt-card.struck .pt-name{ text-decoration:line-through; }
+/* Five tabs need to fit a narrow phone. */
+.tabbar{ gap:2px; }
+.tab-btn{ font-size:0.72rem; padding:10px 2px; letter-spacing:0.03em; }
+
 .daynav{ display:flex; align-items:center; gap:6px; margin:14px 0 4px; }
 .daynav-btn{ width:40px; height:40px; border:1px solid var(--line); background:var(--white);
   border-radius:11px; font-size:1.2rem; color:var(--gold-deep); cursor:pointer; line-height:1; }
@@ -204,7 +228,10 @@ body{ padding-bottom:28px; }
     <!-- "Visits", not "Today": the day can be moved back, so the tab that
          said Today was lying the moment somebody used the arrows. -->
     <button class="tab-btn active" data-tab="visits" onclick="setTab('visits')">Visits</button>
-    <button class="tab-btn" data-tab="patients" onclick="setTab('patients')">Patients</button>
+    <button class="tab-btn" data-tab="payment" onclick="setTab('payment')">Payment</button>
+    <button class="tab-btn" data-tab="billing" onclick="setTab('billing')">Billing</button>
+    <button class="tab-btn" data-tab="lab" onclick="setTab('lab')">Lab</button>
+    <button class="tab-btn" data-tab="followups" onclick="setTab('followups')">Follow-ups</button>
   </div>
 </div>
 
@@ -246,10 +273,46 @@ body{ padding-bottom:28px; }
       <div id="visitList"><div class="spin">Reading&hellip;</div></div>
     </div>
 
-    <div id="viewPatients" class="hidden">
-      <input type="text" class="search-input" id="patientSearch" placeholder="Search a name or patient ID"
-             oninput="onSearch(this.value)" autocomplete="off">
-      <div id="patientList"><div class="empty-state">Type a name or an ID</div></div>
+    <!-- PAYMENT — the money in, for a day / month / year, split by how it
+         came. The Patients page went: looking a patient up is lite's job, and
+         this app is here for the money. -->
+    <div id="viewPayment" class="hidden">
+      <div class="period-row" id="payPeriod"></div>
+      <div class="daynav">
+        <button type="button" class="daynav-btn" onclick="stepMoney(-1)">&lsaquo;</button>
+        <div class="daynav-label" id="moneyLabel">&mdash;</div>
+        <button type="button" class="daynav-btn" id="moneyNextBtn" onclick="stepMoney(1)">&rsaquo;</button>
+      </div>
+      <div id="moneyTotals"></div>
+      <div class="sec-head"><span class="sec-title">Payments</span>
+        <span class="count-badge" id="payCount">0</span></div>
+      <div id="payList"><div class="spin">Reading&hellip;</div></div>
+    </div>
+
+    <!-- BILLING — what was raised, over the same period. -->
+    <div id="viewBilling" class="hidden">
+      <div class="period-row" id="billPeriod"></div>
+      <div class="daynav">
+        <button type="button" class="daynav-btn" onclick="stepMoney(-1)">&lsaquo;</button>
+        <div class="daynav-label" id="billLabel">&mdash;</div>
+        <button type="button" class="daynav-btn" id="billNextBtn" onclick="stepMoney(1)">&rsaquo;</button>
+      </div>
+      <div id="billTotals"></div>
+      <div class="sec-head"><span class="sec-title">Bills</span>
+        <span class="count-badge" id="billCount">0</span></div>
+      <div id="billList"><div class="spin">Reading&hellip;</div></div>
+    </div>
+
+    <!-- LAB — the three stages, as the desk keeps them. -->
+    <div id="viewLab" class="hidden">
+      <div id="labList"><div class="spin">Reading&hellip;</div></div>
+    </div>
+
+    <!-- FOLLOW-UPS — who is due a call, oldest first. -->
+    <div id="viewFollowups" class="hidden">
+      <div class="sec-head"><span class="sec-title">Due</span>
+        <span class="count-badge" id="fuCount">0</span></div>
+      <div id="fuList"><div class="spin">Reading&hellip;</div></div>
     </div>
   </div>
 </div>
@@ -441,6 +504,284 @@ document.getElementById('saveFolderBtn').addEventListener('click', () => {
 function noteTokenNeeded(){ showSignInNeeded(true); }
 function NoTokenError(){ this.name = 'NoTokenError'; this.message = 'Not signed in'; }
 NoTokenError.prototype = Object.create(Error.prototype);
+/* ======================= THE MONEY, THE LAB, THE CALLS ==================
+   Every loader below is lifted unchanged from the app this one replaces, so
+   the phone and the desk read the same files the same way and cannot drift
+   apart. What is new here is only how they are shown.
+
+   None of it runs until its tab is opened. */
+/* Only the state the lifted loaders do NOT declare for themselves. */
+let cachedLabcasesFolderId = null;
+let cachedEntriesIndex = null, entriesIndexTried = false;
+let todayEntryCache = null;
+let labCasesCache = null, labCasesTried = false;
+let followupsCacheD = null, followupsTriedD = false;
+
+async function loadEntriesIndex(){
+  if(entriesIndexTried && !entriesRevalidate) return cachedEntriesIndex;
+  if(entriesIndexInFlight) return await entriesIndexInFlight;
+  entriesIndexInFlight = (async () => {
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return null;
+    const fileId = await driveFindChild(settingsId, 'entries-index.json', false);
+    const seenAt = lastFoundModifiedTime;
+    if(!fileId) return null;
+    if(cachedEntriesIndex && seenAt && seenAt === entriesSeenModified) return cachedEntriesIndex;
+    const idx = await driveReadJson(fileId);
+    entriesSeenModified = seenAt;
+    if(!idx || !Array.isArray(idx.entries)) return null;
+    const map = {};
+    idx.entries.forEach(e => { if(e && e.date) map[e.date] = e; });
+    cachedEntriesIndex = map;
+  }catch(err){
+    cachedEntriesIndex = null;      // never fatal: the per-day path still works
+  }
+  /* Set only once the attempt has actually FINISHED — the whole point of the
+     fix. A missing index legitimately caches null here, and the per-day
+     fallback covers it. */
+  entriesIndexTried = true;
+  entriesRevalidate = false;
+  return cachedEntriesIndex;
+  })();
+  try{
+    return await entriesIndexInFlight;
+  }finally{
+    entriesIndexInFlight = null;
+  }
+}
+async function loadDayEntry(dateStr, token){
+  renderDayNav(dateStr);
+  if(dateStr !== todayStr()){
+    const idx = await loadEntriesIndex();
+    /* Only trust the index for a day it actually CONTAINS.
+       THE BUG THIS FIXES: the desktop adds a day to the index the next time
+       it runs, so a day that has just ended is not in it yet. With the
+       clinic PC shut overnight, yesterday was missing — and treating
+       "absent from the index" as "no money that day" showed ₹0 over a full
+       day's takings. Absent from the index means UNKNOWN, not zero, so we
+       go and read the day's own file. */
+    if(idx && Object.prototype.hasOwnProperty.call(idx, dateStr)){
+      const entry = idx[dateStr] || null;
+      if(token !== undefined && !paintAllowed(token)) return;
+      renderPayments(entry, entry && Array.isArray(entry.items) ? entry.items : []);
+      return;
+    }
+  }
+  const fileId = await findDayFile(dateStr);
+  const seenAt = lastFoundModifiedTime;
+  if(!fileId){
+    if(token !== undefined && !paintAllowed(token)) return;
+    renderPayments(null, []);
+    return;
+  }
+  /* Today's file is re-checked on every render, as it must be — it is the
+     one that keeps changing. But an unchanged file need not be downloaded
+     again, and between two taps it usually has not changed. */
+  let entry;
+  if(dateStr === todayStr() && todayEntryCache && seenAt && seenAt === todaySeenModified){
+    entry = todayEntryCache;
+  } else {
+    entry = await driveReadJson(fileId);
+    if(dateStr === todayStr()){ todayEntryCache = entry; todaySeenModified = seenAt; }
+  }
+  const items = Array.isArray(entry.items) ? entry.items : [];
+  if(token !== undefined && !paintAllowed(token)) return;
+  renderPayments(entry, items);
+}
+async function loadBills(){
+  if(cachedBills && !billsRevalidate) return cachedBills;
+  if(billsInFlight) return await billsInFlight;
+  billsInFlight = (async () => {
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(settingsId){
+      const fileId = await driveFindChild(settingsId, 'bills-index.json', false);
+      const seenAt = lastFoundModifiedTime;
+      if(fileId){
+        /* The whole point: unchanged file, no download. */
+        if(cachedBills && seenAt && seenAt === billsSeenModified){
+          billsRevalidate = false;
+          return cachedBills;
+        }
+        const idx = await driveReadJson(fileId);
+        if(idx && Array.isArray(idx.bills)){
+          cachedBills = idx.bills;
+          billsSeenModified = seenAt;
+          billsRevalidate = false;
+          return cachedBills;
+        }
+      }
+    }
+    // No index (older desktop build): read the bills folder itself. Slow, but
+    // correct — and it means the phone is never simply blank.
+    const billsFolderId = await driveFindChild(driveFolderId, 'bills', true);
+    if(!billsFolderId){ cachedBills = []; return cachedBills; }
+    const files = (await driveListChildren(billsFolderId)).filter(f => f.name.endsWith('.json'));
+    const all = await Promise.all(files.map(f => driveReadJson(f.id).catch(() => null)));
+    cachedBills = all.filter(Boolean);
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    cachedBills = cachedBills || [];
+  }
+  billsRevalidate = false;
+  return cachedBills;
+  })();
+  try{
+    return await billsInFlight;
+  }finally{
+    /* Cleared either way. A failed fetch must not leave a poisoned promise
+       that every later caller keeps awaiting. */
+    billsInFlight = null;
+  }
+}
+async function loadAllEntries(){
+  const idx = await loadEntriesIndex();
+  const out = idx ? Object.keys(idx).map(d => idx[d]) : [];
+  const have = new Set(out.filter(Boolean).map(e => e.date));
+  const today = todayStr();
+
+  /* Walk back from today until the index takes over, so the newest days —
+     the ones that matter most — are always fetched first. */
+  const missing = [];
+  let cursor = today;
+  for(let i = 0; i < CATCHUP_DAY_LIMIT; i++){
+    if(have.has(cursor)) break;
+    missing.push(cursor);
+    cursor = addDays(cursor, -1);
+  }
+  /* One listing tells us which of these days exist and where they are, so
+     the seven lookups are gone. The reads that remain run TOGETHER rather
+     than one after another — they are independent, and waiting for each in
+     turn was most of the cold-open delay. */
+  const list = await listRecentDays();
+  const fetches = missing.map(async (d) => {
+    try{
+      const fileId = list
+        ? (Object.prototype.hasOwnProperty.call(list, d) ? list[d].id : null)
+        : await driveFindChild(cachedDataFolderId, d + '.json', false);
+      if(!fileId) return null;
+      return await driveReadJson(fileId);
+    }catch(err){
+      if(err && err.name === 'TokenExpiredError') throw err;
+      /* A day that cannot be read is left out rather than counted as zero —
+         the same distinction as above. */
+      return null;
+    }
+  });
+  const fetched = await Promise.all(fetches);
+  fetched.forEach(e => { if(e) out.push(e); });
+  return out.filter(Boolean);
+}
+async function loadLabCases(){
+  if(labCasesTried) return labCasesCache;
+  labCasesTried = true;
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return (labCasesCache = null);
+    const fileId = await driveFindChild(settingsId, 'labcases-index.json', false);
+    if(!fileId) return (labCasesCache = null);
+    const idx = await driveReadJson(fileId);
+    if(!idx || !Array.isArray(idx.cases) || !Array.isArray(idx.keys)) return (labCasesCache = null);
+    if(!cachedLabcasesFolderId) cachedLabcasesFolderId = await driveFindChild(driveFolderId, 'labcases', true);
+    if(!cachedLabcasesFolderId) return (labCasesCache = null);
+    const files = await driveListChildren(cachedLabcasesFolderId);
+    const onDisk = files.map(f => String(f.name || '').replace(/\.json$/, ''))
+                        .filter(Boolean).map(n => 'labcase:' + n).sort();
+    const inIndex = idx.keys.slice().sort();
+    if(onDisk.length !== inIndex.length) return (labCasesCache = null);
+    for(let i = 0; i < onDisk.length; i++) if(onDisk[i] !== inIndex[i]) return (labCasesCache = null);
+    labCasesCache = idx.cases;
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    labCasesCache = null;
+  }
+  return labCasesCache;
+}
+async function loadSettingsListD(fileName){
+  try{
+    const settingsId = await getSettingsFolderId();
+    if(!settingsId) return [];
+    const fileId = await driveFindChild(settingsId, fileName, false);
+    if(!fileId) return [];
+    const l = await driveReadJson(fileId);
+    return Array.isArray(l) ? l : [];
+  }catch(err){
+    if(err && err.name === 'TokenExpiredError') throw err;
+    return [];
+  }
+}
+async function loadFollowupsD(){
+  if(followupsTriedD) return followupsCacheD;
+  followupsCacheD = await loadSettingsListD('followups.json'); followupsTriedD = true; return followupsCacheD;
+}
+function labStageOf(c){
+  if(!c) return { key:'logged', label:'Waiting pick-up' };
+  if(c.dateDelivered) return { key:'delivered', label:'Delivered' };
+  if(c.dateReceived)  return { key:'received',  label:'Received' };
+  if(c.dateSent)      return { key:'sent',      label:'Sent to lab' };
+  return { key:'logged', label:'Waiting pick-up' };
+}
+function isCreditNote(b){ return !!(b && b.docType === 'credit'); }
+function isCancelledBill(b){ return !!(b && b.cancellation); }
+function isReversedItem(it){ return !!(it && it.reversal); }
+function billCountsAsMoney(b){
+  return !!b && b.status !== 'draft' && !isCancelledBill(b);
+}
+function isCancelledBill(b){ return !!(b && b.cancellation); }
+function isReversedItem(it){ return !!(it && it.reversal); }
+function billCountsAsMoney(b){
+  return !!b && b.status !== 'draft' && !isCancelledBill(b);
+}
+function isVoidedItem(it){ return !!(it && it.voided); }
+function localDateOf(iso){
+  if(!iso) return null;
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return null;
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+function localDateOf(iso){
+  if(!iso) return null;
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return null;
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+function reversalExcludesFromDayTotals(it){
+  if(!it || !it.reversal) return false;
+  if(!it.time) return true;   // no timestamp to compare — be conservative
+  return localDateOf(it.reversal.reversedAt) === localDateOf(it.time);
+}
+function computeItemTotals(items){
+  const t = { cash:0, upi:0, card:0, bank:0 };
+  (items||[]).forEach(it=>{
+    if(isVoidedItem(it)) return;                       // cancelled — counts as nothing
+    if(it.method === 'refund'){ t.cash -= (Number(it.amount)||0); return; }  // money leaving the drawer
+    if(it.method === 'writeoff') return;               // no money changed hands
+    if(reversalExcludesFromDayTotals(it)) return;      // reversed same day
+    if(Object.prototype.hasOwnProperty.call(t, it.method)) t[it.method] += (Number(it.amount)||0);
+    else t.cash += (Number(it.amount)||0);             // unknown method folds into cash, never vanishes
+  });
+  return t;
+}
+function entryModeTotals(e){
+  if(!e) return { cash:0, upi:0, card:0, bank:0 };
+  const stored = {
+    cash: Number(e.cash)||0, upi: Number(e.upi)||0,
+    card: Number(e.card)||0, bank: Number(e.bank)||0
+  };
+  if(!(e.items && e.items.length)) return stored;
+  const derived = computeItemTotals(e.items);
+  // Whichever source accounts for more money, taken WHOLE — so the split
+  // always sums to the figure beside it, and a day can never quietly shrink.
+  const storedSum  = stored.cash + stored.upi + stored.card + stored.bank;
+  const derivedSum = derived.cash + derived.upi + derived.card + derived.bank;
+  return derivedSum >= storedSum ? derived : stored;
+}
+function fmtINR(n){
+  n = Number(n) || 0;
+  return new Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits: (n % 1 === 0 ? 0 : 2) }).format(n);
+}
+
 /* ---------------- Drive REST helpers ---------------- */
 /* A stored token can expire mid-session, and an expired token looks exactly
    like a permissions error (401/403) to the code below. Every Drive call
@@ -755,7 +1096,7 @@ async function loadPrescriptions(){
 /* Its own line of versions, starting where lite's leaves off in spirit but
    numbered from a1 so the two can never be mistaken for each other in a
    screenshot. */
-const LITE_VERSION = 'a1.0';
+const LITE_VERSION = 'a2.0';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -843,22 +1184,32 @@ async function doRefresh(){
   cachedRxFolderId = null; cachedSettingsFolderId = null;
   contactsCache = null; contactsTried = false;
   rxVerifyDone = false; refreshScheduled = false;
-  openRx = null; selectedPatient = null; openLine = null; openAllFor = null;
+  openRx = null; openLine = null; openAllFor = null;
   cacheClear(); forgetIds();
   setTab(currentTab);
   await new Promise(r => setTimeout(r, 400));
 }
+const ADMIN_VIEWS = { visits:'viewVisits', payment:'viewPayment', billing:'viewBilling',
+                      lab:'viewLab', followups:'viewFollowups' };
 function setTab(t){
-  /* Coming back to Patients starts at the search again: a name left open
-     from an hour ago is not what the next question is about. */
-  if(t !== currentTab && t === 'patients'){ selectedPatient = null; }
   currentTab = t;
   document.querySelectorAll('.tab-btn').forEach(b =>
     b.classList.toggle('active', b.getAttribute('data-tab') === t));
-  document.getElementById('viewVisits').classList.toggle('hidden', t !== 'visits');
-  document.getElementById('viewPatients').classList.toggle('hidden', t !== 'patients');
+  Object.keys(ADMIN_VIEWS).forEach(k =>
+    document.getElementById(ADMIN_VIEWS[k]).classList.toggle('hidden', k !== t));
   closeRx();
-  if(t === 'visits') renderVisits();
+  renderCurrent();
+}
+/* NOTHING IS READ FOR A TAB THAT IS NOT OPEN (a2.0). The bills and payments
+   indexes are the largest files the clinic has; reading them on boot would
+   slow down every open for the sake of a page that may never be looked at.
+   Each tab fetches what it needs the moment it is shown, and not before. */
+function renderCurrent(){
+  if(currentTab === 'payment')   return renderPayment();
+  if(currentTab === 'billing')   return renderBilling();
+  if(currentTab === 'lab')       return renderLab();
+  if(currentTab === 'followups') return renderFollowups();
+  return renderVisits();
 }
 
 /* HOW LONG AGO, in the words a person would use. The desktop says "2 days
@@ -1068,7 +1419,7 @@ function toggleRx(key){
   repaint();
 }
 function closeRx(){ openRx = null; repaint(); }
-function repaint(){ if(currentTab === 'visits') renderVisits(); else renderPatients(); }
+function repaint(){ renderCurrent(); }
 
 /* ---------------------------- VISITS ------------------------------------ */
 /* WHICH DAY IS BEING READ. Today when the app opens; the arrows walk back a
@@ -1261,93 +1612,243 @@ async function renderVisits(){
   }).join('');
 }
 
-/* ---------------------------- PATIENTS ----------------------------------
-   TWO STEPS, NOT ONE (v1.2). The search used to answer with every
-   prescription of every match at once: on a common first name that is forty
-   people and hundreds of rows, built on every keystroke, and it needed the
-   whole prescriptions index before it could draw anything. Now the search
-   answers with NAMES — which cost only the patient directory — and the
-   prescriptions are read when one name is tapped. */
-let patientQuery = '';
-let selectedPatient = null;
-let searchTimer = null;
+/* The Patients page is gone from this app (a2.0). Looking a patient up and
+   reading their prescriptions is what lite is for; admin is the money, the
+   lab and the calls. The visit card still carries each patient's own
+   prescriptions, which is the only place the owner asked for them here. */
 
-function onSearch(v){
-  patientQuery = String(v || '').trim();
-  selectedPatient = null; openRx = null;
-  /* A phone keyboard fires faster than a render; without this the list is
-     rebuilt for every letter of a name and the typing itself stutters. */
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(renderPatients, 180);
+
+/* ===================== PAYMENT · BILLING · LAB · CALLS ==================
+   Four pages, all read only. The money pages share one period and one date,
+   because "what came in" and "what was raised" are the same question asked
+   two ways, and moving one and not the other is how you end up comparing
+   April's takings with May's bills. */
+let moneyPeriod = 'day';                 // day | month | year
+let moneyDay = todayStr();
+function moneyKey(){
+  return moneyPeriod === 'day' ? moneyDay
+       : moneyPeriod === 'month' ? moneyDay.slice(0, 7)
+       : moneyDay.slice(0, 4);
 }
-function openPatient(pid){ selectedPatient = String(pid); openRx = null; renderPatients(); }
-function backToSearch(){ selectedPatient = null; openRx = null; renderPatients(); }
+function moneyLabelText(){
+  if(moneyPeriod === 'day')  return shortDateMobile(moneyDay) + (moneyDay === todayStr() ? ' \u00b7 Today' : '');
+  if(moneyPeriod === 'month'){
+    const [y, m] = moneyDay.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month:'long', year:'numeric' });
+  }
+  return moneyDay.slice(0, 4);
+}
+function setMoneyPeriod(p){ moneyPeriod = p; renderCurrent(); }
+function stepMoney(delta){
+  const [y, m, d] = moneyDay.split('-').map(Number);
+  let dt;
+  if(moneyPeriod === 'day')        dt = new Date(y, m - 1, d + delta);
+  else if(moneyPeriod === 'month') dt = new Date(y, m - 1 + delta, 1);
+  else                             dt = new Date(y + delta, 0, 1);
+  const cand = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0')
+             + '-' + String(dt.getDate()).padStart(2, '0');
+  /* Never past today: there is no money in the future, and an empty page is
+     a worse answer than a control that will not go there. */
+  if(cand.slice(0, moneyPeriod === 'day' ? 10 : moneyPeriod === 'month' ? 7 : 4)
+     > todayStr().slice(0, moneyPeriod === 'day' ? 10 : moneyPeriod === 'month' ? 7 : 4)) return;
+  moneyDay = cand;
+  renderCurrent();
+}
+function periodChipsHtml(){
+  return ['day','month','year'].map(p =>
+    '<button type="button" class="per-chip' + (moneyPeriod === p ? ' on' : '') + '"'
+    + ' onclick="setMoneyPeriod(\'' + p + '\')">' + p[0].toUpperCase() + p.slice(1) + '</button>').join('');
+}
+function inPeriod(dateStr){
+  const d = String(dateStr || '');
+  const k = moneyKey();
+  return d.slice(0, k.length) === k;
+}
+function tile(label, value, tone){
+  return '<div class="mt' + (tone ? ' mt-' + tone : '') + '">'
+    + '<div class="mt-v">' + value + '</div><div class="mt-k">' + label + '</div></div>';
+}
 
-async function renderPatients(){
-  const list = document.getElementById('patientList');
+/* ---------------------------- PAYMENT ---------------------------------- */
+async function renderPayment(){
+  const chips = document.getElementById('payPeriod');
+  if(chips) chips.innerHTML = periodChipsHtml();
+  document.getElementById('moneyLabel').textContent = moneyLabelText();
+  const nb = document.getElementById('moneyNextBtn');
+  if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
+
+  const list = document.getElementById('payList');
+  const entries = await loadAllEntries().catch(() => null);
+  if(entries === null){
+    list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>';
+    document.getElementById('moneyTotals').innerHTML = '';
+    return;
+  }
   const dir = await getDirectory();
-
-  /* ---- one patient, opened ---- */
-  if(selectedPatient){
-    const pid = selectedPatient;
-    list.innerHTML = '<div class="spin">Reading&hellip;</div>';
-    const all = await getRxIndex();
-    if(selectedPatient !== pid) return;          // they tapped Back meanwhile
-    if(all === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
-    const mine = rxFor(all, pid);
-    const con = await loadPatientContacts().catch(() => null);
-    const who = whoLine(con, pid);
-    let h = '<button type="button" class="btn ghost" onclick="backToSearch()" style="margin:4px 0 14px;">&lsaquo; Back</button>'
-      + '<div class="sec-head"><span class="sec-title">' + escapeHtml(dir[pid] || 'Unknown patient')
-      + ' <span class="muted">' + escapeHtml(String(pid)) + (who ? ' \u00b7 ' + escapeHtml(who) : '') + '</span></span>'
-      + '<span class="count-badge">' + mine.length + '</span></div>';
-    if(!mine.length){ list.innerHTML = h + '<div class="empty-state">No prescriptions</div>'; return; }
-    h += mine.map((r, i) => {
-      const key = 'p:' + pid + ':' + i;
-      const open = openRx === key;
-      return '<div class="row tappable' + (rxIsStruck(r) ? ' struck' : '') + '"'
-          + ' onclick="toggleRx(\'' + key + '\')">'
-        + '<div class="row-head"><div class="row-name">' + escapeHtml(rxWhat(r)) + '</div>'
-          + '<div class="row-when">' + escapeHtml(agoWords(r.date || r.createdAt)) + '</div></div>'
-        + '<div class="row-sub">' + escapeHtml(rxDayLabel(r)) + ' \u00b7 ' + escapeHtml(rxMedCount(r))
-          + (rxIsStruck(r) ? ' \u00b7 struck' : '') + '</div>'
-        + '</div>'
-        + (open ? rxSheetHtml(r, key) : '');
-    }).join('');
-    list.innerHTML = h;
-    return;
-  }
-
-  /* ---- the search: names only ---- */
-  const q = patientQuery.toLowerCase();
-  if(q.length < 2){
-    list.innerHTML = '<div class="empty-state">Type a name or an ID</div>';
-    return;
-  }
-  /* Already on the device after the first open, so this costs nothing. */
-  const searchContacts = contactsCache || cacheRead(CACHE_KEY_CON);
-  const ids = Object.keys(dir || {});
-  const hits = ids
-    .filter(pid => String(dir[pid] || '').toLowerCase().includes(q) || String(pid).toLowerCase().includes(q))
-    /* Names that START with what was typed are what people mean; the rest
-       follow. */
-    .sort((a, b) => {
-      const na = String(dir[a]||'').toLowerCase(), nb = String(dir[b]||'').toLowerCase();
-      const sa = na.startsWith(q) ? 0 : 1, sb = nb.startsWith(q) ? 0 : 1;
-      return sa - sb || na.localeCompare(nb);
+  /* One row per payment, not per entry: an entry is a day's book and holds
+     many. A refund counts against the day, as the desk counts it. */
+  const rows = [];
+  const byMode = {};
+  let total = 0;
+  (entries || []).forEach(e => {
+    if(!e || !inPeriod(e.date)) return;
+    (e.items || []).forEach(it => {
+      if(!it || isVoidedItem(it)) return;
+      const amt = (it.method === 'refund' ? -1 : 1) * (Number(it.amount) || 0);
+      total += amt;
+      const mode = String(it.method || 'cash').toLowerCase();
+      byMode[mode] = (byMode[mode] || 0) + amt;
+      rows.push({ date: e.date, pid: String(it.patientId || ''), amt, mode,
+                  name: (dir && dir[String(it.patientId)]) || it.patientName || 'Unknown patient' });
     });
-  if(!hits.length){ list.innerHTML = '<div class="empty-state">No one by that name</div>'; return; }
-  const shown = hits.slice(0, 30);
-  list.innerHTML = shown.map(pid =>
-      '<div class="row tappable" onclick="openPatient(' + JSON.stringify(String(pid)).replace(/"/g,'&quot;') + ')">'
-    + '<div class="row-head"><div class="row-name">' + escapeHtml(dir[pid] || 'Unknown patient') + '</div>'
-      + '<div class="row-when">&rsaquo;</div></div>'
-    + '<div class="row-sub">' + escapeHtml(String(pid))
-      + (whoLine(searchContacts, pid) ? ' \u00b7 ' + escapeHtml(whoLine(searchContacts, pid)) : '') + '</div>'
-    + '</div>').join('')
-    + (hits.length > shown.length
-        ? '<div class="empty-state">' + (hits.length - shown.length) + ' more \u2014 type a little further</div>'
-        : '');
+  });
+  const modes = Object.keys(byMode).sort((a, b) => byMode[b] - byMode[a]);
+  document.getElementById('moneyTotals').innerHTML =
+    '<div class="mt-row">' + tile('collected', fmtINR(total), 'big')
+    + modes.slice(0, 3).map(m => tile(m, fmtINR(byMode[m]))).join('') + '</div>';
+  rollOrSet('payCount', rows.length);
+  if(!rows.length){ list.innerHTML = '<div class="empty-state">Nothing taken</div>'; return; }
+  rows.sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.amt - a.amt);
+  list.innerHTML = rows.slice(0, 200).map(r =>
+      '<div class="pt-card"><div class="pt-top"><div class="pt-main">'
+    + '<div class="pt-name">' + escapeHtml(r.name) + '</div>'
+    + '<div class="pt-sub">' + escapeHtml(r.pid) + ' \u00b7 ' + escapeHtml(r.mode)
+      + (moneyPeriod === 'day' ? '' : ' \u00b7 ' + escapeHtml(shortDateMobile(r.date))) + '</div>'
+    + '</div><div class="pt-side"><div class="pt-amt' + (r.amt < 0 ? ' neg' : '') + '">'
+      + fmtINR(r.amt) + '</div></div></div></div>').join('')
+    + (rows.length > 200 ? '<div class="empty-state">' + (rows.length - 200) + ' more \u2014 narrow the period</div>' : '');
+}
+function atLatestPeriod(){
+  const k = moneyKey(), t = todayStr();
+  return k === (moneyPeriod === 'day' ? t : moneyPeriod === 'month' ? t.slice(0, 7) : t.slice(0, 4));
+}
+/* rollCount belonged to the app this replaced; a plain set is enough here. */
+function rollOrSet(id, n){ const el = document.getElementById(id); if(el) el.textContent = String(n); }
+
+/* ---------------------------- BILLING ---------------------------------- */
+async function renderBilling(){
+  const chips = document.getElementById('billPeriod');
+  if(chips) chips.innerHTML = periodChipsHtml();
+  document.getElementById('billLabel').textContent = moneyLabelText();
+  const nb = document.getElementById('billNextBtn');
+  if(nb) nb.style.visibility = atLatestPeriod() ? 'hidden' : 'visible';
+
+  const list = document.getElementById('billList');
+  const bills = await loadBills().catch(() => null);
+  if(bills === null){
+    list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>';
+    document.getElementById('billTotals').innerHTML = '';
+    return;
+  }
+  const dir = await getDirectory();
+  const mine = (bills || []).filter(b => b && inPeriod(b.date) && b.status !== 'draft');
+  /* Credit notes are shown, and counted against the total, because a bill
+     raised and then credited is not money the clinic billed. */
+  let billed = 0, credited = 0;
+  mine.forEach(b => {
+    const amt = Number(b.grandTotal) || 0;
+    if(isCreditNote(b)) credited += amt; else if(!isCancelledBill(b)) billed += amt;
+  });
+  document.getElementById('billTotals').innerHTML =
+    '<div class="mt-row">' + tile('billed', fmtINR(billed - credited), 'big')
+    + tile('bills', String(mine.filter(b => !isCreditNote(b)).length))
+    + (credited ? tile('credited', fmtINR(credited), 'neg') : '') + '</div>';
+  rollOrSet('billCount', mine.length);
+  if(!mine.length){ list.innerHTML = '<div class="empty-state">Nothing billed</div>'; return; }
+  mine.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  list.innerHTML = mine.slice(0, 200).map(b => {
+    const cancelled = isCancelledBill(b), credit = isCreditNote(b);
+    const name = (dir && dir[String(b.patientId)]) || b.patientName || 'Unknown patient';
+    return '<div class="pt-card' + (cancelled ? ' struck' : '') + '"><div class="pt-top"><div class="pt-main">'
+      + '<div class="pt-name">' + escapeHtml(name) + '</div>'
+      + '<div class="pt-sub">' + escapeHtml(String(b.patientId || ''))
+        + (b.billNo ? ' \u00b7 ' + escapeHtml(String(b.billNo)) : '')
+        + (moneyPeriod === 'day' ? '' : ' \u00b7 ' + escapeHtml(shortDateMobile(b.date))) + '</div>'
+      + (credit ? '<div class="pt-tag pt-tag-wait">credit note</div>' : '')
+      + (cancelled ? '<div class="pt-tag pt-tag-none">cancelled</div>' : '')
+      + '</div><div class="pt-side"><div class="pt-amt' + (credit ? ' neg' : '') + '">'
+        + fmtINR(Number(b.grandTotal) || 0) + '</div></div></div></div>';
+  }).join('')
+  + (mine.length > 200 ? '<div class="empty-state">' + (mine.length - 200) + ' more \u2014 narrow the period</div>' : '');
+}
+
+/* ------------------------------- LAB ------------------------------------ */
+async function renderLab(){
+  const list = document.getElementById('labList');
+  const cases = await loadLabCases().catch(() => null);
+  if(cases === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
+  const dir = await getDirectory();
+  const live = (cases || []).filter(c => c && !c.struckAt);
+  /* The desk's own three stages, and its own thresholds, so the phone and
+     the desk never disagree about what is late. */
+  /* labStageOf returns an OBJECT with a .key, and its key for a case at the
+     lab is 'sent'. Matching the returned object against a string quietly put
+     every case in no group at all. */
+  const groups = [
+    ['sent',     'At the lab',              7],
+    ['received', 'Back, waiting to fit',    7],
+    ['logged',   'Logged, not picked up',   2]
+  ];
+  const today = todayStr();
+  const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+  let html = '';
+  groups.forEach(([stage, title, limit]) => {
+    const mine = live.filter(c => (labStageOf(c) || {}).key === stage);
+    html += '<div class="sec-head"><span class="sec-title">' + title + '</span>'
+          + '<span class="count-badge">' + mine.length + '</span></div>';
+    if(!mine.length){ html += '<div class="empty-state">None</div>'; return; }
+    mine.sort((a, b) => String(a.dateSent || a.dateLogged || '').localeCompare(String(b.dateSent || b.dateLogged || '')));
+    html += mine.map(c => {
+      /* Waiting since the stage began, not since the case was first logged:
+         a crown that came back yesterday has been waiting a day, whatever
+         date it was sent. */
+      const since = stage === 'received' ? (c.dateReceived || c.dateSent || c.dateLogged)
+                  : stage === 'sent'     ? (c.dateSent || c.dateLogged)
+                  : (c.dateLogged || '');
+      const age = since ? daysBetween(since, today) : null;
+      const late = age !== null && age > limit;
+      const name = (dir && dir[String(c.patientId)]) || c.patientName || 'Unknown patient';
+      return '<div class="pt-card"><div class="pt-top"><div class="pt-main">'
+        + '<div class="pt-name">' + escapeHtml(name) + '</div>'
+        + '<div class="pt-sub">' + escapeHtml(String(c.patientId || ''))
+          /* The desk's own field names: workType and lab. */
+          + (c.workType ? ' \u00b7 ' + escapeHtml(c.workType) : '')
+          + (c.lab ? ' \u00b7 ' + escapeHtml(c.lab) : '') + '</div>'
+        + (late ? '<div class="pt-tag pt-tag-wait">' + age + ' days \u2014 overdue</div>' : '')
+        + '</div><div class="pt-side"><div class="pt-f"><b>' + (age === null ? '\u2014' : age + 'd')
+          + '</b><span>waiting</span></div></div></div></div>';
+    }).join('');
+  });
+  list.innerHTML = html;
+}
+
+/* ---------------------------- FOLLOW-UPS -------------------------------- */
+async function renderFollowups(){
+  const list = document.getElementById('fuList');
+  const all = await loadFollowupsD().catch(() => null);
+  if(all === null){ list.innerHTML = '<div class="empty-state">Waiting on the clinic PC</div>'; return; }
+  const dir = await getDirectory();
+  const today = todayStr();
+  const dueDate = f => String(f.dueDate || f.date || '');
+  /* Due today AND overdue, together: showing only what is due today hides
+     that last week's calls were never made. */
+  const mine = (all || [])
+    .filter(f => f && !f.doneAt && !f.struckAt && dueDate(f) && dueDate(f) <= today)
+    .sort((a, b) => dueDate(a).localeCompare(dueDate(b)));
+  rollOrSet('fuCount', mine.length);
+  if(!mine.length){ list.innerHTML = '<div class="empty-state">Nobody to call</div>'; return; }
+  list.innerHTML = mine.map(f => {
+    const d = dueDate(f), late = d < today;
+    const name = (dir && dir[String(f.patientId)]) || f.patientName || 'Unknown patient';
+    return '<div class="pt-card"><div class="pt-top"><div class="pt-main">'
+      + '<div class="pt-name">' + escapeHtml(name) + '</div>'
+      + '<div class="pt-sub">' + escapeHtml(String(f.patientId || ''))
+        + (f.reason ? ' \u00b7 ' + escapeHtml(f.reason) : '') + '</div>'
+      + (late ? '<div class="pt-tag pt-tag-wait">overdue</div>'
+              : '<div class="pt-tag pt-tag-today">due today</div>')
+      + '</div><div class="pt-side"><div class="pt-f"><b>'
+        + escapeHtml(agoWords(d).replace(' ago', '')) + '</b><span>due</span></div></div></div></div>';
+  }).join('');
 }
 
 /* ---- boot ---------------------------------------------------------------
