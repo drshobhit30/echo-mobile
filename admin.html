@@ -510,7 +510,30 @@ NoTokenError.prototype = Object.create(Error.prototype);
    apart. What is new here is only how they are shown.
 
    None of it runs until its tab is opened. */
-/* Only the state the lifted loaders do NOT declare for themselves. */
+/* Only the state the lifted loaders do NOT declare for themselves.
+
+   These five went missing on the way over and every one of them was fatal in
+   the same quiet way: an undefined name throws a ReferenceError, the loader's
+   own catch swallows it, and the page reports "Waiting on the clinic PC" —
+   which reads as a data problem when it is really a missing line. addDays was
+   stripped from lite as unused; the three bills flags and the catch-up limit
+   are declared far from the loaders that use them. */
+const CATCHUP_DAY_LIMIT = 7;
+let cachedBills = null;
+let entriesIndexInFlight = null;
+let entriesRevalidate = true;
+let entriesSeenModified = null;
+let todaySeenModified = null;
+let billsInFlight = null;
+let billsSeenModified = null;   // modifiedTime of the index already held
+let billsRevalidate = true;
+function addDays(dateStr, delta){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+
+
 let cachedLabcasesFolderId = null;
 let cachedEntriesIndex = null, entriesIndexTried = false;
 let todayEntryCache = null;
@@ -780,6 +803,66 @@ function entryModeTotals(e){
 function fmtINR(n){
   n = Number(n) || 0;
   return new Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits: (n % 1 === 0 ? 0 : 2) }).format(n);
+}
+
+/* Two more that lite had stripped as unused: loadAllEntries walks back
+   through recent days with them. */
+/* The day books live in data/. The app this was lifted from resolved that
+   folder in its own boot routine, which did not come across — so every walk
+   through recent days was querying the children of `null` and finding
+   nothing. Resolved here instead, next to the only code that needs it. */
+async function ensureDataFolder(){
+  if(!cachedDataFolderId) cachedDataFolderId = await driveFindChild(driveFolderId, 'data', true);
+  return cachedDataFolderId;
+}
+async function listRecentDays(){
+  if(!(await ensureDataFolder())) return {};
+  if(dayListCache && !dayListRevalidate) return dayListCache;
+  if(dayListInFlight) return await dayListInFlight;
+  dayListInFlight = (async () => {
+    try{
+      const q = encodeURIComponent("'" + cachedDataFolderId + "' in parents and trashed=false");
+      const res = await driveFetch('https://www.googleapis.com/drive/v3/files?q=' + q
+        + '&orderBy=name desc&pageSize=' + DAY_LIST_SIZE
+        + '&fields=files(id,name,modifiedTime)', 'Drive listing failed');
+      const data = await res.json();
+      const map = {};
+      let oldest = null;
+      (data.files || []).forEach(f => {
+        const m = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name || '');
+        if(!m) return;
+        map[m[1]] = { id: f.id, modifiedTime: f.modifiedTime || null };
+        if(!oldest || m[1] < oldest) oldest = m[1];
+      });
+      dayListCache = map;
+      dayListOldest = oldest;
+      dayListRevalidate = false;
+      return map;
+    }catch(err){
+      if(err && err.name === 'TokenExpiredError') throw err;
+      /* A failed listing must not break the app: callers fall back to the
+         per-name lookup they used before. */
+      return null;
+    }
+  })();
+  try{ return await dayListInFlight; }
+  finally{ dayListInFlight = null; }
+}
+async function findDayFile(dateStr){
+  const list = await listRecentDays();
+  if(list){
+    if(Object.prototype.hasOwnProperty.call(list, dateStr)){
+      lastFoundModifiedTime = list[dateStr].modifiedTime;
+      return list[dateStr].id;
+    }
+    /* Inside the listed range and absent means it genuinely does not exist
+       — no request needed to confirm that. */
+    if(dayListOldest && dateStr >= dayListOldest){
+      lastFoundModifiedTime = null;
+      return null;
+    }
+  }
+  return await driveFindChild(cachedDataFolderId, dateStr + '.json', false);
 }
 
 /* ---------------- Drive REST helpers ---------------- */
