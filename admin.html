@@ -221,7 +221,7 @@ body{ padding-bottom:28px; }
          why it read as empty. -->
     <div class="hd-mark">
       <div class="hd-title">Echo Dental Clinic</div>
-      <div class="hd-v">Nexus <b>A</b> <span id="appVer"></span></div>
+      <div class="hd-v">Nexus <b>A</b> &middot; <span id="appVer"></span></div>
     </div>
   </div>
   <div class="tabbar">
@@ -752,10 +752,6 @@ function billCountsAsMoney(b){
   return !!b && b.status !== 'draft' && !isCancelledBill(b);
 }
 function isCancelledBill(b){ return !!(b && b.cancellation); }
-function isReversedItem(it){ return !!(it && it.reversal); }
-function billCountsAsMoney(b){
-  return !!b && b.status !== 'draft' && !isCancelledBill(b);
-}
 function isVoidedItem(it){ return !!(it && it.voided); }
 function localDateOf(iso){
   if(!iso) return null;
@@ -1179,7 +1175,9 @@ async function loadPrescriptions(){
 /* Its own line of versions, starting where lite's leaves off in spirit but
    numbered from a1 so the two can never be mistaken for each other in a
    screenshot. */
-const LITE_VERSION = 'a2.0';
+/* The letter is already in the mark beside it — "Nexus A a2.0" said it
+   twice. The number alone, and bumped for the loader repairs. */
+const ADMIN_VERSION = '2.2';
 let currentTab = 'visits';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -1770,22 +1768,33 @@ async function renderPayment(){
   const dir = await getDirectory();
   /* One row per payment, not per entry: an entry is a day's book and holds
      many. A refund counts against the day, as the desk counts it. */
-  const rows = [];
-  const byMode = {};
+  /* THE DESK'S OWN ARITHMETIC (a2.2). This used to add the amounts up by
+     hand, which quietly disagreed with the clinic PC in four ways: a
+     write-off is not money, an item reversed on the same day never counted,
+     an unknown method silently vanished instead of folding into cash, and a
+     day whose stored totals exceed its items is taken at its stored figure.
+     entryModeTotals is the function the desk itself uses; it is used here so
+     the two cannot drift apart. */
+  const byMode = { cash:0, upi:0, card:0, bank:0 };
   let total = 0;
+  const rows = [];
   (entries || []).forEach(e => {
     if(!e || !inPeriod(e.date)) return;
+    const t = entryModeTotals(e);
+    ['cash','upi','card','bank'].forEach(m => { byMode[m] += t[m]; total += t[m]; });
+    /* The list below is what made up that figure, so it follows the same
+       rules — anything the totals ignore is not listed either. */
     (e.items || []).forEach(it => {
       if(!it || isVoidedItem(it)) return;
+      if(it.method === 'writeoff') return;
+      if(reversalExcludesFromDayTotals(it)) return;
       const amt = (it.method === 'refund' ? -1 : 1) * (Number(it.amount) || 0);
-      total += amt;
-      const mode = String(it.method || 'cash').toLowerCase();
-      byMode[mode] = (byMode[mode] || 0) + amt;
-      rows.push({ date: e.date, pid: String(it.patientId || ''), amt, mode,
+      rows.push({ date: e.date, pid: String(it.patientId || ''), amt,
+                  mode: String(it.method || 'cash').toLowerCase(),
                   name: (dir && dir[String(it.patientId)]) || it.patientName || 'Unknown patient' });
     });
   });
-  const modes = Object.keys(byMode).sort((a, b) => byMode[b] - byMode[a]);
+  const modes = ['cash','upi','card','bank'].filter(m => byMode[m]);
   document.getElementById('moneyTotals').innerHTML =
     '<div class="mt-row">' + tile('collected', fmtINR(total), 'big')
     + modes.slice(0, 3).map(m => tile(m, fmtINR(byMode[m]))).join('') + '</div>';
@@ -1986,7 +1995,7 @@ function tapToSignIn(){
 }
 window.addEventListener('load', () => {
   const ver = document.getElementById('appVer');
-  if(ver) ver.textContent = LITE_VERSION;
+  if(ver) ver.textContent = ADMIN_VERSION;
   paintGreeting();
   wirePull();
   const saved = localStorage.getItem('echoDental_driveFolderId') || '';
