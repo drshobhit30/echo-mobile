@@ -433,6 +433,7 @@ body{ padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
 .kv-chip-booked{ background:#F1EFE8; color:#444441; } .kv-chip-waiting{ background:#FAEEDA; color:#633806; }
 .kv-chip-ongoing{ background:#E6F1FB; color:#0C447C; } .kv-chip-done{ background:#EAF3DE; color:#27500A; }
 .kv-chip.on{ border-color:currentColor; box-shadow:0 1px 4px rgba(0,0,0,0.12); }
+.kv-done-hint{ display:block; width:100%; margin:4px 0 10px; border:1px dashed var(--line); background:transparent; border-radius:12px; padding:9px; font:inherit; font-size:0.8rem; color:#3B6D11; cursor:pointer; }
 .kv-card{ display:grid; grid-template-columns:42px minmax(0,1fr); gap:11px; align-items:center; background:#fff; border-radius:16px; padding:12px; margin-bottom:8px;
   box-shadow:0 2px 10px rgba(74,59,40,0.07); cursor:pointer; }
 .kv-card:active{ transform:scale(0.99); }
@@ -451,6 +452,91 @@ body{ padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
 .st-noshow-t{ color:#A32D2D; } .st-rough-t{ color:var(--muted); }
 .drawer-wrap{ z-index:60 !important; }
 .prev-rx{ z-index:70 !important; }
+/* ==== A1 HONEY SAND (lite 3.4 / admin 4.5) - overrides the darker gold ==== */
+body{ background:#FDFAF4 !important; }
+.topbar{ background:#EBD9B4 !important; color:#4A3319 !important; position:relative !important; }
+.topbar .hd-greet{ color:#7A6343 !important; }
+.topbar .hd-who{ color:#4A3319 !important; }
+.topbar .hd-v{ color:#7A6343 !important; }
+.topbar .hd-v b{ background:rgba(138,95,38,0.15) !important; color:#6E4A1C !important; }
+.hd-logo{ width:34px !important; height:34px !important; border-radius:10px !important; }
+.hd-lock{ border:0; padding:0; background:#fff; border-radius:11px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; box-shadow:0 1px 4px rgba(74,59,40,0.15); }
+.hd-lock.unlocked{ box-shadow:0 0 0 2px #E24B4A; animation:lockPulse 1.6s ease-out infinite; }
+@keyframes lockPulse{ 0%{ box-shadow:0 0 0 2px #E24B4A, 0 0 0 0 rgba(226,75,74,0.6); } 70%{ box-shadow:0 0 0 2px #E24B4A, 0 0 0 10px rgba(226,75,74,0); } 100%{ box-shadow:0 0 0 2px #E24B4A, 0 0 0 0 rgba(226,75,74,0); } }
+/* the date strip and the chips stay put while the list scrolls */
+.cal-sticky{ position:sticky; top:0; z-index:25; margin:0 -14px; padding:0 14px; background:#F6EEDD; box-shadow:0 4px 10px -8px rgba(74,59,40,0.35); }
+.cal-band{ background:#EBD9B4 !important; color:#4A3319 !important; margin:0 -14px !important; padding:4px 14px 10px !important; border-radius:0 !important; }
+.cal-month{ color:#4A3319 !important; }
+.cal-total b{ background:#8A5F26 !important; color:#fff !important; }
+.kv-d{ color:#4A3319 !important; }
+.kv-d.sel b{ background:#8A5F26 !important; color:#fff !important; }
+.kv-d.is-today b{ box-shadow: inset 0 0 0 1.5px #8A5F26 !important; }
+.cal-sched-head{ padding-top:8px; margin:0 2px 6px !important; }
+.cal-chips{ padding-bottom:10px !important; margin-bottom:0 !important; }
+#calList{ padding-top:10px; }
+/* option A cards */
+.ka-card{ display:flex; background:#fff; border-radius:16px; margin-bottom:10px; overflow:hidden; box-shadow:0 2px 10px rgba(74,59,40,0.07); cursor:pointer; }
+.ka-card:active{ transform:scale(0.99); }
+.ka-band{ flex:0 0 6px; }
+.ka-in{ flex:1; min-width:0; padding:12px 14px 13px; }
+.ka-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.ka-when{ font-size:0.8rem; font-weight:700; }
+.ka-name{ font-size:1.02rem; font-weight:700; color:var(--ink); margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ka-name span{ font-size:0.76rem; font-weight:400; color:var(--muted); }
+.ka-meta{ display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; font-size:0.78rem; color:var(--brown); }
+.ka-meta i{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; }
+.ka-rx{ color:#8A5F26; font-weight:600; }
+.ka-card.is-rough{ opacity:0.6; }
+.ka-card.is-struck{ opacity:0.72; }
+.ka-card.is-struck .ka-name{ text-decoration:line-through; }
+/* drawer 2: the printed slip */
+.dr-head{ align-items:flex-start !important; }
+.dr-sub{ display:block; font-size:0.76rem; color:var(--muted); margin-top:2px; }
+.dr-sub i{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
+.sl{ border:1px solid #E9DCC6; border-radius:14px; overflow:hidden; margin:10px 0; background:#fff; }
+.sl-head{ background:#8A5F26; color:#fff; padding:7px 12px; display:flex; justify-content:space-between; font-size:0.84rem; }
+.sl-head span{ opacity:0.85; }
+.sl-body{ padding:10px 12px; font-size:0.86rem; color:var(--ink); }
+.sl-line{ display:grid; grid-template-columns:14px 1fr; gap:6px; margin-bottom:6px; align-items:baseline; }
+.sl-line i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+.sl-line b{ font-weight:600; }
+.sl-meds{ background:#E6F1FB; border-radius:9px; overflow:hidden; margin-top:8px; }
+.sl-mh, .sl-mr{ display:grid; grid-template-columns:1fr 52px 40px; gap:6px; padding:5px 9px; }
+.sl-mh{ font-size:0.66rem; color:#185FA5; letter-spacing:0.05em; text-transform:uppercase; font-weight:700; }
+.sl-mr{ background:#fff; border-top:1px solid #E6F1FB; }
+.sl-mr small{ display:block; font-size:0.68rem; color:var(--muted); }
+.sl-advice{ background:#FAEEDA; color:#633806; border-radius:9px; padding:7px 9px; margin-top:8px; }
+.sl-struck{ font-size:0.76rem; color:#A32D2D; margin-bottom:6px; }
+.sl.is-struck .sl-body{ opacity:0.7; }
+.dr-btns .dr-btn{ margin-top:0 !important; }
+/* history 1 */
+.prev-rx{ background:#FDFAF4 !important; }
+.hs-head{ background:#EBD9B4; color:#4A3319; margin:0 -14px 10px; padding:10px 14px 12px; }
+.hs-head b{ display:block; font-size:1.05rem; }
+.hs-head span{ font-size:0.76rem; color:#7A6343; }
+.hs-month{ font-size:0.7rem; font-weight:700; letter-spacing:0.07em; color:#854F0B; margin:12px 0 6px; }
+.hs-line{ border-left:2px solid #E9DCC6; margin-left:6px; padding-left:14px; }
+.hs-item{ position:relative; background:#fff; border-radius:13px; margin-bottom:8px; box-shadow:0 1px 6px rgba(74,59,40,0.07); }
+.hs-dot{ position:absolute; left:-21px; top:13px; width:11px; height:11px; border-radius:50%; border:2px solid #FDFAF4; }
+.hs-top{ padding:9px 11px; cursor:pointer; }
+.hs-date{ font-size:0.74rem; color:var(--muted); display:flex; gap:4px; align-items:baseline; }
+.hs-date span{ margin-left:auto; }
+.hs-what{ font-size:0.9rem; font-weight:600; color:var(--ink); margin-top:2px; }
+.hs-item .sl{ margin:0 10px 10px; }
+.hs-item.is-struck .hs-what{ text-decoration:line-through; opacity:0.7; }
+.prev-rx .wrap > .btn.ghost{ position:sticky; top:0; z-index:2; }
+
+/* chips read clearly on the sand bar: white with the status colour, filled when picked */
+.kv-chip{ background:#fff !important; border:1px solid #E9DCC6 !important; }
+.kv-chip-booked{ color:#854F0B !important; } .kv-chip-waiting{ color:#BA7517 !important; }
+.kv-chip-ongoing{ color:#185FA5 !important; } .kv-chip-done{ color:#3B6D11 !important; }
+.kv-chip b{ background:#F6EEDD !important; }
+.kv-chip-booked.on{ background:#EF9F27 !important; color:#fff !important; border-color:#EF9F27 !important; }
+.kv-chip-waiting.on{ background:#BA7517 !important; color:#fff !important; border-color:#BA7517 !important; }
+.kv-chip-ongoing.on{ background:#378ADD !important; color:#fff !important; border-color:#378ADD !important; }
+.kv-chip-done.on{ background:#639922 !important; color:#fff !important; border-color:#639922 !important; }
+.kv-chip.on b{ background:rgba(255,255,255,0.3) !important; }
+.dr-headr{ display:flex; align-items:center; gap:8px; flex:none; }
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -466,14 +552,12 @@ body{ padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
          It sits between the greeting and the clinic name, centred against
          both — the two sides flex equally so it stays in the middle of the
          row, and align-items centres it vertically. -->
-    <img class="hd-logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2326211B'/%3E%3Cstop offset='1' stop-color='%23181410'/%3E%3C/linearGradient%3E%3ClinearGradient id='t' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23E2B877'/%3E%3Cstop offset='1' stop-color='%23A6722E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23b)'/%3E%3Cpath fill='url(%23t)' d='M16 6c-5.3 0-8.8 2.7-8.8 7 0 3.5 1.5 4.9 2.1 8.8.5 3 .9 4.9 2.6 4.9 1.8 0 2.1-2.1 2.5-5.6.2-1.8.5-2.7 1.6-2.7s1.4.9 1.6 2.7c.4 3.5.7 5.6 2.5 5.6 1.7 0 2.1-1.9 2.6-4.9.6-3.9 2.1-5.3 2.1-8.80-4.3-3.5-7-8.8-7z'/%3E%3C/svg%3E">
+    <button type="button" class="hd-lock" id="adminBtn" onclick="openPinPad()" aria-label="Admin"><img class="hd-logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2326211B'/%3E%3Cstop offset='1' stop-color='%23181410'/%3E%3C/linearGradient%3E%3ClinearGradient id='t' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23E2B877'/%3E%3Cstop offset='1' stop-color='%23A6722E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23b)'/%3E%3Cpath fill='url(%23t)' d='M16 6c-5.3 0-8.8 2.7-8.8 7 0 3.5 1.5 4.9 2.1 8.8.5 3 .9 4.9 2.6 4.9 1.8 0 2.1-2.1 2.5-5.6.2-1.8.5-2.7 1.6-2.7s1.4.9 1.6 2.7c.4 3.5.7 5.6 2.5 5.6 1.7 0 2.1-1.9 2.6-4.9.6-3.9 2.1-5.3 2.1-8.80-4.3-3.5-7-8.8-7z'/%3E%3C/svg%3E"></button>
     <!-- The clinic is the heading; the app and its build sit under it as the
          small print. The corner used to hold only a version number, which is
          why it read as empty. -->
     <div class="hd-mark">
-      <div class="hd-title">Echo Dental Clinic</div>
       <div class="hd-v">Nexus <b>A</b> &middot; <span id="appVer"></span></div>
-      <button type="button" class="admin-btn" id="adminBtn" onclick="openPinPad()">🔒 Admin</button>
     </div>
   </div>
   <div class="tabbar">
@@ -498,6 +582,7 @@ body{ padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
   </div>
   <div id="appScreen" class="hidden">
     <div id="viewCalendar">
+      <div class="cal-sticky">
       <div class="cal-band">
         <div class="cal-band-row">
           <button type="button" class="cal-month" id="calMonth" onclick="Cal.openDatePicker()">&mdash;</button>
@@ -508,6 +593,7 @@ body{ padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
       </div>
       <div class="cal-sched-head"><span id="calDayWord"></span><span class="cal-fresh" id="calFresh"></span></div>
       <div class="cal-chips" id="calChips"></div>
+      </div>
       <div id="calUnsettled"></div>
       <div id="calList"></div>
     </div>
@@ -962,15 +1048,10 @@ function rowsFor(day){
   return rows;
 }
 const AV_TONES = [['#EEEDFE','#3C3489'],['#E1F5EE','#085041'],['#FBEAF0','#72243E'],['#E6F1FB','#0C447C'],['#EAF3DE','#27500A']];
-function avatarOf(r){
-  const src = String(r.name || '').replace(/^ID\s+/, '').trim();
-  const parts = src.split(/\s+/).filter(Boolean);
-  const ini = ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
-  let h = 0; const k = String(r.patientId || r.name || '');
-  for(let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) % 9973;
-  const t = AV_TONES[h % AV_TONES.length];
-  return '<div class="kv-av" style="background:' + t[0] + ';color:' + t[1] + ';">' + escapeHtml(ini) + '</div>';
-}
+/* OPTION A (owner's pick, lite 3.4 / admin 4.5): a coloured band down the left
+   says the status at a glance; time and status pill on top; the name large;
+   doctor, reason and prescriptions on one quiet line beneath. */
+const BAND = { booked:'#EF9F27', waiting:'#BA7517', ongoing:'#378ADD', done:'#639922', came:'#639922', noshow:'#E24B4A', rough:'#B4B2A9' };
 function rowHtml(r, day){
   if(r.kind === 'block' || r.kind === 'leave'){
     const when = r.allDay ? 'all day' : (Number.isFinite(r.mins) ? clock(r.mins) + (Number.isFinite(r.end) ? ' \u2013 ' + clock(r.end) : '') : '');
@@ -980,19 +1061,78 @@ function rowHtml(r, day){
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
   const rxN = r.patientId ? rxFor(r.patientId).length : 0;
   const as = r.patientId ? ageSexOf(r.patientId) : '';
-  const docLine = [doctorLabel(r.doctor) || (r.rough ? 'rough slot' : 'no doctor yet'), r.reason, rxN ? '\u211e ' + rxN : ''].filter(Boolean).join(' \u00b7 ');
   let when;
   if(r.kind === 'walkin') when = 'walk-in' + (Number.isFinite(r.mins) ? ' \u00b7 ' + clock(r.mins) : '');
   else if(Number.isFinite(r.mins)) when = clock(r.mins) + (r.len && !r.rough ? ' \u2013 ' + clock(r.mins + r.len) : '');
   else when = 'any time';
-  return '<div class="kv-card' + (r.rough ? ' is-rough' : '') + (r.struck ? ' is-struck' : '') + '"'
+  const meta = [
+    '<span><i style="background:' + doctorColor(r.doctor) + ';"></i>' + escapeHtml(doctorLabel(r.doctor) || (r.rough ? 'rough slot' : 'no doctor yet')) + '</span>',
+    r.reason ? '<span>' + escapeHtml(r.reason) + '</span>' : '',
+    rxN ? '<span class="ka-rx">\u211e ' + rxN + '</span>' : ''
+  ].filter(Boolean).join('');
+  return '<div class="ka-card' + (r.rough ? ' is-rough' : '') + (r.struck ? ' is-struck' : '') + '"'
     + ' onclick="Cal.openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')">'
-    + avatarOf(r)
-    + '<div class="kv-main">'
-      + '<div class="kv-name">' + escapeHtml(r.name) + (as ? ' <span>' + escapeHtml(as) + '</span>' : '') + '</div>'
-      + '<div class="kv-doc"><i style="background:' + doctorColor(r.doctor) + ';"></i>' + escapeHtml(docLine) + '</div>'
-      + '<div class="kv-when"><b class="' + chip[1] + '-t">' + chip[0] + '</b> ' + escapeHtml(when) + '</div>'
+    + '<div class="ka-band" style="background:' + (BAND[r.status] || BAND.booked) + ';"></div>'
+    + '<div class="ka-in">'
+      + '<div class="ka-top"><span class="ka-when ' + chip[1] + '-t">' + escapeHtml(when) + '</span><span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span></div>'
+      + '<div class="ka-name">' + escapeHtml(r.name) + (as ? ' <span>' + escapeHtml(as) + '</span>' : '') + '</div>'
+      + '<div class="ka-meta">' + meta + '</div>'
     + '</div></div>';
+}
+
+/* THE PRINTED SLIP (drawer option 2). Coloured dots for what was found and
+   done, the medicines as a table, advice in its own box. */
+function slipHtml(rec, title){
+  const line = (color, label, v) => v ? '<div class="sl-line"><i style="background:' + color + ';"></i><span><b>' + label + '</b> \u00b7 ' + escapeHtml(v) + '</span></div>' : '';
+  const meds = ((rec && rec.medicines) || []).filter(m => m && m.name);
+  const empty = !meds.length && !rec.treatment && !rec.advice && !rec.complaints && !rec.investigations;
+  return '<div class="sl' + (rxIsStruck(rec) ? ' is-struck' : '') + '">'
+    + (title ? '<div class="sl-head"><b>' + escapeHtml(title) + '</b><span>' + escapeHtml(rxDayLabel(rec)) + '</span></div>' : '')
+    + '<div class="sl-body">'
+      + (rxIsStruck(rec) ? '<div class="sl-struck">Struck' + (rec.struckReason ? ' \u00b7 ' + escapeHtml(rec.struckReason) : '') + '</div>' : '')
+      + line('#E24B4A', 'Complaint', rec.complaints)
+      + line('#7F77DD', 'Test', rec.investigations)
+      + line('#1D9E75', 'Treatment', rec.treatment)
+      + (meds.length ? '<div class="sl-meds"><div class="sl-mh"><span>Medicine</span><span>Dose</span><span>Days</span></div>'
+          + meds.map(m => '<div class="sl-mr"><span>' + escapeHtml(m.name) + (m.food ? '<small>' + escapeHtml(m.food) + ' food</small>' : '') + '</span>'
+            + '<span>' + escapeHtml(m.dose || '\u2014') + '</span><span>' + escapeHtml(String(m.duration || '\u2014').replace(/\s*days?$/i, '')) + '</span></div>').join('')
+          + '</div>' : '')
+      + (rec.advice ? '<div class="sl-advice">\uD83D\uDCA1 ' + escapeHtml(rec.advice) + '</div>' : '')
+      + (empty ? '<div class="muted" style="font-size:0.84rem;">Nothing was written on this one.</div>' : '')
+    + '</div></div>';
+}
+
+/* HISTORY 1: month headings, a timeline, a dot coloured by how recent. The
+   newest opens with its slip; any other opens on a tap. No money here, in
+   either app (owner's call) - money is Full history's. */
+function ageDot(dateStr){
+  const days = daysBetween(String(dateStr || '').slice(0, 10) || todayStr(), todayStr());
+  return days <= 31 ? '#1D9E75' : days <= 92 ? '#378ADD' : days <= 365 ? '#BA7517' : '#B4B2A9';
+}
+function historyHtml(pid, openIdx, toggleCall){
+  const mine = rxFor(pid).slice().sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')));
+  const as = ageSexOf(pid);
+  let h = '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
+    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + mine.length + ' prescription' + (mine.length === 1 ? '' : 's') + '</span></div>';
+  if(!mine.length) return h + '<div class="empty-state">No prescriptions on record</div>';
+  let month = '';
+  mine.forEach((r, i) => {
+    const d = String(r.date || r.createdAt || '').slice(0, 10);
+    const m = /^\d{4}-\d{2}/.test(d) ? dateOf(d).toLocaleDateString('en-IN', { month:'long', year:'numeric' }).toUpperCase() : 'UNDATED';
+    if(m !== month){ if(month) h += '</div>'; month = m; h += '<div class="hs-month">' + escapeHtml(m) + '</div><div class="hs-line">'; }
+    const open = i === openIdx;
+    const dot = ageDot(d);
+    h += '<div class="hs-item' + (open ? ' open' : '') + (rxIsStruck(r) ? ' is-struck' : '') + '">'
+      + '<i class="hs-dot" style="background:' + dot + ';"></i>'
+      + '<div class="hs-top" onclick="' + toggleCall + '(' + i + ')">'
+        + '<div class="hs-date"><b style="color:' + dot + ';">' + (d ? escapeHtml(shortDate(d)) : '\u2014') + '</b> \u00b7 ' + escapeHtml(agoWords(d))
+          + (r.doctor ? ' \u00b7 ' + escapeHtml(r.doctor) : '') + '<span>' + escapeHtml(rxMedCount(r)) + '</span></div>'
+        + '<div class="hs-what">' + escapeHtml(rxWhat(r)) + '</div>'
+      + '</div>'
+      + (open ? slipHtml(r, '') : '')
+      + '</div>';
+  });
+  return h + '</div>';
 }
 
 /* ---------------------------------------------------------- the calendar -- */
@@ -1064,9 +1204,17 @@ function renderCalendar(){
     list.innerHTML = '<div class="cal-skel"></div><div class="cal-skel"></div><div class="cal-skel"></div>';
   } else {
     const def = CHIP_DEFS.find(c => c[0] === statusFilter);
-    const shown = def ? all.filter(r => (r.kind === 'appt' || r.kind === 'walkin') && def[2](r)) : all;
-    list.innerHTML = shown.length ? shown.map(r => rowHtml(r, viewDay)).join('')
-      : '<div class="empty-state">' + (def ? 'Nobody ' + def[1].toLowerCase() : (viewDay < today ? 'Nobody booked or came' : 'Nothing booked yet')) + '</div>';
+    /* DONE IS OUT OF THE WAY (owner's call, lite 3.3 / admin 4.4): with no
+       chip picked the list is who is still to come or still in; the finished
+       ones show only under Done. */
+    const isDone = r => r.status === 'done' || r.status === 'came';
+    const shown = def ? all.filter(r => (r.kind === 'appt' || r.kind === 'walkin') && def[2](r))
+                      : all.filter(r => !((r.kind === 'appt' || r.kind === 'walkin') && isDone(r)));
+    const doneCount = people.filter(isDone).length;
+    const doneHint = (!def && doneCount)
+      ? '<button type="button" class="kv-done-hint" onclick="Cal.setStatusFilter(\'done\')">' + doneCount + ' done \u00b7 tap Done to see ' + (doneCount === 1 ? 'them' : 'them') + '</button>' : '';
+    list.innerHTML = (shown.length ? shown.map(r => rowHtml(r, viewDay)).join('')
+      : '<div class="empty-state">' + (def ? 'Nobody ' + def[1].toLowerCase() : (doneCount ? 'Everyone is done' : (viewDay < today ? 'Nobody booked or came' : 'Nothing booked yet'))) + '</div>') + doneHint;
   }
   paintFreshness();
   if(typeof paintAdminExtras === 'function') paintAdminExtras();
@@ -1103,18 +1251,18 @@ function openDrawer(day, kind, id){
   lastDrawer = { day, kind, id };
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
   const as = r.patientId ? ageSexOf(r.patientId) : '';
+  const when = r.kind === 'walkin' ? 'walk-in ' + clock(r.mins) : clock(r.mins);
   let h = '<div class="dr-grip"></div>'
     + '<div class="dr-head"><div><b>' + escapeHtml(r.name) + '</b>'
-      + (r.patientId ? ' <span>' + escapeHtml(String(r.patientId)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>' : '') + '</div>'
-      + '<button type="button" class="dr-x" onclick="Cal.closeDrawer()" aria-label="Close">\u2715</button></div>'
-    + '<div class="dr-line">' + escapeHtml([dayTitle(day), r.kind === 'walkin' ? 'walk-in ' + clock(r.mins) : clock(r.mins), doctorLabel(r.doctor)].filter(Boolean).join(' \u00b7 '))
-      + ' <span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span></div>';
+      + '<span class="dr-sub">' + escapeHtml([r.patientId ? String(r.patientId) : '', as].filter(Boolean).join(' \u00b7 ')) + (r.patientId ? ' \u00b7 ' : '')
+      + '<i style="background:' + doctorColor(r.doctor) + ';"></i>' + escapeHtml([doctorLabel(r.doctor), when].filter(Boolean).join(' \u00b7 ')) + '</span></div>'
+      + '<span class="dr-headr"><span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>'
+      + '<button type="button" class="dr-x" onclick="Cal.closeDrawer()" aria-label="Close">\u2715</button></span></div>';
   if(r.visitId){
     const mine = r.patientId ? rxFor(r.patientId).filter(x => String(x.date || '').slice(0, 10) === day) : [];
-    h += '<div class="dr-panel"><div class="rxs-k">\u211e ' + (day === todayStr() ? 'today' : 'that day') + '</div>'
-      + (mine.length ? mine.map(x => '<div class="dr-rx">' + escapeHtml(rxWhat(x)) + '<span>' + escapeHtml(rxMedCount(x)) + '</span></div>' + rxDetailHtml(x)).join('')
-                     : '<div class="muted">None written</div>')
-      + '</div>';
+    const title = '\u211e ' + (day === todayStr() ? 'Today' : 'That day');
+    h += mine.length ? mine.map(x => slipHtml(x, title)).join('')
+      : '<div class="sl"><div class="sl-head"><b>' + title + '</b><span>' + escapeHtml(shortDate(day, true)) + '</span></div><div class="sl-body"><div class="muted">None written</div></div></div>';
   } else {
     const row = (k, v) => v ? '<div class="dr-kv"><span>' + k + '</span><span>' + escapeHtml(v) + '</span></div>' : '';
     h += '<div class="dr-kvs">'
@@ -1129,12 +1277,13 @@ function openDrawer(day, kind, id){
       + '<div class="dr-panel" id="drPending"><div class="rxs-k">Pending</div><div class="muted">Reading\u2026</div></div></div>';
   }
   if(r.patientId){
-    h += '<div class="dr-btns"><button type="button" class="btn ghost dr-btn" onclick="Cal.openPrevRx(' + jsArg(r.patientId) + ')">\uD83D\uDCDC Previous prescriptions</button>'
+    h += '<div class="dr-btns"><button type="button" class="btn ghost dr-btn" onclick="Cal.openPrevRx(' + jsArg(r.patientId) + ')">\uD83D\uDCDC Previous \u211e</button>'
       + (hooks.adminOn() ? '<button type="button" class="btn ghost dr-btn" onclick="Cal.fullHistory(' + jsArg(r.patientId) + ')">\uD83D\uDDC2\uFE0F Full history</button>' : '')
       + '</div>';
   }
   const sheet = document.getElementById('drawer');
   sheet.innerHTML = h;
+  sheet.scrollTop = 0;
   document.getElementById('drawerWrap').classList.remove('hidden');
   if(r.patientId && hooks.adminOn() && r.visitId) fillMoney(r.patientId, day);
 }
@@ -1152,30 +1301,17 @@ function wireDrawer(){
 }
 
 /* ------------------------------------------------ previous prescriptions -- */
-let prevOpen = null;   // index open in the list; null = newest
+let prevOpen = 0;
+let prevPid = null;
 function openPrevRx(pid){
-  prevOpen = null;
+  prevPid = String(pid); prevOpen = 0;
   renderPrevRx(pid);
   document.getElementById('prevRx').classList.remove('hidden');
-  window.scrollTo(0, 0);
+  document.getElementById('prevRx').scrollTop = 0;
 }
-function togglePrev(pid, i){ prevOpen = (prevOpen === i) ? -1 : i; renderPrevRx(pid); }
+function togglePrev(i){ prevOpen = (prevOpen === i) ? -1 : i; renderPrevRx(prevPid); }
 function renderPrevRx(pid){
-  const mine = rxFor(pid);
-  const as = ageSexOf(pid);
-  const openIdx = prevOpen === null ? 0 : prevOpen;
-  document.getElementById('prevRxBody').innerHTML =
-    '<div class="pv-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b> <span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
-    + '<div class="muted">' + mine.length + ' prescription' + (mine.length === 1 ? '' : 's') + ' \u00b7 newest first</div></div>'
-    + (mine.length ? mine.map((r, i) =>
-        '<div class="rx-line' + (i === openIdx ? ' rx-line-open' : '') + (rxIsStruck(r) ? ' struck' : '') + '">'
-        + '<div class="rx-line-head" onclick="Cal.togglePrev(' + jsArg(pid) + ',' + i + ')">'
-          + '<span class="rx-mark">\u211e</span><span class="rx-line-main"><span class="rx-line-what">' + escapeHtml(rxWhat(r)) + '</span>'
-          + '<span class="rx-line-meta">' + escapeHtml(rxDayLabel(r)) + ' \u00b7 ' + escapeHtml(agoWords(r.date || r.createdAt)) + ' \u00b7 ' + escapeHtml(rxMedCount(r))
-          + (rxIsStruck(r) ? ' \u00b7 struck' : '') + '</span></span>'
-          + '<span class="rx-chev">' + (i === openIdx ? '\u2013' : '+') + '</span></div>'
-        + (i === openIdx ? rxDetailHtml(r) : '') + '</div>').join('')
-      : '<div class="empty-state">No prescriptions on record</div>');
+  document.getElementById('prevRxBody').innerHTML = historyHtml(pid, prevOpen, 'Cal.togglePrev');
 }
 function closePrevRx(){ document.getElementById('prevRx').classList.add('hidden'); }
 
@@ -1189,21 +1325,8 @@ function renderPatients(){
   const dir = S('patients.json') || {};
   if(selectedPatient){
     const pid = selectedPatient;
-    list.innerHTML = '<button type="button" class="btn ghost" onclick="Cal.backToSearch()" style="margin:4px 0 12px;">&lsaquo; Back</button><div id="patientRx"></div>';
-    const mine = rxFor(pid);
-    const as = ageSexOf(pid);
-    const openIdx = prevOpen === null ? 0 : prevOpen;
-    document.getElementById('patientRx').innerHTML =
-      '<div class="pv-head"><b>' + escapeHtml(dir[pid] || 'Unknown patient') + '</b> <span>' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
-      + '<div class="muted">' + mine.length + ' prescription' + (mine.length === 1 ? '' : 's') + '</div></div>'
-      + (mine.length ? mine.map((r, i) =>
-          '<div class="rx-line' + (i === openIdx ? ' rx-line-open' : '') + (rxIsStruck(r) ? ' struck' : '') + '">'
-          + '<div class="rx-line-head" onclick="Cal.togglePatientRx(' + i + ')">'
-            + '<span class="rx-mark">\u211e</span><span class="rx-line-main"><span class="rx-line-what">' + escapeHtml(rxWhat(r)) + '</span>'
-            + '<span class="rx-line-meta">' + escapeHtml(rxDayLabel(r)) + ' \u00b7 ' + escapeHtml(agoWords(r.date || r.createdAt)) + ' \u00b7 ' + escapeHtml(rxMedCount(r)) + '</span></span>'
-            + '<span class="rx-chev">' + (i === openIdx ? '\u2013' : '+') + '</span></div>'
-          + (i === openIdx ? rxDetailHtml(r) : '') + '</div>').join('')
-        : '<div class="empty-state">No prescriptions</div>');
+    list.innerHTML = '<button type="button" class="btn ghost" onclick="Cal.backToSearch()" style="margin:4px 0 12px;">&lsaquo; Back</button>'
+      + historyHtml(pid, prevOpen === null ? 0 : prevOpen, 'Cal.togglePatientRx');
     return;
   }
   const q = patientQuery.toLowerCase();
@@ -1278,7 +1401,7 @@ function drawerReturn(){ return lastDrawer; }
 function togglePatientRx(i){ prevOpen = (prevOpen === i ? -1 : i); renderPatients(); }
 function forgetForLock(){ unsettledAsked = false; }
 
-return { hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
+return { historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear,
   resetFresh: () => { settingsFreshThisOpen = false; } };
@@ -1375,8 +1498,9 @@ function cacheIdsNoop(){}
 function paintLock(){
   const b = document.getElementById('adminBtn');
   if(!b) return;
-  b.classList.toggle('open', adminOn());
-  b.innerHTML = adminOn() ? '\uD83D\uDD13 Lock' : '\uD83D\uDD12 Admin';
+  b.classList.toggle('unlocked', adminOn());
+  b.setAttribute('aria-label', adminOn() ? 'Lock admin' : 'Admin');
+  b.title = adminOn() ? 'Admin is open \u2014 tap to lock' : 'Tap for admin';
 }
 let pinDigits = '';
 function openPinPad(){
@@ -2276,7 +2400,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.3';
+const ADMIN_VERSION = '4.5';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
