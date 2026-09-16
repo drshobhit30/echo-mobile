@@ -727,7 +727,8 @@ function paintFreshness(){
   const held = mem.days[viewDay];
   const at = held && held.at ? new Date(held.at).toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit' }) : '';
   if(freshness === 'updating') el.textContent = held ? 'Showing saved copy' + (at ? ' from ' + at : '') + ' \u00b7 updating\u2026' : 'Reading\u2026';
-  else if(freshness === 'failed') el.textContent = held ? 'No connection \u00b7 saved copy' + (at ? ' from ' + at : '') : 'Not read yet \u2014 needs a connection';
+  else if(freshness === 'failed') el.textContent = held ? 'No connection \u00b7 saved copy' + (at ? ' from ' + at : '') + (lastWeekError && lastWeekError !== 'offline' ? ' \u00b7 ' + lastWeekError : '')
+    : (lastWeekError && lastWeekError !== 'offline' ? 'Could not read: ' + lastWeekError : 'Not read yet \u2014 needs a connection');
   else el.textContent = at ? 'Updated ' + at : '';
 }
 
@@ -3355,7 +3356,6 @@ window.addEventListener('load', () => {
   boot();
 });
 window.addEventListener('hashchange', () => { if(/relay=/.test(location.hash)) boot(); });
-</script></body></html>
 
 /* PASTED, NOT OPENED (iPhone). An app added to the Home Screen does not share
    storage with Safari, so a link opened in Safari never reaches it. The same
