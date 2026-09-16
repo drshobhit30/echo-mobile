@@ -5,7 +5,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Echo Admin">
-<link rel="apple-touch-icon" href="icon-192.png"><script src="https://accounts.google.com/gsi/client" async defer></script><style>:root{
+<link rel="apple-touch-icon" href="icon-192.png"><style>:root{
     --gold-deep:#8A5F26;
     --gold:#AF7933;
     --muted:#8a7a63;
@@ -298,7 +298,95 @@ body{ padding-bottom:28px; }
   font-weight:600; margin-top:10px; }
 .rxs-v{ font-size:0.9rem; color:var(--brown); white-space:pre-wrap; }
 .rxs-med{ border-top:1px solid rgba(0,0,0,0.06); padding:6px 0 4px; font-size:0.9rem; font-weight:600; }
-.rxs-dose{ font-size:0.8rem; color:var(--muted); font-weight:400; }</style></head><body>
+.rxs-dose{ font-size:0.8rem; color:var(--muted); font-weight:400; }/* ---- v3.0 calendar ---- */
+.cal-top{ text-align:center; margin:12px 0 6px; }
+.cal-title{ font-size:1.05rem; font-weight:700; color:var(--ink); background:none; border:0; font-family:inherit; padding:2px 6px; cursor:pointer; }
+.cal-title::after{ content:' \25BE'; font-size:0.7rem; color:var(--muted); }
+.cal-rel{ font-size:0.78rem; color:var(--muted); margin-top:1px; }
+.cal-today-word{ color:var(--gold-deep); font-weight:600; }
+.link{ background:none; border:0; padding:0; font:inherit; color:var(--gold-deep); text-decoration:underline; cursor:pointer; }
+#calPicker{ position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+.cal-strip{ display:grid; grid-template-columns:14px repeat(7, 1fr) 14px; gap:3px; margin:8px -14px 2px; padding:0 0; touch-action:pan-y; }
+.cal-d{ border:0; background:none; font-family:inherit; font-size:0.66rem; color:var(--muted); padding:6px 0; border-radius:10px; display:flex; flex-direction:column; align-items:center; gap:1px; cursor:pointer; }
+.cal-d b{ font-size:0.86rem; color:var(--ink); font-weight:600; }
+.cal-d.peek{ opacity:0.35; overflow:hidden; }
+.cal-d.sel{ background:var(--gold-deep); color:#fff; }
+.cal-d.sel b{ color:#fff; }
+.cal-d.today{ box-shadow: inset 0 0 0 1px var(--gold-deep); }
+.cal-d.today b{ color:var(--gold-deep); }
+.cal-range{ text-align:center; font-size:0.7rem; color:var(--muted); }
+.cal-fresh{ text-align:center; font-size:0.7rem; color:var(--muted); min-height:14px; margin:2px 0 10px; }
+.cal-row{ display:grid; grid-template-columns:58px minmax(0,1fr) auto; gap:8px; align-items:center; background:var(--white); border:1px solid var(--line); border-left:4px solid #B4B2A9; border-radius:11px; padding:9px 10px; margin-bottom:6px; cursor:pointer; }
+.cal-row:active{ transform:scale(0.99); }
+.cal-row.is-rough{ border-left-style:dashed; opacity:0.85; }
+.cal-row.is-struck{ opacity:0.7; }
+.cal-row.is-struck .cal-name{ text-decoration:line-through; }
+.cal-time{ font-size:0.8rem; font-weight:700; color:var(--ink); line-height:1.15; }
+.cal-time small{ font-size:0.62rem; font-weight:600; margin-left:2px; color:var(--muted); }
+.cal-time span{ display:block; font-size:0.66rem; font-weight:400; color:var(--muted); }
+.cal-main{ min-width:0; }
+.cal-name{ font-size:0.9rem; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cal-name span{ font-weight:400; font-size:0.74rem; color:var(--muted); }
+.cal-sub{ font-size:0.74rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cal-chip{ font-size:0.66rem; font-weight:600; border-radius:10px; padding:2px 8px; white-space:nowrap; }
+.st-wait{ background:#FAEEDA; color:#633806; } .st-chair{ background:#E6F1FB; color:#0C447C; }
+.st-done{ background:#EAF3DE; color:#27500A; } .st-booked{ background:#F1EFE8; color:#444441; }
+.st-noshow{ background:#FCEBEB; color:#791F1F; } .st-rough{ border:1px dashed #B4AB98; color:var(--muted); }
+.cal-closed{ text-align:center; font-size:0.74rem; color:var(--muted); border-radius:11px; padding:7px 10px; margin-bottom:6px;
+  background:repeating-linear-gradient(45deg, var(--cream), var(--cream) 6px, #F1EFE8 6px, #F1EFE8 12px); }
+.cal-skel{ height:52px; border-radius:11px; margin-bottom:6px; background:linear-gradient(90deg,#F3EDE2,#FBF7EF,#F3EDE2); background-size:200% 100%; animation:skel 1.2s ease-in-out infinite; }
+@keyframes skel{ 0%{ background-position:200% 0; } 100%{ background-position:-200% 0; } }
+/* ---- drawer ---- */
+.drawer-wrap{ position:fixed; inset:0; background:rgba(46,36,25,0.45); z-index:50; display:flex; align-items:flex-end; }
+.drawer{ background:var(--white); width:100%; max-width:760px; margin:0 auto; border-radius:18px 18px 0 0; padding:8px 16px calc(18px + env(safe-area-inset-bottom)); max-height:86vh; overflow-y:auto; }
+.dr-grip{ width:38px; height:4px; border-radius:2px; background:var(--line); margin:0 auto 10px; }
+.dr-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.dr-head b{ font-size:1.02rem; color:var(--ink); }
+.dr-head span{ font-size:0.78rem; color:var(--muted); }
+.dr-x{ border:0; background:var(--cream); border-radius:50%; width:30px; height:30px; font-size:0.9rem; color:var(--brown); cursor:pointer; flex:none; }
+.dr-line{ font-size:0.78rem; color:var(--muted); margin:3px 0 12px; }
+.dr-panel{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:10px; }
+.dr-rx{ font-size:0.9rem; color:var(--ink); font-weight:600; margin-top:4px; }
+.dr-rx span{ display:block; font-size:0.72rem; font-weight:400; color:var(--muted); }
+.dr-kvs{ border-top:1px solid var(--line); margin-bottom:12px; }
+.dr-kv{ display:grid; grid-template-columns:72px 1fr; font-size:0.84rem; padding:8px 0; border-bottom:1px solid var(--line); }
+.dr-kv span:first-child{ color:var(--muted); }
+.dr-btn{ width:100%; margin-top:4px; }
+/* ---- previous prescriptions ---- */
+.prev-rx{ position:fixed; inset:0; background:var(--cream); z-index:60; overflow-y:auto; }
+.prev-rx .wrap{ padding-top:12px; }
+.pv-head{ margin:6px 0 12px; }
+.pv-head b{ font-size:1.02rem; color:var(--ink); }
+.pv-head span{ font-size:0.8rem; color:var(--muted); }
+
+/* ---- admin 4.0: lock, PIN, tiles, money panels ---- */
+.admin-btn{ margin-top:4px; border:1px solid var(--gold-deep); background:transparent; color:var(--gold-deep); border-radius:14px; padding:3px 10px; font:inherit; font-size:0.72rem; font-weight:600; cursor:pointer; }
+.admin-btn.open{ background:var(--gold-deep); color:#fff; }
+.tabbar.locked .tab-btn{ flex:1; }
+.tabbar:not(.locked) .tab-btn span{ font-size:0.58rem; letter-spacing:0.01em; white-space:nowrap; }
+.tabbar:not(.locked) .tab-btn{ min-width:0; padding-left:1px; padding-right:1px; }
+.pin-pad{ text-align:center; }
+.pin-title{ font-weight:700; color:var(--ink); }
+.pin-dots{ display:flex; justify-content:center; gap:12px; margin:14px 0 6px; }
+.pin-dots span{ width:13px; height:13px; border-radius:50%; border:1.5px solid var(--gold-light); }
+.pin-dots span.on{ background:var(--gold-deep); border-color:var(--gold-deep); }
+.pin-msg{ min-height:18px; font-size:0.78rem; color:var(--danger); margin-bottom:8px; }
+.pin-keys{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; max-width:300px; margin:0 auto; }
+.pin-keys button{ border:0; background:var(--cream); border-radius:12px; padding:14px 0; font:inherit; font-size:1.15rem; color:var(--ink); cursor:pointer; }
+.pin-keys button.pin-quiet{ background:transparent; font-size:0.85rem; color:var(--muted); }
+.cal-tiles{ display:grid; grid-template-columns:repeat(4,1fr); gap:5px; margin:0 0 10px; }
+.cal-tiles.one{ grid-template-columns:1fr; }
+.cal-tile{ background:var(--white); border:1px solid var(--line); border-radius:10px; text-align:center; padding:6px 0; }
+.cal-tile b{ display:block; font-size:1.02rem; color:var(--ink); }
+.cal-tile span{ font-size:0.66rem; color:var(--muted); }
+.cal-tile.t-wait{ background:#FAEEDA; } .cal-tile.t-chair{ background:#E6F1FB; } .cal-tile.t-done{ background:#EAF3DE; } .cal-tile.t-noshow{ background:#FCEBEB; }
+.cal-unsettled{ background:#FCEBEB; border-left:4px solid #E24B4A; border-radius:8px; padding:7px 10px; font-size:0.76rem; color:#791F1F; margin-bottom:10px; }
+.dr-pair{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dr-amt{ font-size:1rem; font-weight:700; color:var(--ink); margin-top:2px; }
+.dr-panel.dr-owes{ background:#FCEBEB; border-color:#F09595; }
+.dr-btns{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dr-btns .dr-btn:only-child{ grid-column:1 / -1; }
+</style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
        before it is the clinic's system. Tapping the name sets it. -->
@@ -320,6 +408,7 @@ body{ padding-bottom:28px; }
     <div class="hd-mark">
       <div class="hd-title">Echo Dental Clinic</div>
       <div class="hd-v">Nexus <b>A</b> &middot; <span id="appVer"></span></div>
+      <button type="button" class="admin-btn" id="adminBtn" onclick="openPinPad()">🔒 Admin</button>
     </div>
   </div>
   <div class="tabbar">
@@ -332,45 +421,34 @@ body{ padding-bottom:28px; }
 
 <div id="pullCue" class="pull-cue"><span id="pullText">Pull to refresh</span></div>
 <!-- Offered, not imposed: the record stays readable underneath. -->
-<div id="signInBar" class="signin-bar hidden" onclick="tapToSignIn()">
-  Showing what was last read &middot; <b>tap to sign in</b>
-</div>
 
 <div class="wrap">
   <!-- ================= SETUP ================= -->
-  <div id="setupScreen" class="gate">
+  <div id="setupScreen" class="gate hidden">
     <h1>Echo Nexus Admin</h1>
-    <p>Visits, prescriptions and the clinic's money. Read only.</p>
-    <button class="btn" id="signInBtn">Sign in with Google</button>
-    <div id="signInStatus" class="status-bar"></div>
-    <div id="folderCard" class="hidden" style="margin-top:22px;">
-      <input type="text" class="search-input" id="folderIdInput" placeholder="Drive folder ID">
-      <button class="btn" id="saveFolderBtn" style="margin-top:10px;">Connect</button>
-      <div id="folderStatus" class="status-bar"></div>
-    </div>
+    <p id="setupMsg">This phone is not set up yet. Open the admin setup link on this phone.</p>
+    <input type="text" class="search-input" id="setupPaste" placeholder="Paste the setup link here" autocomplete="off" style="margin-top:6px;">
+    <button type="button" class="btn" style="margin-top:10px;" onclick="pasteSetupLink()">Set up this phone</button>
+    <div id="setupPasteMsg" class="muted" style="margin-top:10px; font-size:0.8rem;"></div>
   </div>
-
-  <!-- ================= APP ================= -->
   <div id="appScreen" class="hidden">
-    <div id="viewVisits">
-      <div class="daynav">
-        <button type="button" class="daynav-btn" onclick="stepDay(-1)">&lsaquo;</button>
-        <div class="daynav-label" id="visitDate">&mdash;</div>
-        <button type="button" class="daynav-btn" id="nextDayBtn" onclick="stepDay(1)">&rsaquo;</button>
-        <label class="daycal" title="Pick a date">&#128197;
-          <input type="date" id="dayPicker" onchange="pickDay(this.value)">
-        </label>
+    <div id="viewCalendar">
+      <div class="cal-top">
+        <button type="button" class="cal-title" id="calTitle" onclick="Cal.openDatePicker()">&mdash;</button>
+        <input type="date" id="calPicker" onchange="Cal.goDay(this.value)">
+        <div class="cal-rel" id="calRel"></div>
       </div>
-      <div class="sec-head">
-        <span class="sec-title">Visited</span>
-        <span class="count-badge" id="visitCount">0</span>
-      </div>
-      <div id="visitList"><div class="spin">Reading&hellip;</div></div>
+      <div class="cal-strip" id="calStrip"></div>
+      <div class="cal-range" id="calRange"></div>
+      <div class="cal-fresh" id="calFresh"></div>
+      <div id="calTiles"></div>
+      <div id="calUnsettled"></div>
+      <div id="calList"></div>
     </div>
-
-    <!-- PAYMENT — the money in, for a day / month / year, split by how it
-         came. The Patients page went: looking a patient up is lite's job, and
-         this app is here for the money. -->
+    <div id="viewLitePatients" class="hidden">
+      <input type="text" class="search-input" id="patientSearch" placeholder="Search a name or patient ID" oninput="Cal.onSearch(this.value)" autocomplete="off" style="margin-top:14px;">
+      <div id="patientList"><div class="empty-state">Type a name or an ID</div></div>
+    </div>
     <div id="viewPayment" class="hidden">
       <div class="period-row" id="payPeriod"></div>
       <div class="daynav">
@@ -419,9 +497,24 @@ body{ padding-bottom:28px; }
     </div>
   </div>
 </div>
+<div id="drawerWrap" class="drawer-wrap hidden"><div class="drawer" id="drawer"></div></div>
+<div id="prevRx" class="prev-rx hidden"><div class="wrap">
+  <button type="button" class="btn ghost" onclick="Cal.closePrevRx()" style="margin:4px 0 6px;">&lsaquo; Back</button>
+  <div id="prevRxBody"></div>
+</div></div>
+<div id="pinWrap" class="drawer-wrap hidden" onclick="if(event.target===this) closePinPad()"><div class="drawer pin-pad">
+  <div class="dr-grip"></div>
+  <div class="pin-title">Enter admin PIN</div>
+  <div class="pin-dots" id="pinDots"></div>
+  <div class="pin-msg" id="pinMsg"></div>
+  <div class="pin-keys">
+    <button onclick="pinKey('1')">1</button><button onclick="pinKey('2')">2</button><button onclick="pinKey('3')">3</button>
+    <button onclick="pinKey('4')">4</button><button onclick="pinKey('5')">5</button><button onclick="pinKey('6')">6</button>
+    <button onclick="pinKey('7')">7</button><button onclick="pinKey('8')">8</button><button onclick="pinKey('9')">9</button>
+    <button class="pin-quiet" onclick="closePinPad()">Cancel</button><button onclick="pinKey('0')">0</button><button class="pin-quiet" onclick="pinKey('back')">⌫</button>
+  </div>
+</div></div>
 <script>
-const GOOGLE_CLIENT_ID = '792126159558-tm5nu32d1pgni6c4h955ab7bu8s0ja2s.apps.googleusercontent.com';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 
 /* ---------------- Small helpers (mirrors the desktop app's own) ---------------- */
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -471,149 +564,761 @@ const ITEM_MODE_LABELS = { cash:'Cash', upi:'UPI', card:'Card', bank:'Bank', ref
    normal item-based day showed a ₹0 header above a list of real payments.
    Keep these in step with the desktop's versions if those ever change. */
 
-/* ---------------- Auth state ---------------- */
-let accessToken = null;
-let tokenClient = null;
-let driveFolderId = localStorage.getItem('echoDental_driveFolderId') || '';
-let currentDate = todayStr();
+const Cal = (function(){
 
-/* The token used to live only in memory, so EVERY open — and every pull to
-   refresh — threw the person back to a sign-in tap. Google's tokens last
-   about an hour, so keeping one until it actually expires means most opens
-   need no interaction at all; and when it has expired, we ask Google for a
-   fresh one SILENTLY (prompt:'') first, which works without any tap while
-   the phone still has a live Google session and the earlier consent stands.
-   A visible sign-in is now the last resort rather than the routine.
+/* ==========================================================================
+   ECHO NEXUS — LITE  v3.0  (16 Sep 2026)
 
-   A 2-minute safety margin is subtracted so a token can't expire mid-load.
-   What is stored is a read-only Drive token on the owner's own phone —
-   it can view the clinic backup and nothing else, and it dies within the
-   hour. Sign Out below clears it. */
-const TOKEN_KEY = 'echoDental_driveToken';
-function saveToken(token, expiresInSec){
-  try{
-    localStorage.setItem(TOKEN_KEY, JSON.stringify({
-      token: token,
-      expiresAt: Date.now() + ((Number(expiresInSec) || 3600) - 120) * 1000
-    }));
-  }catch(e){ /* private mode / storage full — the session still works */ }
+   For reception, staff and the associate doctor. Read-only. Two pages:
+     CALENDAR  the day's bookings and visits together, latest first, any day
+               past or future; tap one for the drawer.
+     PATIENTS  a name, and every prescription on record.
+
+   NO SIGN-IN (v3.0). The app reads through the clinic's relay (an Apps
+   Script on the clinic Google account) with the key its setup link carried.
+   The relay never gives this key phone numbers or money, whatever is asked.
+
+   INSTANT (v3.0). Everything read is kept on the phone (IndexedDB) and drawn
+   from there first; the relay is asked behind it and the page updates in
+   place. A day already on the phone paints with no wait. Opening a day also
+   reads its whole week and the next in one request, so the next tap is on
+   the phone already.
+   ========================================================================== */
+
+function pad2(n){ return String(n).padStart(2, '0'); }
+function todayStr(){ const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 }
-function loadStoredToken(){
-  try{
-    const raw = localStorage.getItem(TOKEN_KEY);
-    if(!raw) return null;
-    const rec = JSON.parse(raw);
-    if(!rec || !rec.token || !rec.expiresAt) return null;
-    if(Date.now() >= rec.expiresAt){ localStorage.removeItem(TOKEN_KEY); return null; }
-    return rec.token;
-  }catch(e){ return null; }
+function jsArg(v){ return escapeHtml(JSON.stringify(String(v))); }
+function dateOf(str){ const [y, m, d] = String(str).split('-').map(Number); return new Date(y, m - 1, d); }
+function ymd(d){ return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function addDays(str, n){ const d = dateOf(str); d.setDate(d.getDate() + n); return ymd(d); }
+function daysBetween(a, b){ return Math.round((dateOf(b) - dateOf(a)) / 86400000); }
+function weekStart(str){ const d = dateOf(str); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return ymd(d); }
+function shortDate(str, withYear){
+  return dateOf(str).toLocaleDateString('en-IN', withYear ? { day:'2-digit', month:'short', year:'numeric' } : { day:'numeric', month:'short' });
 }
-function clearStoredToken(){
-  accessToken = null;
-  try{ localStorage.removeItem(TOKEN_KEY); }catch(e){}
+function dayTitle(str){ return dateOf(str).toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' }); }
+function minsOf(t){ const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : NaN; }
+function clock(mins){
+  if(!Number.isFinite(mins)) return '';
+  const h = Math.floor(mins / 60), m = mins % 60, h12 = ((h + 11) % 12) + 1;
+  return h12 + ':' + pad2(m) + (h < 12 ? ' am' : ' pm');
+}
+function localMinsOfIso(iso){ const d = new Date(iso); return isNaN(d) ? NaN : d.getHours() * 60 + d.getMinutes(); }
+
+/* ------------------------------------------------------------ the store -- */
+/* IndexedDB, so weeks of days fit (localStorage holds ~5 MB and blocks the
+   page while it writes). Falls back to memory if the browser refuses it. */
+let _db = null;
+function idb(){
+  if(_db) return _db;
+  _db = new Promise((resolve) => {
+    try{
+      const req = indexedDB.open('echo-admin-cal', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('kv');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    }catch(e){ resolve(null); }
+  });
+  return _db;
+}
+async function idbAll(){
+  const db = await idb();
+  if(!db) return {};
+  return new Promise((resolve) => {
+    const out = {};
+    try{
+      const tx = db.transaction('kv', 'readonly');
+      const req = tx.objectStore('kv').openCursor();
+      req.onsuccess = () => { const c = req.result; if(c){ out[c.key] = c.value; c.continue(); } else resolve(out); };
+      req.onerror = () => resolve(out);
+    }catch(e){ resolve(out); }
+  });
+}
+async function idbPut(key, value){
+  const db = await idb();
+  if(!db) return;
+  try{ db.transaction('kv', 'readwrite').objectStore('kv').put(value, key); }catch(e){}
+}
+async function idbDel(key){
+  const db = await idb();
+  if(!db) return;
+  try{ db.transaction('kv', 'readwrite').objectStore('kv').delete(key); }catch(e){}
+}
+async function idbClear(){
+  const db = await idb();
+  if(!db) return;
+  try{ db.transaction('kv', 'readwrite').objectStore('kv').clear(); }catch(e){}
 }
 
-function setStatus(elId, text, isError){
-  const el = document.getElementById(elId);
-  el.textContent = text;
-  el.style.color = isError ? 'var(--danger)' : '#9a8362';
-}
+/* What the page draws from. Filled from IndexedDB at boot, before anything
+   is asked of the relay. */
+const mem = { settings: {}, days: {} };
+const SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-blocks.json'];
+const KEEP_PAST_DAYS = 60, KEEP_FUTURE_DAYS = 30;
 
-/* ---------------- Google sign-in ---------------- */
-function initGoogleAuth(){
-  if(typeof google === 'undefined' || !google.accounts){
-    setStatus('signInStatus', 'Google sign-in script did not load — check your connection and reload.', true);
-    return;
-  }
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: DRIVE_SCOPE,
-    callback: (resp) => {
-      if(resp.error){
-        // A silent attempt that fails is normal and must stay quiet: it just
-        // means a tap is needed after all.
-        if(silentAttemptInFlight){
-          silentAttemptInFlight = false;
-          setStatus('signInStatus', 'Tap to sign in.', false);
-          /* Only worth saying if there is nothing on screen to read; with the
-             record already showing, the offer waits until a read wants it. */
-          if(!haveStoredData()) showSetup();
-          return;
-        }
-        setStatus('signInStatus', 'Sign-in failed: ' + resp.error, true);
-        return;
-      }
-      silentAttemptInFlight = false;
-      accessToken = resp.access_token;
-      saveToken(resp.access_token, resp.expires_in);
-      setStatus('signInStatus', 'Signed in.', false);
-      /* The offer goes, and whatever could not be read is read now. */
-      showSignInNeeded(false);
-      document.getElementById('folderCard').classList.remove('hidden');
-      if(driveFolderId){
-        document.getElementById('folderIdInput').value = driveFolderId;
-        directoryTried = false; rxIndexTried = false; contactsTried = false;
-        refreshScheduled = false;
-        connectAndLoad();
-      }
-    },
-    error_callback: () => {   // popup blocked or silent attempt declined
-      silentAttemptInFlight = false;
-      setStatus('signInStatus', 'Tap to sign in.', false);
+async function hydrate(){
+  const all = await idbAll();
+  const today = todayStr();
+  Object.keys(all).forEach(k => {
+    if(k.indexOf('set:') === 0) mem.settings[k.slice(4)] = all[k];
+    else if(k.indexOf('day:') === 0){
+      const d = k.slice(4);
+      const age = daysBetween(d, today);
+      if(age > KEEP_PAST_DAYS || -age > KEEP_FUTURE_DAYS) idbDel(k);   // pruned, quietly
+      else mem.days[d] = all[k];
     }
   });
+}
+function S(name){ const r = mem.settings[name]; return r ? r.value : null; }
 
-  /* Straight back in, no tap: a stored token that is still good. */
-  const stored = loadStoredToken();
-  if(stored && driveFolderId){
-    accessToken = stored;
-    document.getElementById('folderIdInput').value = driveFolderId;
-    connectAndLoad();
+let settingsFreshThisOpen = false;
+async function refreshSettings(force){
+  if(settingsFreshThisOpen && !force) return;
+  settingsFreshThisOpen = true;
+  await Promise.all(SETTINGS.map(async name => {
+    try{
+      const r = await relay({ action: 'settings', name });
+      mem.settings[name] = { value: r.value, modified: r.modified, at: Date.now() };
+      idbPut('set:' + name, mem.settings[name]);
+    }catch(e){ /* the saved copy stands */ }
+  }));
+  repaint();
+}
+
+/* ------------------------------------------------------------- the week -- */
+const weekAsked = {};   // range -> ms asked, so a tap-tap-tap does not re-ask
+const WEEK_RECHECK_MS = 60 * 1000;
+let lastWeekError = '';
+async function ensureWeek(anyDay, force){
+  const from = weekStart(anyDay), to = addDays(from, 13);   // this week and the next
+  const today = todayStr();
+  const range = from + '|' + to;
+  const allHeld = Array.from({ length: 14 }, (_, i) => addDays(from, i)).every(d => mem.days[d]);
+  const allPast = to < today;
+  if(!force){
+    if(allHeld && allPast) return;                                        // a finished fortnight never changes
+    if(weekAsked[range] && Date.now() - weekAsked[range] < WEEK_RECHECK_MS) return;
+  }
+  weekAsked[range] = Date.now();
+  setFreshness('updating');
+  try{
+    const r = await relay({ action: 'week', from, to });
+    Object.keys(r.days || {}).forEach(d => {
+      mem.days[d] = { appointments: r.days[d].appointments || [], visits: r.days[d].visits || [], modified: r.days[d].modified, at: Date.now() };
+      idbPut('day:' + d, mem.days[d]);
+    });
+    lastWeekError = '';
+    setFreshness('fresh');
+  }catch(e){
+    lastWeekError = e.message || 'offline';
+    setFreshness('failed');
+  }
+  if(currentTab === 'calendar') renderCalendar();
+}
+
+let freshness = '';
+function setFreshness(state){ freshness = state; paintFreshness(); }
+function paintFreshness(){
+  const el = document.getElementById('calFresh');
+  if(!el) return;
+  const held = mem.days[viewDay];
+  const at = held && held.at ? new Date(held.at).toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit' }) : '';
+  if(freshness === 'updating') el.textContent = held ? 'Showing saved copy' + (at ? ' from ' + at : '') + ' \u00b7 updating\u2026' : 'Reading\u2026';
+  else if(freshness === 'failed') el.textContent = held ? 'No connection \u00b7 saved copy' + (at ? ' from ' + at : '') : 'Not read yet \u2014 needs a connection';
+  else el.textContent = at ? 'Updated ' + at : '';
+}
+
+/* ------------------------------------------------------------ people -- */
+function nameOf(pid){ const d = S('patients.json') || {}; return d[String(pid)] || ''; }
+function ageSexOf(pid){
+  const rec = (S('patient-contacts.json') || {})[String(pid)];
+  if(!rec) return '';
+  let age = (rec.age === undefined || rec.age === null || rec.age === '') ? '' : String(rec.age);
+  const yr = rec.ageRecordedOn ? String(rec.ageRecordedOn).slice(0, 4) : '';
+  if(age && yr && yr !== todayStr().slice(0, 4)) age = age + ' (' + yr + ')';
+  const sx = rec.sex ? String(rec.sex).trim()[0].toUpperCase() : '';
+  return [age, (sx === 'M' || sx === 'F') ? sx : ''].filter(Boolean).join('/');
+}
+const DOC_COLORS = ['#C0533C','#3E7D5A','#3D5FA6','#7B4FA6','#B4802C','#2C8484','#A63D6F','#7A7F2C','#4C57A8','#A64D4D','#2C7BA6','#8A5F2C'];
+function doctorColor(name){
+  if(!name || name === 'NEW') return '#B4B2A9';
+  const list = S('doctors.json') || [];
+  const d = (Array.isArray(list) ? list : []).find(x => x && (x.name === name || x === name));
+  return (d && typeof d.colorIdx === 'number' && DOC_COLORS[d.colorIdx]) || '#B4B2A9';
+}
+function doctorLabel(name){ return !name ? '' : (name === 'NEW' ? 'doctor not assigned' : name); }
+
+/* ------------------------------------------------------ prescriptions -- */
+function rxAll(){ const idx = S('prescriptions-index.json'); return (idx && Array.isArray(idx.list)) ? idx.list : []; }
+function rxIsStruck(rec){ return !!(rec && rec.struckAt); }
+function rxFor(patientId){
+  const byDate = (a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || ''));
+  return rxAll().filter(r => r && String(r.patientId) === String(patientId))
+    .sort((a, b) => (rxIsStruck(a) ? 1 : 0) - (rxIsStruck(b) ? 1 : 0) || byDate(a, b));
+}
+function rxWhat(rec){
+  const said = String((rec && rec.treatment) || '').trim() || String((rec && rec.advice) || '').trim();
+  if(said) return said;
+  const meds = ((rec && rec.medicines) || []).map(m => m && m.name).filter(Boolean);
+  if(meds.length) return meds.join(', ');
+  return String((rec && rec.complaints) || '').trim() || 'Consultation';
+}
+function rxMedCount(rec){
+  const n = ((rec && rec.medicines) || []).filter(m => m && m.name).length;
+  return n ? (n + (n === 1 ? ' medicine' : ' medicines')) : 'no medicines';
+}
+function rxDayLabel(rec){ const d = String((rec && (rec.date || rec.createdAt)) || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? shortDate(d, true) : '\u2014'; }
+function agoWords(dateStr){
+  const d = String(dateStr || '').slice(0, 10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return '';
+  const days = daysBetween(d, todayStr());
+  if(days < 0) return 'later';
+  if(days === 0) return 'today';
+  if(days === 1) return 'yesterday';
+  if(days < 7) return days + ' days ago';
+  if(days < 14) return 'last week';
+  if(days < 31) return Math.floor(days / 7) + ' weeks ago';
+  const months = Math.round(days / 30.4);
+  if(months < 12) return months + (months === 1 ? ' month ago' : ' months ago');
+  const years = Math.floor(days / 365), rem = Math.round((days - years * 365) / 30.4);
+  return years + (years === 1 ? ' year' : ' years') + (rem ? ' ' + rem + 'm' : '') + ' ago';
+}
+function rxDetailHtml(rec){
+  const row = (k, v) => v ? '<div class="rxs-k">' + k + '</div><div class="rxs-v">' + escapeHtml(v) + '</div>' : '';
+  const meds = ((rec.medicines) || []).filter(m => m && m.name);
+  return '<div class="rx-detail">'
+    + (rxIsStruck(rec) ? '<div class="muted" style="font-size:0.8rem;">Struck' + (rec.struckReason ? ' \u00b7 ' + escapeHtml(rec.struckReason) : '') + '</div>' : '')
+    + row('Complaints', rec.complaints) + row('Investigations', rec.investigations) + row('Treatment', rec.treatment)
+    + (meds.length ? '<div class="rxs-k">Medicines</div>' + meds.map(m =>
+        '<div class="rxs-med">' + escapeHtml(m.name) + '<div class="rxs-dose">'
+        + escapeHtml([m.dose, m.duration, m.food ? m.food + ' food' : ''].filter(Boolean).join(' \u00b7 ') || '\u2014')
+        + '</div></div>').join('') : '')
+    + row('Advice', rec.advice)
+    + (!meds.length && !rec.treatment && !rec.advice && !rec.complaints && !rec.investigations
+        ? '<div class="muted" style="font-size:0.86rem;">Nothing was written on this one.</div>' : '')
+    + '</div>';
+}
+
+/* --------------------------------------------------------- the day list -- */
+/* On a day that is not today nobody is still in a chair: an unfinished visit
+   is done. The desk's rule, one line. */
+function effectiveStatus(v, day){
+  const raw = (v && v.status) || 'waiting';
+  if(day === todayStr() || raw === 'done') return raw;
+  return 'done';
+}
+function blocksOn(day){
+  const list = S('calendar-blocks.json') || [];
+  const dow = dateOf(day).getDay();
+  return (Array.isArray(list) ? list : []).filter(b => {
+    if(!b) return false;
+    if(b.repeat === 'weekly'){
+      if(Number(b.weekday) !== dow) return false;
+      if(b.from && day < b.from) return false;
+      if(b.until && day > b.until) return false;
+      if(Array.isArray(b.skip) && b.skip.indexOf(day) !== -1) return false;
+      return true;
+    }
+    return b.date === day;
+  });
+}
+const STATUS_CHIP = {
+  waiting:  ['Waiting',  'st-wait'],
+  ongoing:  ['In chair', 'st-chair'],
+  done:     ['Done',     'st-done'],
+  booked:   ['Booked',   'st-booked'],
+  noshow:   ['No show',  'st-noshow'],
+  rough:    ['Rough',    'st-rough'],
+  came:     ['Came',     'st-done']
+};
+/* Every booking and every visit once, latest first. */
+function rowsFor(day){
+  const held = mem.days[day];
+  if(!held) return null;
+  const visits = (held.visits || []).filter(v => v && !v.removedAt);
+  const byVisitId = {};
+  visits.forEach(v => { byVisitId[String(v.id)] = v; });
+  const used = {};
+  const rows = [];
+  (held.appointments || []).forEach(a => {
+    if(!a) return;
+    const st = a.status || 'scheduled';
+    if(st === 'cancelled') return;
+    const v = a.visitId ? byVisitId[String(a.visitId)] : null;
+    if(v) used[String(v.id)] = true;
+    const t = minsOf(a.time);
+    let status;
+    if(a.rough) status = 'rough';
+    else if(v) status = effectiveStatus(v, day);
+    else if(st === 'visited') status = 'came';
+    else if(st === 'noshow') status = 'noshow';
+    else status = 'booked';
+    rows.push({ kind: 'appt', id: a.id, visitId: v ? v.id : '', patientId: a.patientId || '', name: a.patientId ? (nameOf(a.patientId) || ('ID ' + a.patientId)) : (a.newName || (a.rough ? 'no name yet' : 'New patient')),
+      mins: t, len: Number(a.mins) || 15, doctor: a.doctor || '', reason: (v && v.cameFor) || a.cameFor || a.note || '',
+      status, struck: status === 'noshow', rough: !!a.rough, bookedAt: a.createdAt || '', chair: v && v.chair });
+  });
+  visits.forEach(v => {
+    if(used[String(v.id)]) return;
+    rows.push({ kind: 'walkin', id: v.id, visitId: v.id, patientId: v.patientId, name: nameOf(v.patientId) || ('ID ' + v.patientId),
+      mins: localMinsOfIso(v.arrivedAt), len: 0, doctor: v.doctor || '', reason: v.cameFor || '',
+      status: effectiveStatus(v, day), struck: false, rough: false, chair: v.chair });
+  });
+  blocksOn(day).forEach(b => {
+    rows.push({ kind: b.kind === 'leave' ? 'leave' : 'block', id: b.id, mins: b.allDay ? 24 * 60 : minsOf(b.start),
+      end: minsOf(b.end), allDay: !!b.allDay, title: b.title || '' });
+  });
+  rows.sort((x, y) => (Number.isFinite(y.mins) ? y.mins : -1) - (Number.isFinite(x.mins) ? x.mins : -1));
+  return rows;
+}
+function rowHtml(r, day){
+  if(r.kind === 'block' || r.kind === 'leave'){
+    const when = r.allDay ? 'all day' : (Number.isFinite(r.mins) ? clock(r.mins) + (Number.isFinite(r.end) ? ' \u2013 ' + clock(r.end) : '') : '');
+    return '<div class="cal-closed">' + (r.kind === 'leave' ? 'Away' : 'Closed') + (when ? ' ' + escapeHtml(when) : '')
+      + (r.title ? ' \u00b7 ' + escapeHtml(r.title) : '') + '</div>';
+  }
+  const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
+  const rxN = r.patientId ? rxFor(r.patientId).length : 0;
+  const sub = [r.reason || (r.kind === 'walkin' ? 'no reason given' : ''), doctorLabel(r.doctor), rxN ? '\u211e ' + rxN : ''].filter(Boolean).join(' \u00b7 ');
+  const as = r.patientId ? ageSexOf(r.patientId) : '';
+  return '<div class="cal-row' + (r.rough ? ' is-rough' : '') + (r.struck ? ' is-struck' : '') + '" style="border-left-color:' + doctorColor(r.doctor) + ';"'
+    + ' onclick="Cal.openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')">'
+    + '<div class="cal-time">' + (Number.isFinite(r.mins)
+        ? clock(r.mins).replace(/ (am|pm)$/, '<small>$1</small>') : 'Any')
+      + '<span>' + (r.kind === 'walkin' ? 'walk-in' : (Number.isFinite(r.mins) ? r.len + ' min' : 'time')) + '</span>'
+    + '</div>'
+    + '<div class="cal-main"><div class="cal-name">' + escapeHtml(r.name) + (as ? ' <span>' + escapeHtml(as) + '</span>' : '') + '</div>'
+      + '<div class="cal-sub">' + escapeHtml(sub) + '</div></div>'
+    + '<span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>'
+    + '</div>';
+}
+
+/* ---------------------------------------------------------- the calendar -- */
+let currentTab = 'calendar';
+let viewDay = todayStr();
+function renderCalendar(){
+  const today = todayStr();
+  document.getElementById('calTitle').textContent = dayTitle(viewDay);
+  const offset = daysBetween(today, viewDay);
+  document.getElementById('calRel').innerHTML = offset === 0 ? '<span class="cal-today-word">Today</span>'
+    : escapeHtml(offset === 1 ? 'Tomorrow' : offset === -1 ? 'Yesterday' : offset > 0 ? 'In ' + offset + ' days' : Math.abs(offset) + ' days ago')
+      + ' \u00b7 <button type="button" class="link" onclick="Cal.goDay(todayStr())">Today</button>';
+  const ws = weekStart(viewDay);
+  const cell = (d, peek) => {
+    const cls = ['cal-d'];
+    if(peek) cls.push('peek');
+    if(d === viewDay) cls.push('sel');
+    else if(d === today) cls.push('today');
+    return '<button type="button" class="' + cls.join(' ') + '" onclick="Cal.goDay(' + jsArg(d) + ')">'
+      + dateOf(d).toLocaleDateString('en-IN', { weekday:'narrow' }) + '<b>' + dateOf(d).getDate() + '</b></button>';
+  };
+  document.getElementById('calStrip').innerHTML = cell(addDays(ws, -1), true)
+    + Array.from({ length: 7 }, (_, i) => cell(addDays(ws, i), false)).join('')
+    + cell(addDays(ws, 7), true);
+  document.getElementById('calRange').textContent = shortDate(ws) + ' \u2013 ' + shortDate(addDays(ws, 6));
+  const list = document.getElementById('calList');
+  const rows = rowsFor(viewDay);
+  if(rows === null){
+    list.innerHTML = '<div class="cal-skel"></div><div class="cal-skel"></div><div class="cal-skel"></div>';
+  } else if(!rows.length){
+    list.innerHTML = '<div class="empty-state">' + (viewDay < today ? 'Nobody booked or came' : 'Nothing booked yet') + '</div>';
+  } else {
+    list.innerHTML = rows.map(r => rowHtml(r, viewDay)).join('');
+  }
+  paintFreshness();
+  paintAdminExtras();
+}
+function goDay(d){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d || ''))) return;
+  viewDay = d;
+  renderCalendar();          // from the phone, now
+  ensureWeek(d, false);       // and the relay behind it
+}
+function openDatePicker(){
+  const inp = document.getElementById('calPicker');
+  inp.value = viewDay;
+  try{ if(inp.showPicker){ inp.showPicker(); return; } }catch(e){}
+  inp.focus(); inp.click();
+}
+function wireStripSwipe(){
+  const el = document.getElementById('calStrip');
+  let x0 = null, y0 = null;
+  el.addEventListener('touchstart', e => { if(e.touches.length === 1){ x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; } }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if(x0 === null) return;
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+    x0 = null;
+    if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) goDay(addDays(viewDay, dx < 0 ? 7 : -7));
+  }, { passive: true });
+}
+
+/* ------------------------------------------------------------- the drawer -- */
+let drawerCtx = null;
+function openDrawer(day, kind, id){
+  const r = (rowsFor(day) || []).find(x => x.kind === kind && String(x.id) === String(id));
+  if(!r) return;
+  drawerCtx = { day, kind, id, patientId: r.patientId };
+  lastDrawer = { day, kind, id };
+  const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
+  const as = r.patientId ? ageSexOf(r.patientId) : '';
+  let h = '<div class="dr-grip"></div>'
+    + '<div class="dr-head"><div><b>' + escapeHtml(r.name) + '</b>'
+      + (r.patientId ? ' <span>' + escapeHtml(String(r.patientId)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>' : '') + '</div>'
+      + '<button type="button" class="dr-x" onclick="Cal.closeDrawer()" aria-label="Close">\u2715</button></div>'
+    + '<div class="dr-line">' + escapeHtml([dayTitle(day), r.kind === 'walkin' ? 'walk-in ' + clock(r.mins) : clock(r.mins), doctorLabel(r.doctor)].filter(Boolean).join(' \u00b7 '))
+      + ' <span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span></div>';
+  if(r.visitId){
+    const mine = r.patientId ? rxFor(r.patientId).filter(x => String(x.date || '').slice(0, 10) === day) : [];
+    h += '<div class="dr-panel"><div class="rxs-k">\u211e ' + (day === todayStr() ? 'today' : 'that day') + '</div>'
+      + (mine.length ? mine.map(x => '<div class="dr-rx">' + escapeHtml(rxWhat(x)) + '<span>' + escapeHtml(rxMedCount(x)) + '</span></div>' + rxDetailHtml(x)).join('')
+                     : '<div class="muted">None written</div>')
+      + '</div>';
+  } else {
+    const row = (k, v) => v ? '<div class="dr-kv"><span>' + k + '</span><span>' + escapeHtml(v) + '</span></div>' : '';
+    h += '<div class="dr-kvs">'
+      + row('When', [dayTitle(day), Number.isFinite(r.mins) ? clock(r.mins) : '', r.len ? r.len + ' min' : ''].filter(Boolean).join(' \u00b7 '))
+      + row('Doctor', doctorLabel(r.doctor))
+      + row('For', r.reason)
+      + row('Booked', r.bookedAt ? shortDate(String(r.bookedAt).slice(0, 10)) : '')
+      + '</div>';
+  }
+  if(r.patientId && hooks.adminOn() && r.visitId){
+    h += '<div class="dr-pair"><div class="dr-panel" id="drBill"><div class="rxs-k">Bill ' + (day === todayStr() ? 'today' : 'that day') + '</div><div class="muted">Reading\u2026</div></div>'
+      + '<div class="dr-panel" id="drPending"><div class="rxs-k">Pending</div><div class="muted">Reading\u2026</div></div></div>';
+  }
+  if(r.patientId){
+    h += '<div class="dr-btns"><button type="button" class="btn ghost dr-btn" onclick="Cal.openPrevRx(' + jsArg(r.patientId) + ')">\uD83D\uDCDC Previous prescriptions</button>'
+      + (hooks.adminOn() ? '<button type="button" class="btn ghost dr-btn" onclick="Cal.fullHistory(' + jsArg(r.patientId) + ')">\uD83D\uDDC2\uFE0F Full history</button>' : '')
+      + '</div>';
+  }
+  const sheet = document.getElementById('drawer');
+  sheet.innerHTML = h;
+  document.getElementById('drawerWrap').classList.remove('hidden');
+  if(r.patientId && hooks.adminOn() && r.visitId) fillMoney(r.patientId, day);
+}
+function closeDrawer(){
+  document.getElementById('drawerWrap').classList.add('hidden');
+  drawerCtx = null;
+}
+function wireDrawer(){
+  const wrap = document.getElementById('drawerWrap');
+  wrap.addEventListener('click', e => { if(e.target === wrap) closeDrawer(); });
+  const sheet = document.getElementById('drawer');
+  let y0 = null;
+  sheet.addEventListener('touchstart', e => { if(sheet.scrollTop <= 0) y0 = e.touches[0].clientY; }, { passive: true });
+  sheet.addEventListener('touchend', e => { if(y0 !== null && e.changedTouches[0].clientY - y0 > 80) closeDrawer(); y0 = null; }, { passive: true });
+}
+
+/* ------------------------------------------------ previous prescriptions -- */
+let prevOpen = null;   // index open in the list; null = newest
+function openPrevRx(pid){
+  prevOpen = null;
+  renderPrevRx(pid);
+  document.getElementById('prevRx').classList.remove('hidden');
+  window.scrollTo(0, 0);
+}
+function togglePrev(pid, i){ prevOpen = (prevOpen === i) ? -1 : i; renderPrevRx(pid); }
+function renderPrevRx(pid){
+  const mine = rxFor(pid);
+  const as = ageSexOf(pid);
+  const openIdx = prevOpen === null ? 0 : prevOpen;
+  document.getElementById('prevRxBody').innerHTML =
+    '<div class="pv-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b> <span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
+    + '<div class="muted">' + mine.length + ' prescription' + (mine.length === 1 ? '' : 's') + ' \u00b7 newest first</div></div>'
+    + (mine.length ? mine.map((r, i) =>
+        '<div class="rx-line' + (i === openIdx ? ' rx-line-open' : '') + (rxIsStruck(r) ? ' struck' : '') + '">'
+        + '<div class="rx-line-head" onclick="Cal.togglePrev(' + jsArg(pid) + ',' + i + ')">'
+          + '<span class="rx-mark">\u211e</span><span class="rx-line-main"><span class="rx-line-what">' + escapeHtml(rxWhat(r)) + '</span>'
+          + '<span class="rx-line-meta">' + escapeHtml(rxDayLabel(r)) + ' \u00b7 ' + escapeHtml(agoWords(r.date || r.createdAt)) + ' \u00b7 ' + escapeHtml(rxMedCount(r))
+          + (rxIsStruck(r) ? ' \u00b7 struck' : '') + '</span></span>'
+          + '<span class="rx-chev">' + (i === openIdx ? '\u2013' : '+') + '</span></div>'
+        + (i === openIdx ? rxDetailHtml(r) : '') + '</div>').join('')
+      : '<div class="empty-state">No prescriptions on record</div>');
+}
+function closePrevRx(){ document.getElementById('prevRx').classList.add('hidden'); }
+
+/* ------------------------------------------------------------ patients -- */
+let patientQuery = '', selectedPatient = null, searchTimer = null;
+function onSearch(v){ patientQuery = String(v || '').trim(); selectedPatient = null; clearTimeout(searchTimer); searchTimer = setTimeout(renderPatients, 180); }
+function openPatient(pid){ selectedPatient = String(pid); prevOpen = null; renderPatients(); }
+function backToSearch(){ selectedPatient = null; renderPatients(); }
+function renderPatients(){
+  const list = document.getElementById('patientList');
+  const dir = S('patients.json') || {};
+  if(selectedPatient){
+    const pid = selectedPatient;
+    list.innerHTML = '<button type="button" class="btn ghost" onclick="Cal.backToSearch()" style="margin:4px 0 12px;">&lsaquo; Back</button><div id="patientRx"></div>';
+    const mine = rxFor(pid);
+    const as = ageSexOf(pid);
+    const openIdx = prevOpen === null ? 0 : prevOpen;
+    document.getElementById('patientRx').innerHTML =
+      '<div class="pv-head"><b>' + escapeHtml(dir[pid] || 'Unknown patient') + '</b> <span>' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
+      + '<div class="muted">' + mine.length + ' prescription' + (mine.length === 1 ? '' : 's') + '</div></div>'
+      + (mine.length ? mine.map((r, i) =>
+          '<div class="rx-line' + (i === openIdx ? ' rx-line-open' : '') + (rxIsStruck(r) ? ' struck' : '') + '">'
+          + '<div class="rx-line-head" onclick="Cal.togglePatientRx(' + i + ')">'
+            + '<span class="rx-mark">\u211e</span><span class="rx-line-main"><span class="rx-line-what">' + escapeHtml(rxWhat(r)) + '</span>'
+            + '<span class="rx-line-meta">' + escapeHtml(rxDayLabel(r)) + ' \u00b7 ' + escapeHtml(agoWords(r.date || r.createdAt)) + ' \u00b7 ' + escapeHtml(rxMedCount(r)) + '</span></span>'
+            + '<span class="rx-chev">' + (i === openIdx ? '\u2013' : '+') + '</span></div>'
+          + (i === openIdx ? rxDetailHtml(r) : '') + '</div>').join('')
+        : '<div class="empty-state">No prescriptions</div>');
     return;
   }
-  /* Otherwise try to get one WITHOUT any interaction before showing a button. */
-  if(driveFolderId) requestTokenSilently();
+  const q = patientQuery.toLowerCase();
+  if(q.length < 2){ list.innerHTML = '<div class="empty-state">Type a name or an ID</div>'; return; }
+  const hits = Object.keys(dir)
+    .filter(pid => String(dir[pid] || '').toLowerCase().includes(q) || String(pid).includes(q))
+    .sort((a, b) => {
+      const na = String(dir[a] || '').toLowerCase(), nb = String(dir[b] || '').toLowerCase();
+      return (na.startsWith(q) ? 0 : 1) - (nb.startsWith(q) ? 0 : 1) || na.localeCompare(nb);
+    });
+  if(!hits.length){ list.innerHTML = '<div class="empty-state">No one by that name</div>'; return; }
+  list.innerHTML = hits.slice(0, 30).map(pid => {
+    const as = ageSexOf(pid);
+    return '<div class="row tappable" onclick="Cal.openPatient(' + jsArg(pid) + ')">'
+      + '<div class="row-head"><div class="row-name">' + escapeHtml(dir[pid] || 'Unknown patient') + '</div><div class="row-when">&rsaquo;</div></div>'
+      + '<div class="row-sub">' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</div></div>';
+  }).join('') + (hits.length > 30 ? '<div class="empty-state">' + (hits.length - 30) + ' more \u2014 type a little further</div>' : '');
 }
 
-let silentAttemptInFlight = false;
-function requestTokenSilently(){
-  if(!tokenClient) return false;
-  silentAttemptInFlight = true;
-  setStatus('signInStatus', 'Reconnecting…', false);
-  try{ tokenClient.requestAccessToken({ prompt: '' }); return true; }
-  catch(e){ silentAttemptInFlight = false; return false; }
+
+/* -------------------------------------------------- admin-only extras -- */
+const hooks = { adminOn: () => false, money: null, fullHistory: null };
+function fmtRs(n){ return '\u20b9' + Math.round(Number(n) || 0).toLocaleString('en-IN'); }
+async function fillMoney(pid, day){
+  if(!hooks.money) return;
+  let m = null;
+  try{ m = await hooks.money(pid, day); }catch(e){ m = null; }
+  const bill = document.getElementById('drBill'), pend = document.getElementById('drPending');
+  if(!bill || !pend || !drawerCtx || String(drawerCtx.patientId) !== String(pid)) return;
+  if(!m){ bill.innerHTML = '<div class="rxs-k">Bill</div><div class="muted">Could not read</div>'; pend.innerHTML = '<div class="rxs-k">Pending</div><div class="muted">\u2014</div>'; return; }
+  bill.innerHTML = '<div class="rxs-k">Bill ' + (day === todayStr() ? 'today' : 'that day') + '</div>'
+    + (m.billToday ? '<div class="dr-amt">' + fmtRs(m.billToday) + '</div>' : '<div class="muted">No bill</div>');
+  const owes = m.pending > 0.5, adv = m.pending < -0.5;
+  pend.classList.toggle('dr-owes', owes);
+  pend.innerHTML = '<div class="rxs-k">' + (adv ? 'In advance' : 'Pending') + '</div>'
+    + '<div class="dr-amt">' + (owes || adv ? fmtRs(Math.abs(m.pending)) : 'Settled') + '</div>';
+}
+/* Unsettled bookings from the last fortnight, read once per open. */
+let unsettledAsked = false;
+function paintAdminExtras(){
+  const tiles = document.getElementById('calTiles'), strip = document.getElementById('calUnsettled');
+  if(!tiles || !strip) return;
+  if(!hooks.adminOn()){ tiles.innerHTML = ''; strip.innerHTML = ''; return; }
+  const today = todayStr();
+  const rows = (rowsFor(viewDay) || []).filter(r => r.kind === 'appt' || r.kind === 'walkin');
+  const n = (f) => rows.filter(f).length;
+  const booked = n(r => r.kind === 'appt' && !r.rough);
+  const tile = (v, label, cls) => '<div class="cal-tile ' + (cls || '') + '"><b>' + v + '</b><span>' + label + '</span></div>';
+  let cells;
+  if(viewDay === today){
+    cells = tile(booked, 'booked') + tile(n(r => r.status === 'waiting'), 'waiting', 't-wait')
+      + tile(n(r => r.status === 'ongoing'), 'in chair', 't-chair') + tile(n(r => r.status === 'done'), 'done', 't-done');
+  } else if(viewDay < today){
+    const held = mem.days[viewDay] || {};
+    const cancelled = (held.appointments || []).filter(a => a && a.status === 'cancelled' && !a.rough).length;
+    cells = tile(booked + cancelled, 'booked') + tile(n(r => r.status === 'done' || r.status === 'came'), 'came', 't-done')
+      + tile(n(r => r.status === 'noshow'), 'no show', 't-noshow') + tile(cancelled, 'cancelled');
+  } else {
+    cells = tile(booked, 'booked');
+  }
+  tiles.innerHTML = '<div class="cal-tiles' + (viewDay > today ? ' one' : '') + '">' + cells + '</div>';
+  if(!unsettledAsked){ unsettledAsked = true; ensureRange(addDays(today, -14), addDays(today, -1)); }
+  const open = [];
+  for(let i = 1; i <= 14; i++){
+    const d = addDays(today, -i), held = mem.days[d];
+    ((held && held.appointments) || []).forEach(a => { if(a && !a.rough && (a.status || 'scheduled') === 'scheduled') open.push({ d, a }); });
+  }
+  strip.innerHTML = open.length
+    ? '<div class="cal-unsettled"><b>' + open.length + ' not settled</b> from earlier days \u00b7 '
+      + open.slice(0, 3).map(x => escapeHtml(dayTitle(x.d) + ' \u00b7 ' + (x.a.patientId ? (nameOf(x.a.patientId) || 'ID ' + x.a.patientId) : (x.a.newName || 'New patient')))).join(', ')
+      + (open.length > 3 ? ' \u2026' : '') + '</div>'
+    : '';
+}
+async function ensureRange(from, to){
+  try{
+    const r = await relay({ action: 'week', from, to });
+    Object.keys(r.days || {}).forEach(d => {
+      mem.days[d] = { appointments: r.days[d].appointments || [], visits: r.days[d].visits || [], modified: r.days[d].modified, at: Date.now() };
+      idbPut('day:' + d, mem.days[d]);
+    });
+    if(currentTab === 'calendar') renderCalendar();
+  }catch(e){}
+}
+function fullHistory(pid){ closeDrawer(); if(hooks.fullHistory) hooks.fullHistory(pid, drawerReturn()); }
+let lastDrawer = null;
+function drawerReturn(){ return lastDrawer; }
+function togglePatientRx(i){ prevOpen = (prevOpen === i ? -1 : i); renderPatients(); }
+function forgetForLock(){ unsettledAsked = false; }
+
+return { hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer,
+  openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
+  togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear,
+  resetFresh: () => { settingsFreshThisOpen = false; } };
+})();
+
+/* ---------------- RELAY AND LOCK (4.0) ----------------
+   No Google sign-in. The phone reads through the clinic relay with the key
+   its setup link carried. It opens LOCKED - the lite view, which is all the
+   relay gives this key without a session. Admin + the 4-digit PIN (set in
+   Nexus) opens a session; closing the app or locking the phone drops it. */
+const K_RELAY = 'echoAdmin_relay', K_KEY = 'echoAdmin_key';
+let accessToken = 'relay';          // the lifted loaders test this as "can read"
+let driveFolderId = 'root';
+let currentDate = todayStr();
+let adminSession = null;            // memory only - never written to the phone
+function adminOn(){ return !!adminSession; }
+function takeSetupFromLink(){
+  const h = String(location.hash || '').replace(/^#/, '');
+  if(!h) return;
+  const p = new URLSearchParams(h);
+  const r = p.get('relay'), k = p.get('key');
+  if(r && k){ try{ localStorage.setItem(K_RELAY, r); localStorage.setItem(K_KEY, k); }catch(e){} }
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+}
+function relayUrl(){ try{ return localStorage.getItem(K_RELAY) || ''; }catch(e){ return ''; } }
+function relayKey(){ try{ return localStorage.getItem(K_KEY) || ''; }catch(e){ return ''; } }
+function isSetUp(){ return !!(relayUrl() && relayKey()); }
+function RelayError(msg, body){ this.name = 'RelayError'; this.message = msg; this.body = body || {}; }
+RelayError.prototype = Object.create(Error.prototype);
+async function relay(params){
+  const url = new URL(relayUrl());
+  url.searchParams.set('key', relayKey());
+  if(adminSession) url.searchParams.set('session', adminSession);
+  Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+  let res;
+  try{ res = await fetch(url.toString(), { redirect: 'follow', cache: 'no-store' }); }
+  catch(e){ throw new RelayError('offline'); }
+  let body = null;
+  try{ body = await res.json(); }catch(e){ throw new RelayError('unreadable'); }
+  if(!body || !body.ok){
+    if(body && body.error === 'bad key'){
+      document.getElementById('setupMsg').textContent = 'This phone\u2019s link is no longer valid. Open the new admin setup link.';
+      showSetup();
+    }
+    if(body && body.error === 'session ended') lockAdmin();
+    throw new RelayError((body && body.error) || 'relay', body);
+  }
+  return body;
 }
 
-document.getElementById('signInBtn').addEventListener('click', () => {
-  if(!tokenClient){ setStatus('signInStatus', 'Still loading Google sign-in — try again in a moment.', true); return; }
-  silentAttemptInFlight = false;
-  tokenClient.requestAccessToken();
-});
-document.getElementById('saveFolderBtn').addEventListener('click', () => {
-  const val = document.getElementById('folderIdInput').value.trim();
-  if(!val){ setStatus('folderStatus', 'Paste your folder ID first.', true); return; }
-  driveFolderId = val;
-  localStorage.setItem('echoDental_driveFolderId', val);
-  connectAndLoad();
-});
+/* ---- Drive, as the lifted loaders know it, answered by the relay ----
+   A folder is 'dir:<name>'; a file is 'file:<folder>/<name>'. The relay is
+   asked only when a file is READ, and it is told the last modified time this
+   phone holds, so an unchanged file comes back as "not modified" without
+   its contents. */
+const relayHeld = {};   // 'folder/name' -> { modified, value }
+async function driveFindChild(parentId, name, isFolder){
+  if(!parentId) return null;
+  if(isFolder || parentId === 'root') return isFolder ? 'dir:' + name : 'file:settings/' + name;
+  if(String(parentId).indexOf('dir:') === 0) return 'file:' + parentId.slice(4) + '/' + name;
+  return null;
+}
+async function driveFindChildFresh(parentId, name, isFolder){ return driveFindChild(parentId, name, isFolder); }
+let lastFoundModifiedTime = null;
+async function driveReadJson(fileId){
+  const m = /^file:([a-z-]+)\/(.+)$/.exec(String(fileId || ''));
+  if(!m) return null;
+  const folder = m[1], name = m[2], key = folder + '/' + name;
+  const held = relayHeld[key];
+  const q = folder === 'settings' ? { action: 'settings', name }
+    : (['data', 'visits', 'appointments'].indexOf(folder) !== -1 && /^\d{4}-\d{2}-\d{2}\.json$/.test(name))
+      ? { action: 'day', folder, date: name.slice(0, 10) }
+      : { action: 'file', folder, name };
+  if(held && held.modified) q.since = held.modified;
+  const r = await relay(q);
+  if(r.notModified && held) return held.value;
+  relayHeld[key] = { modified: r.modified || null, value: r.value };
+  return r.value;
+}
+async function driveListChildren(parentId){
+  const folder = String(parentId || '').replace(/^dir:/, '');
+  const r = await relay({ action: 'list', folder });
+  return (r.files || []).map(f => ({ id: 'file:' + folder + '/' + f.name, name: f.name, modifiedTime: f.modified }));
+}
+async function driveFetch(){ throw new RelayError('not used'); }
+function forgetIds(){}
+function cacheIdsNoop(){}
 
-/* Any Drive call made without a token is not an error to hide: it is the one
+/* ---- the lock ---- */
+function paintLock(){
+  const b = document.getElementById('adminBtn');
+  if(!b) return;
+  b.classList.toggle('open', adminOn());
+  b.innerHTML = adminOn() ? '\uD83D\uDD13 Lock' : '\uD83D\uDD12 Admin';
+}
+let pinDigits = '';
+function openPinPad(){
+  if(adminOn()){ lockAdmin(); return; }
+  pinDigits = '';
+  document.getElementById('pinMsg').textContent = '';
+  paintPinDots();
+  document.getElementById('pinWrap').classList.remove('hidden');
+}
+function closePinPad(){ document.getElementById('pinWrap').classList.add('hidden'); pinDigits = ''; }
+function paintPinDots(){
+  document.getElementById('pinDots').innerHTML = [0,1,2,3].map(i => '<span class="' + (i < pinDigits.length ? 'on' : '') + '"></span>').join('');
+}
+async function pinKey(k){
+  if(k === 'back'){ pinDigits = pinDigits.slice(0, -1); paintPinDots(); return; }
+  if(pinDigits.length >= 4) return;
+  pinDigits += k; paintPinDots();
+  if(pinDigits.length < 4) return;
+  const msg = document.getElementById('pinMsg');
+  msg.textContent = 'Checking\u2026';
+  try{
+    const r = await relay({ action: 'unlock', pin: pinDigits });
+    adminSession = r.session;
+    closePinPad();
+    paintLock(); paintTabs();
+    setTab('calendar');
+  }catch(e){
+    const b = (e && e.body) || {};
+    msg.textContent = b.error === 'wrong PIN' ? 'Wrong PIN \u00b7 ' + b.triesLeft + ' tr' + (b.triesLeft === 1 ? 'y' : 'ies') + ' left'
+      : b.error === 'too many tries' ? 'Too many tries \u2014 admin is locked for 15 minutes'
+      : b.error === 'no PIN set' ? 'No PIN set yet \u2014 set one in Nexus: Settings \u2192 Phone app PIN'
+      : 'Could not check \u2014 no connection';
+    pinDigits = ''; setTimeout(paintPinDots, 350);
+  }
+}
+function lockAdmin(){
+  const had = adminSession;
+  adminSession = null;
+  if(had){
+    try{
+      const url = new URL(relayUrl());
+      url.searchParams.set('key', relayKey()); url.searchParams.set('session', had); url.searchParams.set('action', 'lock');
+      fetch(url.toString(), { keepalive: true, cache: 'no-store' }).catch(() => {});
+    }catch(e){}
+  }
+  paintLock(); paintTabs();
+  if(ADMIN_ONLY_TABS.indexOf(currentTab) !== -1 || currentTab === 'patients') setTab('calendar');
+  else renderCurrent();
+}
+/* Closed or locked phone: the session goes with it. */
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden'){ if(adminOn()) lockAdmin(); }
+  else if(isSetUp()){ Cal.resetFresh(); Cal.refreshSettings(false); Cal.ensureWeek(Cal.getViewDay(), false); }
+});
+window.addEventListener('pagehide', () => { if(adminOn()) lockAdmin(); });
+
+/* (a3.x) Any Drive call made without a token is not an error to hide: it is the one
    moment the tap is genuinely needed, so it raises the offer.
 
    It gets its OWN error type, deliberately. Callers re-raise TokenExpiredError
    so a session that dies mid-use can re-authenticate; "there was never a token
    this session" is a different thing and must not travel that path, or every
    render would throw before it could show the copy already on the device. */
-function noteTokenNeeded(){ showSignInNeeded(true); }
+function noteTokenNeeded(){}
 /* TWO DIFFERENT SILENCES (a3.4). "Waiting on the clinic PC" means the desk
    has not written the file yet — a real thing that happens. It is NOT what
    happens when the hour on a Google token runs out, and saying it then sends
    somebody to check a computer that is working perfectly. */
 function nothingHere(what){
   const box = t => '<div class="empty-state">' + t + '</div>';
-  return accessToken
-    ? box('Waiting on the clinic PC')
-    : box('Not signed in \u2014 tap the line above to read ' + (what || 'this'));
+  return box(adminOn() ? 'Could not read ' + (what || 'this') + ' \u2014 no connection, or the desk has not written it yet' : 'Locked \u2014 tap Admin');
 }
 function NoTokenError(){ this.name = 'NoTokenError'; this.message = 'Not signed in'; }
 NoTokenError.prototype = Object.create(Error.prototype);
@@ -830,6 +1535,10 @@ async function loadFollowupsD(){
   if(followupsTriedD) return followupsCacheD;
   followupsCacheD = await loadSettingsListD('followups.json'); followupsTriedD = true; return followupsCacheD;
 }
+/* A VOIDED LAB CASE (desk v10.18) is an entry made in error, kept on record.
+   It is not work at the lab, so it never counts in the Lab tab; on a
+   patient's record it shows struck, marked Void, as the desk shows it. */
+function labCaseIsVoid(c){ return !!(c && c.voidedAt); }
 function labStageOf(c){
   if(!c) return { key:'logged', label:'Waiting pick-up' };
   if(c.dateDelivered) return { key:'delivered', label:'Delivered' };
@@ -843,14 +1552,7 @@ function isReversedItem(it){ return !!(it && it.reversal); }
 function billCountsAsMoney(b){
   return !!b && b.status !== 'draft' && !isCancelledBill(b);
 }
-function isCancelledBill(b){ return !!(b && b.cancellation); }
 function isVoidedItem(it){ return !!(it && it.voided); }
-function localDateOf(iso){
-  if(!iso) return null;
-  const d = new Date(iso);
-  if(isNaN(d.getTime())) return null;
-  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
-}
 function localDateOf(iso){
   if(!iso) return null;
   const d = new Date(iso);
@@ -904,34 +1606,22 @@ async function ensureDataFolder(){
   return cachedDataFolderId;
 }
 async function listRecentDays(){
-  if(!(await ensureDataFolder())) return {};
   if(dayListCache && !dayListRevalidate) return dayListCache;
   if(dayListInFlight) return await dayListInFlight;
   dayListInFlight = (async () => {
     try{
-      const q = encodeURIComponent("'" + cachedDataFolderId + "' in parents and trashed=false");
-      const res = await driveFetch('https://www.googleapis.com/drive/v3/files?q=' + q
-        + '&orderBy=name desc&pageSize=' + DAY_LIST_SIZE
-        + '&fields=files(id,name,modifiedTime)', 'Drive listing failed');
-      const data = await res.json();
+      const files = await driveListChildren('dir:data');
       const map = {};
       let oldest = null;
-      (data.files || []).forEach(f => {
-        const m = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name || '');
-        if(!m) return;
-        map[m[1]] = { id: f.id, modifiedTime: f.modifiedTime || null };
-        if(!oldest || m[1] < oldest) oldest = m[1];
+      files.map(f => f.name).filter(n => /^\d{4}-\d{2}-\d{2}\.json$/.test(n)).sort().reverse().slice(0, DAY_LIST_SIZE).forEach(n => {
+        const d = n.slice(0, 10);
+        const f = files.find(x => x.name === n);
+        map[d] = { id: f.id, modifiedTime: f.modifiedTime || null };
+        if(!oldest || d < oldest) oldest = d;
       });
-      dayListCache = map;
-      dayListOldest = oldest;
-      dayListRevalidate = false;
+      dayListCache = map; dayListOldest = oldest; dayListRevalidate = false;
       return map;
-    }catch(err){
-      if(err && err.name === 'TokenExpiredError') throw err;
-      /* A failed listing must not break the app: callers fall back to the
-         per-name lookup they used before. */
-      return null;
-    }
+    }catch(err){ return null; }
   })();
   try{ return await dayListInFlight; }
   finally{ dayListInFlight = null; }
@@ -1025,13 +1715,6 @@ function computePendingFromData(bills, entries){
   });
   Object.keys(map).forEach(id => { map[id].pending = map[id].totalBilled - map[id].totalPayments; });
   return map;
-}
-function isReversedItem(it){ return !!(it && it.reversal); }
-function billCountsAsMoney(b){
-  return !!b && b.status !== 'draft' && !isCancelledBill(b);
-}
-function billCountsAsMoney(b){
-  return !!b && b.status !== 'draft' && !isCancelledBill(b);
 }
 async function loadPatientCrm(){
   if(crmTried) return crmCache;
@@ -1145,11 +1828,23 @@ async function loadImplantLog(){
   }
   return implantLogCacheM;
 }
+/* ANY COUNTRY, SPLIT AS THE DESK SPLITS IT (a3.5). Calling codes are
+   prefix-free, so the longest code a number starts with is its code. The
+   list is the desk's (v10.26), codes only - the phone does not name
+   countries. */
+const CALLING_CODES = new Set(('1 7 20 27 30 31 32 33 34 36 39 40 41 43 44 45 46 47 48 49 51 52 53 54 55 56 57 58 60 61 62 63 64 65 66 81 82 84 86 90 91 92 93 94 95 98 '
+  + '211 212 213 216 218 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239 240 241 242 243 244 245 246 248 249 250 251 252 253 254 255 256 257 258 260 261 262 263 264 265 266 267 268 269 290 291 297 298 299 '
+  + '350 351 352 353 354 355 356 357 358 359 370 371 372 373 374 375 376 377 378 380 381 382 383 385 386 387 389 420 421 423 '
+  + '500 501 502 503 504 505 506 507 508 509 590 591 592 593 594 595 596 597 598 599 670 672 673 674 675 676 677 678 679 680 681 682 683 685 686 687 688 689 690 691 692 '
+  + '850 852 853 855 856 880 886 960 961 962 963 964 965 966 967 968 970 971 972 973 974 975 976 977 992 993 994 995 996 998').split(' '));
 function fmtPhoneMobile(e164){
   const d = String(e164 || '').replace(/\D/g, '');
-  if(d.indexOf('91') === 0 && d.length > 7){
-    const local = d.slice(2);
-    return '+91 ' + (local.length > 6 ? local.slice(0, local.length - 5) + ' ' + local.slice(-5) : local);
+  for(let len = 3; len >= 1; len--){
+    const cc = d.slice(0, len);
+    if(d.length > len + 3 && CALLING_CODES.has(cc)){
+      const local = d.slice(len);
+      return '+' + cc + ' ' + (local.length > 6 ? local.slice(0, local.length - 5) + ' ' + local.slice(-5) : local);
+    }
   }
   return d ? '+' + d : '';
 }
@@ -1172,34 +1867,9 @@ function patientNumbers(map, patientId){
 class TokenExpiredError extends Error {
   constructor(){ super('Session expired'); this.name = 'TokenExpiredError'; }
 }
-async function driveFetch(url, whatFailed){
-  /* No token: do not spend a round trip proving it. Raise the offer of a tap
-     and fail the read — callers already cope with a failed read by leaving
-     what is on screen alone. */
-  if(!accessToken){ noteTokenNeeded(); throw new NoTokenError(); }
-  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
-  if(res.status === 401 || res.status === 403){
-    clearStoredToken();
-    noteTokenNeeded();
-    throw new TokenExpiredError();
-  }
-  if(!res.ok) throw new Error(whatFailed + ' (' + res.status + ')');
-  return res;
-}
 /* modifiedTime comes back in the same request as the id — one extra field,
    no extra round trip — and it is what tells us how old the CLINIC's data
    is, as opposed to how recently this phone fetched it. */
-let lastFoundModifiedTime = null;
-async function driveFindChild(parentId, name, isFolder){
-  const mimeQ = isFolder ? " and mimeType='application/vnd.google-apps.folder'" : "";
-  const q = encodeURIComponent(`'${parentId}' in parents and name='${name}'${mimeQ} and trashed=false`);
-  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)`,
-                               'Drive lookup failed');
-  const data = await res.json();
-  const hit = data.files && data.files[0];
-  lastFoundModifiedTime = hit ? (hit.modifiedTime || null) : null;
-  return hit ? hit.id : null;
-}
 /* ONE listing instead of a lookup per file.
 
    Day files are named YYYY-MM-DD.json, so sorting by name descending is
@@ -1221,12 +1891,6 @@ let dayListInFlight = null;
 let dayListRevalidate = true;
 /* One place to ask "where is this day's file?", listing first, lookup only
    for dates older than the listing reaches. */
-async function driveReadJson(fileId){
-  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-                               'File read failed');
-  return await res.json();
-}
-
 /* ---------------- Data loading ---------------- */
 let cachedDataFolderId = null;
 /* The settings folder was looked up separately by bills, entries and ortho —
@@ -1264,13 +1928,6 @@ function rxWhat(rec){
 function rxMedCount(rec){
   const n = ((rec && rec.medicines) || []).filter(m => m && m.name).length;
   return n ? (n + (n === 1 ? ' medicine' : ' medicines')) : 'no medicines';
-}
-function rxDayLabel(rec){
-  const d = String((rec && (rec.date || rec.createdAt)) || '').slice(0, 10);
-  const [y, m, dd] = d.split('-').map(Number);
-  if(!y || !m || !dd) return '\u2014';
-  return new Date(y, m - 1, dd).toLocaleDateString('en-IN',
-    { day:'2-digit', month:'short', year:'numeric' });
 }
 function visitWasRemoved(v){ return !!(v && v.removedAt); }
 /* A visit removed at the desk keeps its last status in the file — it is
@@ -1310,20 +1967,6 @@ async function loadSettingsMap(fileName, state){
     if(err && err.name === 'TokenExpiredError') throw err;
     return {};
   }
-}
-async function driveListChildren(parentId){
-  let files = [];
-  let pageToken = null;
-  do{
-    const q = encodeURIComponent(`'${parentId}' in parents and trashed=false`);
-    let url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name)&pageSize=1000`;
-    if(pageToken) url += '&pageToken=' + pageToken;
-    const res = await driveFetch(url, 'Drive listing failed');
-    const data = await res.json();
-    files = files.concat(data.files || []);
-    pageToken = data.nextPageToken || null;
-  } while(pageToken);
-  return files;
 }
 /* The check that used to block the first paint. It compares what the index
    claims against what is on the folder, and only speaks up when they differ. */
@@ -1365,7 +2008,13 @@ async function verifyRxIndexLater(idx){
    screen turns it into something else. */
 let contactsCache = null, contactsTried = false;
 const CACHE_KEY_CON = 'echoAdmin_con';
+let _loadPatientContacts_inflight = null;
 async function loadPatientContacts(){
+  /* ONE READ FOR EVERY CALLER (4.0). The "tried" flag was set before the
+     read finished, so a second caller in the same moment got an empty answer -
+     the calendar and a patient record now open together. */
+  if(_loadPatientContacts_inflight) return _loadPatientContacts_inflight;
+  _loadPatientContacts_inflight = (async () => {
   if(contactsTried) return contactsCache;
   contactsTried = true;
   const held = cacheRead(CACHE_KEY_CON);
@@ -1373,6 +2022,8 @@ async function loadPatientContacts(){
   contactsCache = await loadSettingsMap('patient-contacts.json');
   if(contactsCache && Object.keys(contactsCache).length) cacheWrite(CACHE_KEY_CON, contactsCache);
   return contactsCache;
+  })();
+  try{ return await _loadPatientContacts_inflight; }finally{ _loadPatientContacts_inflight = null; }
 }
 /* An age recorded years ago is not today's age, so the year it was taken is
    said rather than quietly adding the difference — the desk does the same. */
@@ -1395,7 +2046,13 @@ function whoLine(contacts, patientId){
   const a = ageTextOf(contacts, patientId), x = sexTextOf(contacts, patientId);
   return [x, a].filter(Boolean).join(' \u00b7 ');
 }
+let _loadPatientDirectory_inflight = null;
 async function loadPatientDirectory(){
+  /* ONE READ FOR EVERY CALLER (4.0). The "tried" flag was set before the
+     read finished, so a second caller in the same moment got an empty answer -
+     the calendar and a patient record now open together. */
+  if(_loadPatientDirectory_inflight) return _loadPatientDirectory_inflight;
+  _loadPatientDirectory_inflight = (async () => {
   if(directoryTried) return directoryCache;
   directoryTried = true;
   const held = cachedDirectory();
@@ -1408,8 +2065,16 @@ async function loadPatientDirectory(){
   directoryCache = await loadSettingsMap('patients.json');
   if(directoryCache && Object.keys(directoryCache).length) cacheWrite(CACHE_KEY_DIR, directoryCache);
   return directoryCache;
+  })();
+  try{ return await _loadPatientDirectory_inflight; }finally{ _loadPatientDirectory_inflight = null; }
 }
+let _loadPrescriptions_inflight = null;
 async function loadPrescriptions(){
+  /* ONE READ FOR EVERY CALLER (4.0). The "tried" flag was set before the
+     read finished, so a second caller in the same moment got an empty answer -
+     the calendar and a patient record now open together. */
+  if(_loadPrescriptions_inflight) return _loadPrescriptions_inflight;
+  _loadPrescriptions_inflight = (async () => {
   if(rxIndexTried) return rxIndexCache;
   rxIndexTried = true;
   const heldRx = cachedRxIndex();
@@ -1440,6 +2105,8 @@ async function loadPrescriptions(){
     rxIndexCache = null;
   }
   return rxIndexCache;
+  })();
+  try{ return await _loadPrescriptions_inflight; }finally{ _loadPrescriptions_inflight = null; }
 }
 
 /* ==========================================================================
@@ -1472,8 +2139,8 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '3.4';
-let currentTab = 'visits';
+const ADMIN_VERSION = '4.0';
+let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
 let openAllFor = null;
@@ -1592,7 +2259,7 @@ function svgIcon(paths, extra){
     + (extra || '') + '>' + paths + '</svg>';
 }
 const ICON = {
-  visits:   svgIcon('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>'),
+  calendar: svgIcon('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>'),
   payment:  svgIcon('<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/>'),
   billing:  svgIcon('<path d="M6 2h12v20l-3-2-3 2-3-2-3 2Z"/><path d="M9 7h6M9 11h6M9 15h4"/>'),
   lab:      svgIcon('<path d="M12 3c3 0 4 1.6 4 4 0 2-.7 3.2-1 5.5-.3 2.4-.4 6.5-1.7 6.5-1 0-.9-3-1.3-4.6-.4 1.6-.3 4.6-1.3 4.6-1.3 0-1.4-4.1-1.7-6.5C8.7 10.2 8 9 8 7c0-2.4 1-4 4-4Z"/>'),
@@ -1601,25 +2268,35 @@ const ICON = {
   tel:      svgIcon('<path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2.2 2A16 16 0 0 1 3 6.2 2 2 0 0 1 5 4Z"/>',
                     ' style="width:15px;height:15px;vertical-align:-2px;margin-right:5px"')
 };
-const ADMIN_VIEWS = { visits:'viewVisits', payment:'viewPayment', billing:'viewBilling',
-                      lab:'viewLab', followups:'viewFollowups', patients:'viewPatients' };
+const ADMIN_VIEWS = { calendar:'viewCalendar', payment:'viewPayment', billing:'viewBilling',
+                      lab:'viewLab', followups:'viewFollowups', patients:'viewPatients', litepatients:'viewLitePatients' };
 /* The desk's own words. "Calls" was shorter and fitted better, and that is
    not a good enough reason for the phone to call a thing by a different name
    than the screen it is read beside. The label is made to fit instead. */
-const ADMIN_TABS = [
-  ['visits','Visits'], ['payment','Payment'], ['billing','Billing'],
-  ['lab','Lab'], ['followups','Follow-ups'], ['patients','Patients']
+/* Locked: lite's two. Unlocked: the six, with "Flw-Up" so all six labels
+   stay on one line (owner's call, 4.0). */
+const ADMIN_TABS_UNLOCKED = [
+  ['calendar','Calendar'], ['payment','Payment'], ['billing','Billing'],
+  ['lab','Lab'], ['followups','Flw-Up'], ['patients','Patients']
 ];
+const ADMIN_TABS_LOCKED = [ ['calendar','Calendar'], ['litepatients','Patients'] ];
+const ADMIN_ONLY_TABS = ['payment', 'billing', 'lab', 'followups'];
+function adminTabs(){ return adminOn() ? ADMIN_TABS_UNLOCKED : ADMIN_TABS_LOCKED; }
 function paintTabs(){
   const bar = document.querySelector('.tabbar');
   if(!bar) return;
-  bar.innerHTML = ADMIN_TABS.map(([k, label]) =>
+  bar.classList.toggle('locked', !adminOn());
+  bar.innerHTML = adminTabs().map(([k, label]) =>
     '<button type="button" class="tab-btn' + (currentTab === k ? ' active' : '') + '"'
     + ' data-tab="' + k + '" onclick="setTab(\'' + k + '\')">'
-    + ICON[k] + '<span>' + label + '</span></button>').join('');
+    + (ICON[k === 'litepatients' ? 'patients' : k] || '') + '<span>' + label + '</span></button>').join('');
 }
 function setTab(t){
+  /* Money is never shown locked, whatever asked for it. */
+  if(!adminOn() && (ADMIN_ONLY_TABS.indexOf(t) !== -1 || t === 'patients')) t = (t === 'patients' ? 'litepatients' : 'calendar');
+  if(adminOn() && t === 'litepatients') t = 'patients';
   currentTab = t;
+  try{ Cal.closeDrawer(); Cal.closePrevRx(); }catch(e){}
   paintTabs();
   Object.keys(ADMIN_VIEWS).forEach(k =>
     document.getElementById(ADMIN_VIEWS[k]).classList.toggle('hidden', k !== t));
@@ -1636,7 +2313,8 @@ function renderCurrent(){
   if(currentTab === 'lab')       return renderLab();
   if(currentTab === 'followups') return renderFollowups();
   if(currentTab === 'patients')  return renderPatientsTab();
-  return renderVisits();
+  if(currentTab === 'litepatients') return Cal.renderPatients();
+  return Cal.renderCalendar();
 }
 
 /* HOW LONG AGO, in the words a person would use. The desktop says "2 days
@@ -1725,39 +2403,6 @@ async function getDirectory(){
    open spends its network on the data itself rather than on finding it
    again. An id that has gone stale simply fails to read, and the entry is
    dropped and asked for afresh. */
-const CACHE_KEY_IDS = 'echoAdmin_ids';
-let idMap = cacheRead(CACHE_KEY_IDS) || {};
-let idInFlight = {};
-const _findChildDirect = driveFindChild;
-driveFindChild = async function(parentId, name, isFolder){
-  if(!parentId) return null;
-  const key = parentId + '/' + name;
-  if(idMap[key]) return idMap[key];
-  /* Two callers wanting the same folder at the same moment asked twice; they
-     now share the one request. */
-  if(idInFlight[key]) return idInFlight[key];
-  idInFlight[key] = (async () => {
-    const id = await _findChildDirect(parentId, name, isFolder);
-    if(id){ idMap[key] = id; cacheWrite(CACHE_KEY_IDS, idMap); }
-    delete idInFlight[key];
-    return id;
-  })();
-  return idInFlight[key];
-};
-function forgetIds(){ idMap = {}; idInFlight = {}; try{ localStorage.removeItem(CACHE_KEY_IDS); }catch(e){} }
-/* THE ID CACHE DEFEATED THE FRESHNESS CHECK (a2.7). loadBills asks for the
-   index's id and then compares its modifiedTime against the copy it holds —
-   unchanged file, no download. But a cached id is returned without going to
-   Drive, so modifiedTime was never seen, the comparison always failed, and
-   the WHOLE bills index came down again on every single visit to Billing.
-
-   A caller that needs the timestamp asks for a real lookup: one small
-   metadata query instead of one large download. */
-async function driveFindChildFresh(parentId, name, isFolder){
-  const id = await _findChildDirect(parentId, name, isFolder);
-  if(id){ idMap[parentId + '/' + name] = id; cacheWrite(CACHE_KEY_IDS, idMap); }
-  return id;
-}
 /* The cached pair, if the device has them. Used to paint; never trusted as
    the last word — a re-read always follows. */
 function cachedDirectory(){ return cacheRead(CACHE_KEY_DIR); }
@@ -1866,216 +2511,6 @@ function repaint(){ renderCurrent(); }
    day at a time and the picker jumps. Never forward of today, because there
    are no visits in the future and a blank page is a worse answer than a
    control that will not go there. */
-let viewDay = todayStr();
-function stepDay(delta){
-  const [y, m, d] = viewDay.split('-').map(Number);
-  const dt = new Date(y, m - 1, d + delta);
-  const cand = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0')
-             + '-' + String(dt.getDate()).padStart(2,'0');
-  if(cand > todayStr()) return;
-  viewDay = cand; openRx = null; renderVisits();
-}
-function pickDay(v){
-  const d = String(v || '');
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(d) || d > todayStr()){
-    const el = document.getElementById('dayPicker'); if(el) el.value = viewDay;
-    return;
-  }
-  viewDay = d; openRx = null; renderVisits();
-}
-async function renderVisits(){
-  const list = document.getElementById('visitList');
-  const today = viewDay;
-  const isToday = today === todayStr();
-  document.getElementById('visitDate').textContent =
-    shortDateMobile(today) + (isToday ? ' \u00b7 Today' : '');
-  const pick = document.getElementById('dayPicker');
-  if(pick){ pick.value = today; pick.max = todayStr(); }
-  const nextBtn = document.getElementById('nextDayBtn');
-  if(nextBtn) nextBtn.style.visibility = isToday ? 'hidden' : 'visible';
-  /* The names and the day are independent reads, so they go together rather
-     than one after the other: on a phone connection the two round trips were
-     costing twice what they needed to. */
-  /* The names and the index may already be on the device from last time; the
-     day itself is always read, because that is what changed. */
-  const dirPromise = getDirectory();
-  const rxPromise = getRxIndex();
-  const conPromise = loadPatientContacts().catch(() => null);
-  /* A DAY THAT IS OVER CANNOT CHANGE. Yesterday's arrivals are read once and
-     kept; only today is re-read, because only today is still happening. */
-  const dayKey = 'echoAdmin_day_' + today;
-  let rows = null;
-  if(!isToday){
-    const held = cacheRead(dayKey);
-    if(Array.isArray(held)) rows = held;
-  } else {
-    /* TODAY, BRIEFLY (a3.1). A finished day is kept for ever; today was
-       re-read every time the tab was shown — so tapping between Visits and
-       Payment while looking something up cost a round trip each way. The
-       day's arrivals do not change inside a minute, and the window's own
-       storage forgets this the moment the app is closed, so it can never
-       show yesterday's list as today's. */
-    const at = Number(sessionStorage.getItem('day:' + today) || 0);
-    if(at && (Date.now() - at) < 60000){
-      const held = cacheRead(dayKey);
-      if(Array.isArray(held)) rows = held;
-    }
-  }
-  if(rows === null){
-    let got = null;
-    try{
-      const folder = await driveFindChild(driveFolderId, 'visits', true);
-      if(folder){
-        const fid = await driveFindChild(folder, today + '.json', false);
-        if(fid){
-          const l = await driveReadJson(fid);
-          got = Array.isArray(l) ? l : [];
-          /* TODAY IS KEPT TOO (v2.6). It was not, because today changes — but
-             the alternative, when there is no token, is an empty Visits page
-             on an app that plainly has the day's arrivals from an hour ago.
-             It is written every time it is read, so it is never more stale
-             than the last successful read, and the bar above says so. */
-          cacheWrite(dayKey, got);
-          if(isToday){ try{ sessionStorage.setItem('day:' + today, String(Date.now())); }catch(e){} }
-        }
-      }
-    }catch(err){
-      if(err && err.name === 'TokenExpiredError') throw err;
-      got = null;
-    }
-    if(got !== null) rows = got;
-    else {
-      const held = cacheRead(dayKey);
-      rows = Array.isArray(held) ? held : [];
-    }
-  }
-  /* A struck visit is not an arrival. It is dropped here rather than shown
-     greyed: this app is a list of who to see, and a cancelled arrival is not
-     one of them. */
-  rows = rows.filter(v => v && !visitWasRemoved(v));
-  const [dir, all, contacts] = await Promise.all([dirPromise, rxPromise, conPromise]);
-  document.getElementById('visitCount').textContent = String(rows.length);
-  if(!rows.length){
-    list.innerHTML = '<div class="empty-state">' + (isToday ? 'Nobody yet today' : 'Nobody came') + '</div>';
-    return;
-  }
-  /* NEWEST FIRST (v1.6). The last person through the door is the one being
-     asked about; the morning's arrivals are history by the evening. */
-  rows.sort((a, b) => String(b.arrivedAt || '').localeCompare(String(a.arrivedAt || '')));
-  /* NUMBERED (v1.8). The desk counts arrivals from the first of the day, so
-     the phone counts the same way: newest first on screen, but the number is
-     the order they came, which is the number the desk will say out loud. */
-  const total = rows.length;
-  list.innerHTML = rows.map((v, idx) => {
-    const srNo = total - idx;
-    const pid = String(v.patientId);
-    const name = (dir && dir[pid]) || v.patientName || 'Unknown patient';
-    const t = v.arrivedAt ? new Date(v.arrivedAt) : null;
-    const stamp = (t && !isNaN(t.getTime()))
-      ? t.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) : '';
-    /* EVERY prescription this patient has, newest first — not only the one
-       written on the day being viewed. Somebody in the chair is asked about
-       in the light of what came before, and three is what fits on a phone
-       without scrolling past the next patient. The rest are one tap away. */
-    const mine = all === null ? [] : rxFor(all, pid);
-    const onDay = mine.filter(r => String(r.date || '').slice(0, 10) === today);
-    /* Everything written before the day being viewed — what "last seen"
-       actually means. */
-    const before = mine.filter(r => String(r.date || '').slice(0, 10) < today);
-    const key = 'v:' + pid;
-    const open = openRx === key && mine.length;
-    const showAll = openAllFor === pid;
-    const shown = showAll ? mine : mine.slice(0, 3);
-    const hidden = mine.length - shown.length;
-    /* ONE CARD PER PATIENT (v1.7). Each prescription used to be its own box,
-       so an opened patient became a stack of loose panels and you could not
-       see where one person ended and the next began. Everything about a
-       person now sits inside their card, and the card is what opens.
-
-       Inside it: the newest prescription OPEN, because that is the one being
-       asked about; the two before it as closed lines you can tap; anything
-       older folded behind a single count. */
-    let body = '';
-    if(open){
-      body = '<div class="pt-body">' + shown.map((r, i) => {
-        const rkey = key + ':' + i;
-        /* The newest starts open. After that the reader decides. */
-        const isOpen = (openLine === null) ? (i === 0) : (openLine === rkey);
-        /* A PRESCRIPTION IS A RECORD, NOT A LINE (v1.8). It now carries the
-           ℞ mark, its own date, how long ago, and how many medicines — so a
-           closed one still says what it is, and an open one is plainly a
-           document rather than an indented paragraph. */
-        return '<div class="rx-line' + (isOpen ? ' rx-line-open' : '') + (rxIsStruck(r) ? ' struck' : '') + '">'
-          + '<div class="rx-line-head" onclick="event.stopPropagation(); toggleLine(\'' + rkey + '\')">'
-            + '<span class="rx-mark">\u211e</span>'
-            + '<span class="rx-line-main">'
-              + '<span class="rx-line-what">' + escapeHtml(rxWhat(r)) + '</span>'
-              + '<span class="rx-line-meta">' + escapeHtml(rxDayLabel(r))
-                + ' \u00b7 ' + escapeHtml(agoWords(r.date || r.createdAt))
-                + ' \u00b7 ' + escapeHtml(rxMedCount(r))
-                + (rxIsStruck(r) ? ' \u00b7 struck' : '') + '</span>'
-            + '</span>'
-            + '<span class="rx-chev">' + (isOpen ? '\u2013' : '+') + '</span>'
-          + '</div>'
-          + (isOpen ? rxDetailHtml(r) : '')
-          + '</div>';
-      }).join('')
-      + (hidden > 0
-          ? '<button type="button" class="pt-more" onclick="event.stopPropagation(); showAllFor('
-            + JSON.stringify(pid).replace(/"/g,'&quot;') + ')">' + hidden + ' older</button>'
-          : '')
-      + '</div>';
-    }
-    /* THE RIGHT COLUMN EARNS ITS KEEP (v2.1). The time sat alone in the top
-       corner with the whole column empty beneath it, while the two figures
-       ran along the bottom. Time, last seen and the record count now stack
-       down that column — the card is shorter and nothing is blank.
-
-       Age and sex join the name as "(57/F)", where they read as part of who
-       the person is rather than as another field on the ID line.
-
-       "Last seen" is the newest prescription BEFORE the day being viewed —
-       not the newest overall, or somebody prescribed for an hour ago would
-       read as last seen today, which answers nothing. */
-    const who = whoLine(contacts, pid);
-    const lastSeen = before.length
-      ? escapeHtml(agoWords(before[0].date || before[0].createdAt).replace(' ago', '')) : '\u2014';
-    return '<div class="pt-card' + (open ? ' pt-open' : '') + (mine.length ? ' tappable' : '') + '"'
-        + (mine.length ? ' onclick="toggleRx(\'' + key + '\')"' : '') + '>'
-      + '<div class="pt-top">'
-        + '<span class="pt-no">' + srNo + '</span>'
-        + '<div class="pt-main">'
-          + '<div class="pt-name">' + escapeHtml(name)
-            + (who ? ' <span class="pt-who">(' + escapeHtml(who) + ')</span>' : '') + '</div>'
-          + '<div class="pt-sub">' + escapeHtml(pid)
-            + (v.cameFor ? ' \u00b7 ' + escapeHtml(v.cameFor) : '') + '</div>'
-          + (all === null
-              ? '<div class="pt-tag pt-tag-wait">waiting on the clinic PC</div>'
-              : (onDay.length ? '<div class="pt-tag pt-tag-today">' + escapeHtml(rxWhat(onDay[0])) + '</div>' : ''))
-        + '</div>'
-        + '<div class="pt-side">'
-          + '<div class="pt-time">' + escapeHtml(stamp) + '</div>'
-          + (all === null ? ''
-              : '<div class="pt-f"><b>' + lastSeen + '</b><span>last seen</span></div>'
-                + '<div class="pt-f"><b>' + mine.length + ' \u211e</b><span>on record</span></div>')
-        + '</div>'
-      + '</div>'
-      + body
-      + '</div>';
-  }).join('');
-}
-
-/* The Patients page is gone from this app (a2.0). Looking a patient up and
-   reading their prescriptions is what lite is for; admin is the money, the
-   lab and the calls. The visit card still carries each patient's own
-   prescriptions, which is the only place the owner asked for them here. */
-
-
-/* ===================== PAYMENT · BILLING · LAB · CALLS ==================
-   Four pages, all read only. The money pages share one period and one date,
-   because "what came in" and "what was raised" are the same question asked
-   two ways, and moving one and not the other is how you end up comparing
-   April's takings with May's bills. */
 let moneyPeriod = 'day';                 // day | month | year
 let moneyDay = todayStr();
 function moneyKey(){
@@ -2431,7 +2866,7 @@ async function renderLab(){
   const cases = await deviceCached('labs', () => loadLabCases()).catch(() => null);
   if(cases === null){ list.innerHTML = nothingHere(); return; }
   const dir = await getDirectory();
-  const live = (cases || []).filter(c => c && !c.struckAt);
+  const live = (cases || []).filter(c => c && !c.struckAt && !labCaseIsVoid(c));
   /* The desk's own three stages, and its own thresholds, so the phone and
      the desk never disagree about what is late. */
   /* labStageOf returns an OBJECT with a .key, and its key for a case at the
@@ -2468,7 +2903,9 @@ async function renderLab(){
         + '<div class="pt-sub">' + escapeHtml(String(c.patientId || ''))
           /* The desk's own field names: workType and lab. */
           + (c.workType ? ' \u00b7 ' + escapeHtml(c.workType) : '')
-          + (c.lab ? ' \u00b7 ' + escapeHtml(c.lab) : '') + '</div>'
+          /* labName is the desk's field; 'lab' was never written, so no
+             card showed its lab until a3.5. */
+          + (c.labName ? ' \u00b7 ' + escapeHtml(c.labName) : '') + '</div>'
         + (late ? '<div class="pt-tag pt-tag-wait">' + age + ' days \u2014 overdue</div>' : '')
         + '</div><div class="pt-side"><div class="pt-f"><b>' + (age === null ? '\u2014' : age + 'd')
           + '</b><span>waiting</span></div></div></div></div>';
@@ -2583,7 +3020,15 @@ function openPt(pid){
   if(b) b.innerHTML = '';
   renderPatientsTab();
 }
+let ptReturnToCalendar = null;
 function closePt(){
+  if(ptReturnToCalendar){
+    const back = ptReturnToCalendar;
+    ptReturnToCalendar = null; ptOpen = null;
+    setTab('calendar');
+    Cal.openDrawer(back.day, back.kind, back.id);
+    return;
+  }
   ptOpen = null;
   const b = document.getElementById('ptBody');
   if(b) b.innerHTML = '';           // so Search rebuilds its box and refocuses
@@ -2812,8 +3257,8 @@ async function renderPtRecord(body, pid){
   }));
   (labs || []).filter(c => c && String(c.patientId) === P).forEach(c =>
     mine.labcase.push({ when:String(c.dateSent || c.dateLogged || '').slice(0,10),
-      what: [c.workType, c.lab, (labStageOf(c)||{}).label].filter(Boolean).join(' \u00b7 '),
-      struck: !!c.struckAt }));
+      what: [c.workType, c.labName, labCaseIsVoid(c) ? 'Void' : (labStageOf(c)||{}).label].filter(Boolean).join(' \u00b7 '),
+      struck: !!c.struckAt || labCaseIsVoid(c) }));
   (implants || []).filter(e => e && String(e.patientId) === P && !e.removedAt).forEach(e =>
     mine.implant.push({ when:String(e.date || '').slice(0,10),
       what: [e.tooth, e.company, [e.dia, e.len].filter(v=>v!=null&&v!=='').join(' \u00d7 '), e.placedAt]
@@ -2867,10 +3312,8 @@ async function renderPtRecord(body, pid){
   body.innerHTML = h;
 }
 
-/* ---- boot ---------------------------------------------------------------
-   The same two gates as the main phone app: a Google token, and a folder id.
-   Once both are in hand the two pages are readable; nothing else is fetched
-   until a tab asks for it. */
+/* ---- boot (4.0) ---------------------------------------------------------
+   One gate: a relay link on this phone. Opens locked, drawn from the phone. */
 let booted = false;
 function showApp(){
   document.getElementById('setupScreen').classList.add('hidden');
@@ -2880,58 +3323,55 @@ function showSetup(){
   document.getElementById('setupScreen').classList.remove('hidden');
   document.getElementById('appScreen').classList.add('hidden');
 }
-/* WHAT THE DEVICE ALREADY KNOWS IS ENOUGH TO OPEN ON (v2.6).
-
-   A Google access token lasts about an hour, and this app is opened once or
-   twice a day — so the token is always expired by the time it is wanted, and
-   every open depended on a silent renewal succeeding. When that renewal
-   fails, which it does inside an installed app where the browser partitions
-   its cookies, the sign-in gate covered the whole screen. A tap, every time,
-   to be shown data that was already sitting on the phone.
-
-   The gate is now only for a device that has never been set up. If names and
-   prescriptions are stored here, the app opens on them at once and asks for
-   nothing. The token is fetched quietly behind that, and if it cannot be had
-   quietly, a single line appears offering the tap — while the record stays
-   readable underneath it. */
-function haveStoredData(){
-  const d = cacheRead(CACHE_KEY_DIR);
-  return !!(d && Object.keys(d).length);
-}
-async function connectAndLoad(){
-  if(!driveFolderId){ showSetup(); return; }
-  if(!accessToken && !haveStoredData()){ showSetup(); return; }
+async function boot(){
+  takeSetupFromLink();
+  if(!isSetUp()){ showSetup(); return; }
   showApp();
-  booted = true;
-  setTab(currentTab);
-}
-/* The line that appears only when a read wanted a token and there was none.
-   It sits above the list rather than over it: nothing already on screen is
-   taken away to ask for a tap. */
-function showSignInNeeded(show){
-  const bar = document.getElementById('signInBar');
-  if(bar) bar.classList.toggle('hidden', !show);
-}
-function tapToSignIn(){
-  if(!tokenClient) return;
-  silentAttemptInFlight = false;
-  tokenClient.requestAccessToken();
+  if(!booted){ booted = true; Cal.wireStripSwipe(); Cal.wireDrawer(); wirePull(); }
+  Cal.hooks.adminOn = adminOn;
+  Cal.hooks.money = async (pid, day) => {
+    const [bills, entries] = await Promise.all([loadBills(), loadAllEntries()]);
+    const mine = (bills || []).filter(b => billCountsAsMoney(b) && String(b.patientId) === String(pid));
+    const billToday = mine.filter(b => String(b.date || '').slice(0, 10) === day).reduce((t, b) => t + (Number(b.grandTotal) || 0), 0);
+    const map = computePendingFromData(bills || [], entries || []);
+    return { billToday, pending: (map[String(pid)] || {}).pending || 0 };
+  };
+  Cal.hooks.fullHistory = (pid, back) => {
+    ptReturnToCalendar = back || null;
+    setTab('patients');
+    ptSub = 'search';
+    openPt(pid);
+  };
+  paintLock(); paintTabs();
+  await Cal.hydrate();
+  setTab('calendar');
+  Cal.refreshSettings(true);
+  Cal.ensureWeek(Cal.getViewDay(), true);
 }
 window.addEventListener('load', () => {
   const ver = document.getElementById('appVer');
   if(ver) ver.textContent = ADMIN_VERSION;
   paintGreeting();
-  paintTabs();
-  wirePull();
-  const saved = localStorage.getItem('echoDental_driveFolderId') || '';
-  if(saved){ driveFolderId = saved; const el = document.getElementById('folderIdInput'); if(el) el.value = saved; }
-  initGoogleAuth();
-  /* Paint first, authenticate second. A device that has been used before
-     opens on its own copy; the token is chased quietly behind it. */
-  if(driveFolderId) connectAndLoad();
-  if(!loadStoredToken() && driveFolderId) requestTokenSilently();
+  boot();
 });
+window.addEventListener('hashchange', () => { if(/relay=/.test(location.hash)) boot(); });
+</script></body></html>
 
-/* The button is gone; the gesture does its work. */
-
+/* PASTED, NOT OPENED (iPhone). An app added to the Home Screen does not share
+   storage with Safari, so a link opened in Safari never reaches it. The same
+   link pasted here does. */
+function pasteSetupLink(){
+  const raw = String((document.getElementById('setupPaste') || {}).value || '').trim();
+  const msg = document.getElementById('setupPasteMsg');
+  const i = raw.indexOf('#');
+  const p = new URLSearchParams(i === -1 ? '' : raw.slice(i + 1));
+  if(!p.get('relay') || !p.get('key')){ if(msg) msg.textContent = 'That is not a setup link \u2014 copy the whole link, from https to the end.'; return; }
+  location.hash = raw.slice(i + 1);
+  if(typeof boot === 'function') boot();
+}
+/* THE SAVED COPY OF THIS PAGE (v48 service worker). Registered here so the
+   page itself opens with no network wait, not only its data. */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
 </script></body></html>
