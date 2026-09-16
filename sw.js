@@ -1,18 +1,20 @@
 /* ======================================================================
-   Echo Nexus — service worker.  v48 (16 Sep 2026)
+   Echo Nexus — service worker.  v49 (16 Sep 2026)
 
-   Its one job: make the apps open instantly, and open at all with no
-   signal. It caches the SHELL (the pages, icons, manifests). It never caches
-   clinic data — the apps keep their own copy of that, read through the relay.
+   Its one job: make the apps open quickly, and open at all with no signal.
+   It caches the SHELL (the pages, icons, manifests). It never caches clinic
+   data — the apps keep their own copy of that, read through the relay.
 
-   OPEN FROM THE SAVED COPY, UPDATE BEHIND IT (v48). Until v47 the page was
-   fetched network-first: a fresh upload showed on the very next open, but
-   every open waited on the network before anything appeared - on a weak
-   signal, seconds of white. Now the saved page is shown at once and a fresh
-   copy is fetched in the background for next time.
-
-   The trade: an upload shows on the SECOND open after it, not the first.
-   (Close the app and open it again to see a new version straight away.)
+   NETWORK FIRST AGAIN, WITH A SHORT FUSE (v49). v48 showed the saved page
+   first and fetched the new one in the background, so an upload only
+   appeared on the SECOND open - and felt slow to come live. Now:
+     - the page is asked for fresh every open, bypassing the browser's own
+       10-minute cache of GitHub's files (cache: 'no-cache'), so an upload
+       shows on the very next open;
+     - if the network has not answered within 2.5 seconds (weak signal), the
+       saved copy is shown instead, so a bad signal never means a long white
+       screen;
+     - with no signal at all, the saved copy, as before.
 
    EACH PAGE IS ITS OWN PAGE (v47, kept). lite.html and admin.html are cached
    under their own paths; asking for one never returns the other.
@@ -20,7 +22,8 @@
    Bump CACHE_VERSION whenever this file or the icons change. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-v48';  // v48: saved copy first, both apps on the relay
+const CACHE_VERSION = 'echo-nexus-v49';  // v49: network first, 2.5 s fuse, no stale browser cache
+const PAGE_FUSE_MS = 2500;
 
 const SHELL = [
   './lite.html',
@@ -71,23 +74,26 @@ self.addEventListener('fetch', (event) => {
     || url.pathname.endsWith('/');
 
   if(isPage){
-    /* Keyed by the page's own path; the #relay=... setup part of a link is
-       never sent to the server, so it does not split the cache. */
     const pageKey = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_VERSION);
-      const cached = await cache.match(pageKey);
-      const fresh = fetch(req).then(res => {
+      /* no-cache: always ask GitHub whether the page changed, instead of the
+         browser quietly reusing its copy for up to ten minutes. */
+      const fresh = fetch(new Request(req, { cache: 'no-cache' })).then(res => {
         if(res && res.ok) cache.put(pageKey, res.clone());
         return res;
       }).catch(() => null);
+      const fuse = new Promise(resolve => setTimeout(() => resolve('timeout'), PAGE_FUSE_MS));
+      const first = await Promise.race([fresh, fuse]);
+      if(first && first !== 'timeout') return first;
+      const cached = await cache.match(pageKey);
       if(cached){
-        event.waitUntil(fresh);   // update for next time, without making this open wait
+        event.waitUntil(fresh);   // keep fetching for next time
         return cached;
       }
-      /* Never opened here before: wait for the network this once. */
-      const res = await fresh;
-      if(res) return res;
+      /* Slow AND never saved: wait for the network after all. */
+      const late = await fresh;
+      if(late) return late;
       return new Response(
         '<h1>Echo Nexus</h1><p>No connection, and no saved copy of this page yet. '
         + 'Open it once with a signal and it will work offline afterwards.</p>',
