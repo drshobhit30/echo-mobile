@@ -563,7 +563,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.10';
+const LITE_VERSION = '4.11';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1324,6 +1324,7 @@ async function bkSubmit(){
   toast(rough ? 'Rough slot added \u00b7 sending to the desk' : 'Booked \u00b7 sending to the desk');
   renderCalendar();
   await bkSend();
+  if(bkPending.some(p => !p.sent)) bkQuickRetry();
 }
 let bkSending = false;
 async function bkSend(){
@@ -1352,6 +1353,28 @@ function toast(t){
 }
 window.addEventListener('online', () => bkSend());
 setInterval(() => { if(bkPending.some(p => !p.sent)) bkSend(); }, 30000);
+
+/* FASTER HAND-OFF (4.11). A booking that did not go through is retried every
+   5 seconds for its first minute (then every 30 as before), and at once when
+   the app comes back to the screen. One that went through but is not yet in
+   the day's file has that day read fresh from Drive every 20 seconds -
+   skipping the relay's 5-minute ready copy - until Nexus has filed it. */
+let bkQuickLeft = 0;
+function bkQuickRetry(){
+  bkQuickLeft = 12;
+  const tick = async () => {
+    if(!bkPending.some(p => !p.sent) || bkQuickLeft-- <= 0) return;
+    await bkSend();
+    setTimeout(tick, 5000);
+  };
+  setTimeout(tick, 5000);
+}
+setInterval(() => {
+  const waiting = bkPending.find(p => p.sent);
+  if(waiting) ensureWeek(waiting.date, true);
+}, 20000);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && bkPending.some(p => !p.sent)) bkSend(); });
+
 
 /* ------------------------------------------------------------ patients -- */
 let patientQuery = '', selectedPatient = null, searchTimer = null;

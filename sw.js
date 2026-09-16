@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-v52';  // v52: apps 4.10 - book from the phone
+const CACHE_VERSION = 'echo-nexus-v53';  // v53: apps 4.11 - faster booking hand-off
 const PAGE_FUSE_MS = 2500;
 
 const SHELL = [
