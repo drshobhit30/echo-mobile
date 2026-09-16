@@ -470,6 +470,8 @@ body{ background:#FAF7F2 !important; }
 .bk-slot.bk-past{ opacity:0.35; }
 .bk-slot.sel{ background:#3B2A1A !important; color:#F5EDE1 !important; border-color:#3B2A1A !important; }
 .bk-slot.sel small{ color:#C9B79C; }
+.bk-warn{ background:#FAEEDA; color:#633806; border-radius:10px; padding:8px 10px; font-size:0.8rem; margin-top:8px; }
+.bk-slot.bk-booked.sel, .bk-slot.bk-closed.sel{ background:#BA7517 !important; border-color:#BA7517 !important; }
 .bk-msg{ min-height:18px; font-size:0.82rem; color:#A32D2D; margin-top:10px; }
 .bk-go{ width:100%; border:0; background:#3B2A1A; color:#F5EDE1; border-radius:13px; padding:13px; font:inherit; font-weight:700; font-size:0.95rem; margin-top:4px; }
 .bk-go.rough{ background:#fff; color:#3B2A1A; border:1.5px dashed #3B2A1A; }
@@ -563,7 +565,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.11';
+const LITE_VERSION = '4.13';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1277,7 +1279,9 @@ function bkRender(){
   for(let t = BK_SLOT_FROM; t < BK_SLOT_TO; t += 15){
     const st = bkSlotState(t);
     const hhmm = String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
-    const can = rough ? st !== 'past' : st === 'free';
+    /* 4.13 (owner's call): taken and closed times can be booked too - they
+       stay greyed so nobody does it by accident, and picking one warns. */
+    const can = st !== 'past';
     const cls = 'bk-slot bk-' + st + (bk.time === hhmm ? ' sel' : '');
     slots += '<button type="button" class="' + cls + '"' + (can ? ' onclick="bkSet(\'time\',' + jsArg(hhmm) + ')"' : ' disabled') + '>'
       + clock(t).replace(/ (am|pm)$/, '<small>$1</small>') + (st === 'booked' ? '<i>Booked</i>' : '') + '</button>';
@@ -1301,10 +1305,17 @@ function bkRender(){
       + (rough ? '<button type="button" class="' + (!bk.doctor ? 'on' : '') + '" onclick="bkSet(\'doctor\',\'\')">None</button>' : '') + '</div>'
     + '<div class="bk-f">Length</div><div class="bk-seg">' + [15, 30, 45, 60].map(m => '<button type="button" class="' + (bk.mins === m ? 'on' : '') + '" onclick="bkSet(\'mins\',' + m + ')">' + m + 'm</button>').join('') + '</div>'
     + '<div class="bk-f">Time</div><div class="bk-slots">' + slots + '</div>'
+    + (bk.time && !rough ? (() => {
+        const st = bkSlotState(minsOf(bk.time));
+        if(st === 'booked') return '<div class="bk-warn">\u26A0 ' + escapeHtml(bk.doctor) + ' already has a booking at this time. It will be double-booked, and Nexus will flag it.</div>';
+        if(st === 'closed') return '<div class="bk-warn">\u26A0 This time is marked closed' + (bk.doctor ? ' or ' + escapeHtml(bk.doctor) + ' is away' : '') + '. It will still be booked.</div>';
+        return '';
+      })() : '')
     + '<div class="bk-f">Reason <span>optional</span></div><input class="bk-in" id="bkReason" value="' + escapeHtml(bk.reason) + '" oninput="bkReason(this.value)" placeholder="e.g. RCT second sitting">'
     + '<div class="bk-msg">' + escapeHtml(bk.msg || '') + '</div>'
     + '<button type="button" class="bk-go' + (rough ? ' rough' : '') + '" onclick="bkSubmit()">'
-      + (rough ? 'Add rough' : 'Book') + (bk.time ? ' \u00b7 ' + escapeHtml(dayTitle(bk.date)) + ' ' + clock(minsOf(bk.time)) : '') + '</button>';
+      + (rough ? 'Add rough' : 'Book') + (bk.time ? ' \u00b7 ' + escapeHtml(dayTitle(bk.date)) + ' ' + clock(minsOf(bk.time)) : '')
+      + (bk.time && !rough && bkSlotState(minsOf(bk.time)) !== 'free' ? ' \u00b7 anyway' : '') + '</button>';
   bkRenderHits();
 }
 function bkReason(v){ if(bk) bk.reason = v; }
@@ -1334,7 +1345,7 @@ async function bkSend(){
     for(const p of bkPending.filter(x => !x.sent)){
       try{
         await relay({ action: 'book', booking: JSON.stringify(p) });
-        p.sent = true; bkSave();
+        p.sent = true; p.sentAt = Date.now(); bkSave();
       }catch(e){
         if(e && e.message !== 'offline' && e.message !== 'unreadable' && e.body && e.body.error){
           bkPending = bkPending.filter(x => x.id !== p.id); bkSave();
@@ -1354,11 +1365,14 @@ function toast(t){
 window.addEventListener('online', () => bkSend());
 setInterval(() => { if(bkPending.some(p => !p.sent)) bkSend(); }, 30000);
 
-/* FASTER HAND-OFF (4.11). A booking that did not go through is retried every
-   5 seconds for its first minute (then every 30 as before), and at once when
-   the app comes back to the screen. One that went through but is not yet in
-   the day's file has that day read fresh from Drive every 20 seconds -
-   skipping the relay's 5-minute ready copy - until Nexus has filed it. */
+/* FASTER HAND-OFF, WITHOUT HAMMERING DRIVE (4.12). A booking that did not
+   go through is retried every 5 seconds for its first minute, and when the
+   app comes back to the screen. One that went through is looked for in its
+   OWN DAY only, fresh, every 20 seconds for 3 minutes (4.11 read the whole
+   fortnight, non-stop - Google answered "Service error: Drive"). After that
+   the phone asks the relay where the booking is: filed but gone from the day
+   means it was deleted at the desk, and the note is dropped; so is one
+   nobody can find after 10 minutes. */
 let bkQuickLeft = 0;
 function bkQuickRetry(){
   bkQuickLeft = 12;
@@ -1369,11 +1383,45 @@ function bkQuickRetry(){
   };
   setTimeout(tick, 5000);
 }
-setInterval(() => {
-  const waiting = bkPending.find(p => p.sent);
-  if(waiting) ensureWeek(waiting.date, true);
-}, 20000);
-document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && bkPending.some(p => !p.sent)) bkSend(); });
+async function bkFreshDay(day){
+  try{
+    const r = await relay({ action: 'week', from: day, to: day, fresh: '1' });
+    const d = r.days && r.days[day];
+    if(d){ mem.days[day] = { appointments: d.appointments || [], visits: d.visits || [], modified: d.modified, at: Date.now() }; idbPut('day:' + day, mem.days[day]); }
+  }catch(e){}
+}
+let bkWatchBusy = false;
+async function bkWatch(){
+  if(bkWatchBusy) return;
+  const sent = bkPending.filter(p => p.sent);
+  if(!sent.length) return;
+  bkWatchBusy = true;
+  try{
+    const now = Date.now();
+    const young = [...new Set(sent.filter(p => now - (p.sentAt || now) < 3 * 60 * 1000).map(p => p.date))];
+    for(const day of young) await bkFreshDay(day);
+    const old = sent.filter(p => now - (p.sentAt || now) >= 3 * 60 * 1000 && now - (p.checkedAt || 0) >= 60 * 1000);
+    if(old.length){
+      let st = {};
+      try{ st = (await relay({ action: 'bookingStatus', ids: old.map(p => p.id).join(',') })).status || {}; }catch(e){ st = {}; }
+      for(const p of old){
+        p.checkedAt = now;
+        if(st[p.id] === 'filed'){
+          await bkFreshDay(p.date);
+          const inDay = ((mem.days[p.date] && mem.days[p.date].appointments) || []).some(a => a && String(a.id) === p.id);
+          bkPending = bkPending.filter(x => x.id !== p.id);   // filed: in the day now, or deleted at the desk - either way no longer this phone's to show
+          if(!inDay) toast('A booking made from this phone was removed at the desk');
+        } else if(st[p.id] === 'unknown' && now - (p.sentAt || now) > 10 * 60 * 1000){
+          bkPending = bkPending.filter(x => x.id !== p.id);
+        }
+      }
+      bkSave();
+    }
+  }finally{ bkWatchBusy = false; }
+  if(currentTab === 'calendar') renderCalendar();
+}
+setInterval(bkWatch, 20000);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ if(bkPending.some(p => !p.sent)) bkSend(); bkWatch(); } });
 
 
 /* ------------------------------------------------------------ patients -- */
