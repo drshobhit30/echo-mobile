@@ -439,6 +439,44 @@ body{ background:#FAF7F2 !important; }
 .hd-v:active{ opacity:0.6; }
 
 .upd-bar{ position:fixed; left:12px; right:12px; bottom:calc(76px + env(safe-area-inset-bottom)); z-index:80; border:0; border-radius:14px; padding:12px 14px; background:#1D9E75; color:#fff; font:inherit; font-size:0.9rem; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,0.25); cursor:pointer; }
+/* ==== BOOK FROM THE PHONE (4.10) ==== */
+.bk-fab{ position:fixed; right:16px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:45; width:54px; height:54px; border-radius:50%; border:0; background:#3B2A1A; color:#E8CFA0; font-size:1.9rem; line-height:1; box-shadow:0 6px 16px rgba(0,0,0,0.3); cursor:pointer; }
+.bk-wrap{ position:fixed; inset:0; z-index:90; background:rgba(42,29,16,0.45); display:flex; align-items:flex-end; }
+.bk-sheet{ background:#FAF7F2; width:100%; max-width:760px; margin:0 auto; max-height:92vh; overflow-y:auto; border-radius:20px 20px 0 0; padding:12px 16px calc(20px + env(safe-area-inset-bottom)); }
+.bk-head{ display:flex; justify-content:space-between; align-items:center; }
+.bk-title{ font-size:1.1rem; font-weight:700; color:#2A1D10; }
+.bk-switch{ display:flex; background:#3B2A1A; border-radius:12px; padding:3px; margin:10px 0 4px; }
+.bk-switch button{ flex:1; border:0; background:transparent; color:#C9B79C; font:inherit; font-weight:600; padding:8px 0; border-radius:9px; }
+.bk-switch button.on{ background:#C9A56B; color:#3B2A1A; }
+.bk-note{ font-size:0.76rem; color:#8A7A63; background:#F1EAE0; border-radius:9px; padding:7px 10px; margin:6px 0; }
+.bk-f{ font-size:0.7rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:#8A7A63; margin:12px 0 5px; }
+.bk-f span{ text-transform:none; letter-spacing:0; font-weight:400; }
+.bk-in{ width:100%; box-sizing:border-box; background:#fff; border:1px solid #E5DACB; border-radius:11px; padding:10px 11px; font:inherit; font-size:0.92rem; color:#2A1D10; }
+.bk-hits{ background:#fff; border:1px solid #E5DACB; border-radius:11px; margin-top:4px; overflow:hidden; }
+.bk-hits button{ display:block; width:100%; text-align:left; border:0; border-top:1px solid #F1EAE0; background:#fff; font:inherit; font-size:0.88rem; padding:9px 11px; }
+.bk-hits button:first-child{ border-top:0; }
+.bk-hits span{ color:#8A7A63; font-size:0.78rem; }
+.bk-picked{ font-size:0.82rem; color:#27500A; margin-top:5px; }
+.bk-seg{ display:flex; gap:6px; flex-wrap:wrap; }
+.bk-seg button{ flex:1; min-width:64px; border:1px solid #E5DACB; background:#fff; border-radius:10px; padding:8px 6px; font:inherit; font-size:0.85rem; color:#2A1D10; }
+.bk-seg button.on{ background:#3B2A1A; color:#F5EDE1; border-color:#3B2A1A; }
+.bk-seg i{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
+.bk-slots{ display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+.bk-slot{ border:1px solid #E5DACB; background:#fff; border-radius:9px; padding:7px 0; font:inherit; font-size:0.82rem; color:#2A1D10; }
+.bk-slot small{ font-size:0.62rem; margin-left:2px; color:#8A7A63; }
+.bk-slot i{ display:block; font-style:normal; font-size:0.6rem; color:#A32D2D; }
+.bk-slot.bk-booked{ background:#F1EFE8; color:#8A7A63; }
+.bk-slot.bk-closed{ background:repeating-linear-gradient(45deg,#F1EAE0,#F1EAE0 4px,#fff 4px,#fff 8px); color:#B4B2A9; }
+.bk-slot.bk-past{ opacity:0.35; }
+.bk-slot.sel{ background:#3B2A1A !important; color:#F5EDE1 !important; border-color:#3B2A1A !important; }
+.bk-slot.sel small{ color:#C9B79C; }
+.bk-msg{ min-height:18px; font-size:0.82rem; color:#A32D2D; margin-top:10px; }
+.bk-go{ width:100%; border:0; background:#3B2A1A; color:#F5EDE1; border-radius:13px; padding:13px; font:inherit; font-weight:700; font-size:0.95rem; margin-top:4px; }
+.bk-go.rough{ background:#fff; color:#3B2A1A; border:1.5px dashed #3B2A1A; }
+.bk-toast{ position:fixed; left:12px; right:12px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:95; background:#1D9E75; color:#fff; border-radius:12px; padding:11px 13px; font-size:0.88rem; opacity:0; transform:translateY(10px); transition:all .2s ease; pointer-events:none; }
+.bk-toast.on{ opacity:1; transform:none; }
+.ka-card.is-pending{ outline:1.5px dashed #C9A56B; outline-offset:-1.5px; }
+.ka-pend{ font-size:0.66rem; background:#F6EBD9; color:#8A5F26; border-radius:9px; padding:1px 7px; margin-left:6px; }
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -498,6 +536,8 @@ body{ background:#FAF7F2 !important; }
     </div>
   </div>
 </div>
+<button type="button" class="bk-fab" id="bkFab" onclick="bkOpen()" aria-label="Book">+</button>
+<div id="bkWrap" class="bk-wrap hidden" onclick="if(event.target===this) bkClose()"><div class="bk-sheet" id="bkSheet"></div></div>
 <div id="drawerWrap" class="drawer-wrap hidden"><div class="drawer" id="drawer"></div></div>
 <div id="prevRx" class="prev-rx hidden"><div class="wrap">
   <button type="button" class="btn ghost" onclick="closePrevRx()" style="margin:4px 0 6px;">&lsaquo; Back</button>
@@ -523,7 +563,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.9';
+const LITE_VERSION = '4.10';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -861,6 +901,11 @@ function rowsFor(day){
       mins: t, len: Number(a.mins) || 15, doctor: a.doctor || '', reason: (v && v.cameFor) || a.cameFor || a.note || '',
       status, struck: status === 'noshow', rough: !!a.rough, bookedAt: a.createdAt || '', chair: v && v.chair });
   });
+  bkPendingFor(day).forEach(a => {
+    rows.push({ kind: 'appt', id: a.id, visitId: '', patientId: a.patientId || '', name: a.patientId ? (nameOf(a.patientId) || ('ID ' + a.patientId)) : (a.newName || 'no name yet'),
+      mins: minsOf(a.time), len: Number(a.mins) || 15, doctor: a.doctor || '', reason: a.cameFor || '',
+      status: a.rough ? 'rough' : 'booked', struck: false, rough: !!a.rough, bookedAt: '', pending: true, sent: !!a.sent });
+  });
   visits.forEach(v => {
     if(used[String(v.id)]) return;
     rows.push({ kind: 'walkin', id: v.id, visitId: v.id, patientId: v.patientId, name: nameOf(v.patientId) || ('ID ' + v.patientId),
@@ -900,11 +945,13 @@ function rowHtml(r, day){
     r.reason ? '<span>' + escapeHtml(r.reason) + '</span>' : '',
     rxN ? '<span class="ka-rx">\u211e ' + rxN + '</span>' : ''
   ].filter(Boolean).join('');
-  return '<div class="ka-card' + (r.rough ? ' is-rough' : '') + (r.struck ? ' is-struck' : '') + '"'
+  return '<div class="ka-card' + (r.rough ? ' is-rough' : '') + (r.struck ? ' is-struck' : '') + (r.pending ? ' is-pending' : '') + '"'
     + ' onclick="openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')">'
     + '<div class="ka-band" style="background:' + (BAND[r.status] || BAND.booked) + ';"></div>'
     + '<div class="ka-in">'
-      + '<div class="ka-top"><span class="ka-when ' + chip[1] + '-t">' + escapeHtml(when) + '</span><span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span></div>'
+      + '<div class="ka-top"><span class="ka-when ' + chip[1] + '-t">' + escapeHtml(when) + '</span><span>'
+        + (r.pending ? '<span class="ka-pend">\u23F3 ' + (r.sent ? 'Sent to desk' : 'Waiting for signal') + '</span>' : '<span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>')
+      + '</span></div>'
       + '<div class="ka-name">' + escapeHtml(r.name) + (as ? ' <span>' + escapeHtml(as) + '</span>' : '') + '</div>'
       + '<div class="ka-meta">' + meta + '</div>'
     + '</div></div>';
@@ -1048,6 +1095,7 @@ function renderCalendar(){
   }
   paintFreshness();
   if(typeof paintAdminExtras === 'function') paintAdminExtras();
+  { const fab = document.getElementById('bkFab'); if(fab) fab.style.display = (currentTabName() === 'calendar') ? '' : 'none'; }
 }
 function goDay(d){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d || ''))) return;
@@ -1142,6 +1190,169 @@ function renderPrevRx(pid){
 }
 function closePrevRx(){ document.getElementById('prevRx').classList.add('hidden'); }
 
+/* ================= BOOK FROM THE PHONE (4.10) =================
+   Appointment (existing patients only) or Rough (free name allowed), today
+   onwards. The relay checks again and drops the booking into the inbox;
+   Nexus on the clinic PC files it. Until it appears in the day's own file,
+   this phone shows it dashed, "Sent to desk". Unsent (no signal) bookings
+   wait on the phone and go when the signal does. */
+const BK_SLOT_FROM = 9 * 60, BK_SLOT_TO = 22 * 60;
+let bk = null;          // the open form
+let bkPending = [];     // this phone's bookings not yet seen in a day file
+async function bkLoad(){
+  try{ const all = await idbAll(); bkPending = all['bk:pending'] || []; }catch(e){ bkPending = []; }
+}
+function bkSave(){ idbPut('bk:pending', bkPending); }
+function bkPendingFor(day){
+  const held = mem.days[day];
+  const ids = new Set(((held && held.appointments) || []).map(a => a && String(a.id)));
+  bkPending = bkPending.filter(p => !(mem.days[p.date] && ids.has(p.id) && p.date === day) && p.date >= todayStr());
+  return bkPending.filter(p => p.date === day && !ids.has(p.id));
+}
+function bkDocs(){ const d = S('doctors.json'); return (Array.isArray(d) ? d : []).map(x => x && (x.name || x)).filter(Boolean); }
+function bkOpen(){
+  const today = todayStr();
+  bk = { mode: 'appt', date: viewDay < today ? today : viewDay, q: '', pid: '', name: '', doctor: bkDocs()[0] || '', time: '', mins: 15, reason: '', lookup: [], msg: '' };
+  document.getElementById('bkWrap').classList.remove('hidden');
+  bkRender();
+}
+function bkClose(){ bk = null; document.getElementById('bkWrap').classList.add('hidden'); }
+function bkSet(k, v){ if(!bk) return; bk[k] = v; if(k === 'mode'){ bk.doctor = (v === 'rough') ? '' : (bkDocs()[0] || ''); } if(k === 'mode' || k === 'doctor' || k === 'mins' || k === 'date'){ bk.time = ''; } bk.msg = ''; bkRender(); }
+let bkLookupTimer = null;
+function bkSearch(v){
+  if(!bk) return;
+  bk.q = v; bk.pid = ''; if(bk.mode === 'rough') bk.name = v;
+  clearTimeout(bkLookupTimer);
+  const digits = String(v).replace(/\D/g, '');
+  if(digits.length >= 4){
+    bkLookupTimer = setTimeout(async () => {
+      try{ const r = await relay({ action: 'lookup', q: digits }); if(bk && bk.q === v){ bk.lookup = r.ids || []; bkRenderHits(); } }catch(e){}
+    }, 350);
+  } else bk.lookup = [];
+  bkRenderHits();
+}
+function bkPick(pid){ if(!bk) return; bk.pid = String(pid); bk.q = nameOf(pid) || pid; bk.name = ''; bkRender(); }
+function bkHits(){
+  const q = String(bk.q || '').trim().toLowerCase();
+  if(bk.pid || q.length < 2) return [];
+  const dir = S('patients.json') || {};
+  const ids = new Set(bk.lookup || []);
+  Object.keys(dir).forEach(pid => { if(ids.size < 40 && (String(dir[pid] || '').toLowerCase().includes(q) || pid.includes(q))) ids.add(pid); });
+  return [...ids].slice(0, 8);
+}
+function bkRenderHits(){
+  const el = document.getElementById('bkHits');
+  if(!el || !bk) return;
+  const hits = bkHits();
+  el.innerHTML = hits.map(pid => '<button type="button" onclick="bkPick(' + jsArg(pid) + ')"><b>' + escapeHtml(nameOf(pid) || 'Unknown') + '</b> <span>' + escapeHtml(pid) + (ageSexOf(pid) ? ' \u00b7 ' + escapeHtml(ageSexOf(pid)) : '') + '</span></button>').join('');
+  el.style.display = hits.length ? '' : 'none';
+}
+/* A slot for the chosen doctor: booked (overlaps a real booking), closed
+   (a closure, or that doctor away), past, or free. Rough never blocks, and
+   a rough booking may take any of them but past. */
+function bkSlotState(t){
+  const day = bk.date, today = todayStr();
+  const now = new Date(); const nowM = now.getHours() * 60 + now.getMinutes();
+  if(day === today && t + bk.mins <= nowM) return 'past';
+  const held = mem.days[day];
+  const appts = ((held && held.appointments) || []).concat(bkPendingFor(day));
+  const busy = appts.some(a => a && !a.rough && (a.status || 'scheduled') !== 'cancelled' && a.status !== 'noshow'
+    && bk.doctor && a.doctor === bk.doctor && (() => { const s1 = minsOf(a.time); return Number.isFinite(s1) && t < s1 + (Number(a.mins) || 15) && t + bk.mins > s1; })());
+  if(busy) return 'booked';
+  const closed = blocksOn(day).some(b => {
+    if(b.kind === 'leave' && (!bk.doctor || b.doctor !== bk.doctor)) return false;
+    if(b.allDay) return true;
+    const s0 = minsOf(b.start), e0 = minsOf(b.end);
+    return Number.isFinite(s0) && Number.isFinite(e0) && t < e0 && t + bk.mins > s0;
+  });
+  return closed ? 'closed' : 'free';
+}
+function bkRender(){
+  if(!bk) return;
+  const rough = bk.mode === 'rough';
+  const docs = bkDocs();
+  const today = todayStr();
+  const dayOpts = Array.from({ length: 30 }, (_, i) => addDays(today, i));
+  let slots = '';
+  for(let t = BK_SLOT_FROM; t < BK_SLOT_TO; t += 15){
+    const st = bkSlotState(t);
+    const hhmm = String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+    const can = rough ? st !== 'past' : st === 'free';
+    const cls = 'bk-slot bk-' + st + (bk.time === hhmm ? ' sel' : '');
+    slots += '<button type="button" class="' + cls + '"' + (can ? ' onclick="bkSet(\'time\',' + jsArg(hhmm) + ')"' : ' disabled') + '>'
+      + clock(t).replace(/ (am|pm)$/, '<small>$1</small>') + (st === 'booked' ? '<i>Booked</i>' : '') + '</button>';
+  }
+  const who = rough
+    ? '<div class="bk-f">Who <span>optional \u2014 a patient, a name as a note, or empty</span></div>'
+    : '<div class="bk-f">Patient <span>name, ID or mobile</span></div>';
+  document.getElementById('bkSheet').innerHTML =
+    '<div class="bk-head"><div class="bk-title">Book</div><button type="button" class="dr-x" onclick="bkClose()">\u2715</button></div>'
+    + '<div class="bk-switch"><button type="button" class="' + (rough ? '' : 'on') + '" onclick="bkSet(\'mode\',\'appt\')">Appointment</button>'
+    + '<button type="button" class="' + (rough ? 'on' : '') + '" onclick="bkSet(\'mode\',\'rough\')">Rough</button></div>'
+    + (rough ? '<div class="bk-note">A note that someone may come. It does not hold the time; a real booking can go over it.</div>' : '')
+    + '<div class="bk-f">Day</div><select class="bk-in" onchange="bkSet(\'date\', this.value)">'
+      + dayOpts.map(d => '<option value="' + d + '"' + (d === bk.date ? ' selected' : '') + '>' + escapeHtml(dayTitle(d)) + (d === today ? ' \u00b7 today' : '') + '</option>').join('') + '</select>'
+    + who
+    + '<input class="bk-in" id="bkQ" autocomplete="off" value="' + escapeHtml(bk.q) + '" oninput="bkSearch(this.value)" placeholder="' + (rough ? 'e.g. Mr Verma' : 'Search') + '">'
+    + (bk.pid ? '<div class="bk-picked">\u2713 ' + escapeHtml(nameOf(bk.pid)) + ' \u00b7 ' + escapeHtml(bk.pid) + '</div>' : '')
+    + '<div class="bk-hits" id="bkHits"></div>'
+    + '<div class="bk-f">Doctor' + (rough ? ' <span>optional</span>' : '') + '</div>'
+    + '<div class="bk-seg">' + docs.map(d => '<button type="button" class="' + (bk.doctor === d ? 'on' : '') + '" onclick="bkSet(\'doctor\',' + jsArg(d) + ')"><i style="background:' + doctorColor(d) + ';"></i>' + escapeHtml(d.replace(/^Dr\.?\s*/i, '')) + '</button>').join('')
+      + (rough ? '<button type="button" class="' + (!bk.doctor ? 'on' : '') + '" onclick="bkSet(\'doctor\',\'\')">None</button>' : '') + '</div>'
+    + '<div class="bk-f">Length</div><div class="bk-seg">' + [15, 30, 45, 60].map(m => '<button type="button" class="' + (bk.mins === m ? 'on' : '') + '" onclick="bkSet(\'mins\',' + m + ')">' + m + 'm</button>').join('') + '</div>'
+    + '<div class="bk-f">Time</div><div class="bk-slots">' + slots + '</div>'
+    + '<div class="bk-f">Reason <span>optional</span></div><input class="bk-in" id="bkReason" value="' + escapeHtml(bk.reason) + '" oninput="bkReason(this.value)" placeholder="e.g. RCT second sitting">'
+    + '<div class="bk-msg">' + escapeHtml(bk.msg || '') + '</div>'
+    + '<button type="button" class="bk-go' + (rough ? ' rough' : '') + '" onclick="bkSubmit()">'
+      + (rough ? 'Add rough' : 'Book') + (bk.time ? ' \u00b7 ' + escapeHtml(dayTitle(bk.date)) + ' ' + clock(minsOf(bk.time)) : '') + '</button>';
+  bkRenderHits();
+}
+function bkReason(v){ if(bk) bk.reason = v; }
+function bkId(){ return 'ph-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
+function bkWho(){ try{ return localStorage.getItem('echoLite_name') || localStorage.getItem('echoAdmin_name') || ''; }catch(e){ return ''; } }
+async function bkSubmit(){
+  if(!bk) return;
+  const rough = bk.mode === 'rough';
+  if(!rough && !bk.pid){ bk.msg = 'Choose a patient from the list \u2014 new patients are registered at the desk.'; return bkRender(); }
+  if(!rough && !bk.doctor){ bk.msg = 'Choose a doctor.'; return bkRender(); }
+  if(!bk.time){ bk.msg = 'Pick a time.'; return bkRender(); }
+  const rec = { id: bkId(), date: bk.date, time: bk.time, mins: bk.mins, patientId: bk.pid, newName: rough && !bk.pid ? String(bk.q || '').trim() : '',
+    doctor: bk.doctor, cameFor: bk.reason, rough, bookedBy: bkWho() || (typeof ADMIN_VERSION !== 'undefined' ? 'admin phone' : 'lite phone'),
+    status: 'scheduled', pending: true, sent: false };
+  bkPending.push(rec); bkSave();
+  bkClose();
+  toast(rough ? 'Rough slot added \u00b7 sending to the desk' : 'Booked \u00b7 sending to the desk');
+  renderCalendar();
+  await bkSend();
+}
+let bkSending = false;
+async function bkSend(){
+  if(bkSending) return;
+  bkSending = true;
+  try{
+    for(const p of bkPending.filter(x => !x.sent)){
+      try{
+        await relay({ action: 'book', booking: JSON.stringify(p) });
+        p.sent = true; bkSave();
+      }catch(e){
+        if(e && e.message !== 'offline' && e.message !== 'unreadable' && e.body && e.body.error){
+          bkPending = bkPending.filter(x => x.id !== p.id); bkSave();
+          alert('Not booked: ' + e.body.error);
+        }
+      }
+    }
+  }finally{ bkSending = false; }
+  if(currentTab === 'calendar') renderCalendar();
+}
+function toast(t){
+  let el = document.getElementById('bkToast');
+  if(!el){ el = document.createElement('div'); el.id = 'bkToast'; el.className = 'bk-toast'; document.body.appendChild(el); }
+  el.textContent = t; el.classList.add('on');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 3500);
+}
+window.addEventListener('online', () => bkSend());
+setInterval(() => { if(bkPending.some(p => !p.sent)) bkSend(); }, 30000);
+
 /* ------------------------------------------------------------ patients -- */
 let patientQuery = '', selectedPatient = null, searchTimer = null;
 function onSearch(v){ patientQuery = String(v || '').trim(); selectedPatient = null; clearTimeout(searchTimer); searchTimer = setTimeout(renderPatients, 180); }
@@ -1175,7 +1386,9 @@ function renderPatients(){
 }
 
 /* --------------------------------------------------------------- shell -- */
+function currentTabName(){ return currentTab; }
 function setTab(t){
+  { const fab = document.getElementById('bkFab'); if(fab) fab.style.display = (t === 'calendar' ? '' : 'none'); }
   currentTab = t;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === t));
   document.getElementById('viewCalendar').classList.toggle('hidden', t !== 'calendar');
@@ -1241,9 +1454,11 @@ async function boot(){
   showApp();
   if(!booted){ booted = true; wireStripSwipe(); wireDrawer(); wirePull(); }
   await hydrate();          // the phone's own copy - no network
+  await bkLoad();
   setTab('calendar');       // painted from it
   refreshSettings(true);    // then the relay, behind
   ensureWeek(viewDay, true);
+  bkSend();
 }
 window.addEventListener('load', () => {
   document.getElementById('appVer').textContent = LITE_VERSION;
