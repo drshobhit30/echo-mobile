@@ -585,6 +585,9 @@ body{ background:#FAF7F2 !important; }
 .hs-dot{ border-color:#FAF7F2 !important; }
 .hs-what{ color:#2A1D10 !important; }
 .tabbar .tab-btn.active{ color:#3B2A1A !important; }
+
+.hd-v{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.hd-v:active{ opacity:0.6; }
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -605,7 +608,7 @@ body{ background:#FAF7F2 !important; }
          small print. The corner used to hold only a version number, which is
          why it read as empty. -->
     <div class="hd-mark">
-      <div class="hd-v">Nexus <b>A</b> &middot; <span id="appVer"></span></div>
+      <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version">Nexus <b>A</b> &middot; <span id="appVer"></span></div>
     </div>
   </div>
   <div class="tabbar">
@@ -2448,7 +2451,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.7';
+const ADMIN_VERSION = '4.8';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -3677,6 +3680,21 @@ function pasteSetupLink(){
   if(!p.get('relay') || !p.get('key')){ if(msg) msg.textContent = 'That is not a setup link \u2014 copy the whole link, from https to the end.'; return; }
   location.hash = raw.slice(i + 1);
   if(typeof boot === 'function') boot();
+}
+
+/* TAP THE VERSION TO UPDATE (4.8). Asks for a newer service worker, then
+   reloads; the worker fetches the page fresh from GitHub (no-cache) before
+   anything else. Nothing saved is deleted first - with no signal the reload
+   simply shows the saved copy again rather than a blank screen. The phone's
+   setup, its saved calendar and an open admin session all stay. */
+async function hardRefresh(){
+  const ver = document.getElementById('appVer');
+  if(ver) ver.textContent = 'updating\u2026';
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(reg) await Promise.race([reg.update(), new Promise(r => setTimeout(r, 3000))]);
+  }catch(e){}
+  location.reload();
 }
 /* THE SAVED COPY OF THIS PAGE (v48 service worker). Registered here so the
    page itself opens with no network wait, not only its data. */

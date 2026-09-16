@@ -19,10 +19,14 @@
    EACH PAGE IS ITS OWN PAGE (v47, kept). lite.html and admin.html are cached
    under their own paths; asking for one never returns the other.
 
-   Bump CACHE_VERSION whenever this file or the icons change. The old cache
+   CACHE_VERSION is bumped WITH EVERY APP RELEASE (owner's call, v50), named
+   for the app version it ships with - a new worker installing is a second,
+   independent way for a phone to take the new pages.
+
+   Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-v49';  // v49: network first, 2.5 s fuse, no stale browser cache
+const CACHE_VERSION = 'echo-nexus-v50';  // v50: paired with apps 4.8 (tap version to update)
 const PAGE_FUSE_MS = 2500;
 
 const SHELL = [
