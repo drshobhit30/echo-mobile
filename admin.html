@@ -386,6 +386,9 @@ body{ padding-bottom:28px; }
 .dr-panel.dr-owes{ background:#FCEBEB; border-color:#F09595; }
 .dr-btns{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .dr-btns .dr-btn:only-child{ grid-column:1 / -1; }
+/* Chrome's own pull-to-refresh RELOADS the page, which ended the admin session.
+   The app's own pull (which never did) is the only one now. */
+html, body{ overscroll-behavior-y: contain; }
 /* ==== KIVI-STYLE CALENDAR (lite 3.2 / admin 4.2) ==== */
 body{ padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
 .topbar{ background:linear-gradient(160deg,#8A5F26,#6E4A1C) !important; border-bottom:0 !important; color:#fff; }
@@ -1290,7 +1293,11 @@ const K_RELAY = 'echoAdmin_relay', K_KEY = 'echoAdmin_key';
 let accessToken = 'relay';          // the lifted loaders test this as "can read"
 let driveFolderId = 'root';
 let currentDate = todayStr();
-let adminSession = null;            // memory only - never written to the phone
+/* THE SESSION survives a reload (sessionStorage) but not a closed app, and
+   is dropped the moment the phone locks or the app goes to the background. */
+let adminSession = null;
+try{ adminSession = sessionStorage.getItem('echoAdmin_session') || null; }catch(e){ adminSession = null; }
+function keepSession(v){ try{ if(v) sessionStorage.setItem('echoAdmin_session', v); else sessionStorage.removeItem('echoAdmin_session'); }catch(e){} }
 function adminOn(){ return !!adminSession; }
 function takeSetupFromLink(){
   const h = String(location.hash || '').replace(/^#/, '');
@@ -1393,6 +1400,7 @@ async function pinKey(k){
   try{
     const r = await relay({ action: 'unlock', pin: pinDigits });
     adminSession = r.session;
+    keepSession(r.session);
     closePinPad();
     paintLock(); paintTabs();
     setTab('calendar');
@@ -1408,6 +1416,7 @@ async function pinKey(k){
 function lockAdmin(){
   const had = adminSession;
   adminSession = null;
+  keepSession(null);
   if(had){
     try{
       const url = new URL(relayUrl());
@@ -1420,11 +1429,17 @@ function lockAdmin(){
   else renderCurrent();
 }
 /* Closed or locked phone: the session goes with it. */
+/* A reload makes the page "hidden" on its way out too; that is not the phone
+   locking, so it must not end the session. beforeunload/pagehide come first. */
+let pageUnloading = false;
+window.addEventListener('beforeunload', () => { pageUnloading = true; });
+window.addEventListener('pagehide', () => { pageUnloading = true; });
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'hidden'){ if(adminOn()) lockAdmin(); }
+  if(document.visibilityState === 'hidden'){ if(adminOn() && !pageUnloading) lockAdmin(); }
   else if(isSetUp()){ Cal.resetFresh(); Cal.refreshSettings(false); Cal.ensureWeek(Cal.getViewDay(), false); }
 });
-window.addEventListener('pagehide', () => { if(adminOn()) lockAdmin(); });
+/* (pagehide no longer locks: it also fires on a reload. Going to the
+   background - the phone locking, the app closing - still locks, above.) */
 
 /* (a3.x) Any Drive call made without a token is not an error to hide: it is the one
    moment the tap is genuinely needed, so it raises the offer.
@@ -2261,7 +2276,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.2';
+const ADMIN_VERSION = '4.3';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -2365,6 +2380,7 @@ async function doRefresh(){
   try{ localStorage.removeItem('echoAdmin_bills');
        localStorage.removeItem('echoAdmin_entries'); }catch(e){}
   billsRevalidate = true; entriesRevalidate = true;
+  try{ await Promise.all([Cal.refreshSettings(true), Cal.ensureWeek(Cal.getViewDay(), true)]); }catch(e){}
   setTab(currentTab);
   await new Promise(r => setTimeout(r, 400));
 }
