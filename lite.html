@@ -317,7 +317,7 @@ body{ padding-bottom:28px; }
    reads its whole week and the next in one request, so the next tap is on
    the phone already.
    ========================================================================== */
-const LITE_VERSION = 'v3.0';
+const LITE_VERSION = 'v3.1';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -647,7 +647,10 @@ function rowsFor(day){
     rows.push({ kind: b.kind === 'leave' ? 'leave' : 'block', id: b.id, mins: b.allDay ? 24 * 60 : minsOf(b.start),
       end: minsOf(b.end), allDay: !!b.allDay, title: b.title || '' });
   });
-  rows.sort((x, y) => (Number.isFinite(y.mins) ? y.mins : -1) - (Number.isFinite(x.mins) ? x.mins : -1));
+  /* EARLIEST FIRST (owner's call, a4.1 / lite 3.1 - latest-first undone). An
+     all-day closure leads the day; a booking with no time closes it. */
+  const sortKey = (r) => r.allDay ? -1 : (Number.isFinite(r.mins) ? r.mins : 24 * 60 + 1);
+  rows.sort((x, y) => sortKey(x) - sortKey(y));
   return rows;
 }
 function rowHtml(r, day){

@@ -871,7 +871,10 @@ function rowsFor(day){
     rows.push({ kind: b.kind === 'leave' ? 'leave' : 'block', id: b.id, mins: b.allDay ? 24 * 60 : minsOf(b.start),
       end: minsOf(b.end), allDay: !!b.allDay, title: b.title || '' });
   });
-  rows.sort((x, y) => (Number.isFinite(y.mins) ? y.mins : -1) - (Number.isFinite(x.mins) ? x.mins : -1));
+  /* EARLIEST FIRST (owner's call, a4.1 / lite 3.1 - latest-first undone). An
+     all-day closure leads the day; a booking with no time closes it. */
+  const sortKey = (r) => r.allDay ? -1 : (Number.isFinite(r.mins) ? r.mins : 24 * 60 + 1);
+  rows.sort((x, y) => sortKey(x) - sortKey(y));
   return rows;
 }
 function rowHtml(r, day){
@@ -2140,7 +2143,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.0';
+const ADMIN_VERSION = '4.1';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
