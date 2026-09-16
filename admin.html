@@ -549,6 +549,42 @@ body{ background:#FDFAF4 !important; }
 .hd-lock.unlocked::after{ content:''; position:absolute; inset:-2px; border-radius:13px; border:2px solid #E24B4A; pointer-events:none;
   animation:lockRing 1.6s ease-out infinite; }
 @keyframes lockRing{ 0%{ transform:scale(1); opacity:0.9; } 100%{ transform:scale(1.22); opacity:0; } }
+
+/* ==== ESPRESSO (owner's pick, 4.7) - replaces honey sand; layout unchanged ==== */
+body{ background:#FAF7F2 !important; }
+.topbar{ background:#3B2A1A !important; color:#F5EDE1 !important; }
+.topbar .hd-greet{ color:#C9B79C !important; }
+.topbar .hd-who{ color:#F5EDE1 !important; }
+.topbar .hd-v{ color:#C9B79C !important; }
+.topbar .hd-v b{ background:rgba(201,165,107,0.25) !important; color:#E8CFA0 !important; }
+.hd-lock{ background:#2A1D10 !important; box-shadow:0 1px 4px rgba(0,0,0,0.35) !important; }
+.cal-sticky{ background:#F1EAE0 !important; box-shadow:0 4px 10px -8px rgba(59,42,26,0.45) !important; }
+.cal-band{ background:#3B2A1A !important; color:#F5EDE1 !important; }
+.cal-month{ color:#F5EDE1 !important; }
+.cal-total{ color:#D9C9B2 !important; }
+.cal-total b{ background:#C9A56B !important; color:#3B2A1A !important; }
+.kv-d{ color:#D9C9B2 !important; }
+.kv-d b{ color:#F5EDE1 !important; }
+.kv-d.sel b{ background:#C9A56B !important; color:#3B2A1A !important; }
+.kv-d.is-today b{ box-shadow: inset 0 0 0 1.5px #C9A56B !important; }
+#calDayWord{ color:#3B2A1A !important; }
+.kv-chip{ border-color:#E5DACB !important; }
+.kv-chip b{ background:#F1EAE0 !important; }
+.ka-card{ box-shadow:0 2px 10px rgba(59,42,26,0.08) !important; }
+.ka-name{ color:#2A1D10 !important; }
+.ka-meta{ color:#6B5A45 !important; }
+.sl{ border-color:#E5DACB !important; }
+.sl-head{ background:#3B2A1A !important; color:#F5EDE1 !important; }
+.sl-head span{ color:#C9B79C !important; opacity:1 !important; }
+.sl-advice{ background:#F6EBD9 !important; }
+.prev-rx{ background:#FAF7F2 !important; }
+.hs-head{ background:#3B2A1A !important; color:#F5EDE1 !important; }
+.hs-head span{ color:#C9B79C !important; }
+.hs-month{ color:#8A5F26 !important; }
+.hs-line{ border-left-color:#E5DACB !important; }
+.hs-dot{ border-color:#FAF7F2 !important; }
+.hs-what{ color:#2A1D10 !important; }
+.tabbar .tab-btn.active{ color:#3B2A1A !important; }
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -2412,7 +2448,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.6';
+const ADMIN_VERSION = '4.7';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
