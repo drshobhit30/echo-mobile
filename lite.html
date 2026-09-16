@@ -237,6 +237,68 @@ body{ padding-bottom:28px; }
 .pv-head{ margin:6px 0 12px; }
 .pv-head b{ font-size:1.02rem; color:var(--ink); }
 .pv-head span{ font-size:0.8rem; color:var(--muted); }
+/* ==== KIVI-STYLE CALENDAR (lite 3.2 / admin 4.2) ==== */
+body{ padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
+.topbar{ background:linear-gradient(160deg,#8A5F26,#6E4A1C) !important; border-bottom:0 !important; color:#fff; }
+.topbar .hd-greet{ color:rgba(255,255,255,0.8) !important; }
+.topbar .hd-who{ color:#fff !important; }
+.topbar .hd-title{ color:#fff !important; }
+.topbar .hd-v{ color:rgba(255,255,255,0.75) !important; }
+.topbar .hd-v b{ background:rgba(255,255,255,0.22) !important; color:#fff !important; }
+.topbar .admin-btn{ border-color:rgba(255,255,255,0.75) !important; color:#fff !important; background:transparent !important; }
+.topbar .admin-btn.open{ background:#fff !important; color:#6E4A1C !important; }
+/* the tabs live at the bottom, like KIVI */
+.tabbar{ position:fixed !important; left:0; right:0; bottom:0; z-index:40; margin:0 !important; background:#fff; border-top:1px solid var(--line);
+  padding:4px 4px calc(4px + env(safe-area-inset-bottom)) !important; display:flex !important; }
+.tabbar .tab-btn{ color:var(--muted); border-bottom:0 !important; padding:6px 2px !important; }
+.tabbar .tab-btn.active{ color:var(--gold-deep); }
+.tabbar .tab-btn svg{ width:20px; height:20px; display:block; margin:0 auto 2px; }
+.lite-tab-ico{ display:block; font-size:1.15rem; line-height:1; margin-bottom:2px; }
+/* the band continues the header on the calendar */
+.cal-band{ background:linear-gradient(160deg,#7C5421,#6E4A1C); color:#fff; margin:0 -14px 12px; padding:6px 14px 12px; border-radius:0 0 22px 22px; }
+.cal-band-row{ display:flex; justify-content:space-between; align-items:center; }
+.cal-month{ background:none; border:0; color:#fff; font:inherit; font-size:1rem; font-weight:700; padding:4px 0; cursor:pointer; }
+.cal-month::after{ content:' \25BE'; font-size:0.7rem; opacity:0.8; }
+.cal-total{ font-size:0.78rem; opacity:0.95; }
+.cal-total b{ background:#fff; color:#6E4A1C; border-radius:10px; padding:1px 8px; margin-left:4px; }
+#calPicker{ position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+.cal-strip{ display:flex !important; gap:2px; overflow-x:auto; scroll-behavior:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  margin:10px -14px 0 !important; padding:0 8px; grid-template-columns:none !important; touch-action:pan-x; }
+.cal-strip::-webkit-scrollbar{ display:none; }
+.kv-d{ flex:0 0 46px; border:0; background:none; color:#fff; font-family:inherit; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 0; cursor:pointer; }
+.kv-d span{ font-size:0.7rem; opacity:0.85; }
+.kv-d b{ width:32px; height:32px; line-height:32px; border-radius:50%; font-size:0.98rem; font-weight:600; }
+.kv-d.is-today b{ box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.8); }
+.kv-d.sel b{ background:#fff; color:#6E4A1C; box-shadow:none; }
+.cal-sched-head{ display:flex; justify-content:space-between; align-items:baseline; margin:2px 2px 8px; }
+#calDayWord{ font-size:0.88rem; color:var(--brown); font-weight:600; }
+.kv-today{ font-size:0.8rem; margin-left:6px; }
+.cal-sched-head .cal-fresh{ margin:0 !important; text-align:right; }
+.cal-chips{ display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 -2px 12px; padding:0 2px; }
+.cal-chips::-webkit-scrollbar{ display:none; }
+.kv-chip{ flex:none; border:1px solid transparent; border-radius:16px; padding:5px 11px; font:inherit; font-size:0.76rem; font-weight:600; cursor:pointer; white-space:nowrap; }
+.kv-chip b{ display:inline-block; min-width:18px; margin-left:3px; background:rgba(255,255,255,0.7); border-radius:9px; padding:0 5px; }
+.kv-chip-booked{ background:#F1EFE8; color:#444441; } .kv-chip-waiting{ background:#FAEEDA; color:#633806; }
+.kv-chip-ongoing{ background:#E6F1FB; color:#0C447C; } .kv-chip-done{ background:#EAF3DE; color:#27500A; }
+.kv-chip.on{ border-color:currentColor; box-shadow:0 1px 4px rgba(0,0,0,0.12); }
+.kv-card{ display:grid; grid-template-columns:42px minmax(0,1fr); gap:11px; align-items:center; background:#fff; border-radius:16px; padding:12px; margin-bottom:8px;
+  box-shadow:0 2px 10px rgba(74,59,40,0.07); cursor:pointer; }
+.kv-card:active{ transform:scale(0.99); }
+.kv-card.is-rough{ opacity:0.6; }
+.kv-card.is-struck .kv-name{ text-decoration:line-through; }
+.kv-card.is-struck{ opacity:0.7; }
+.kv-av{ width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.82rem; font-weight:700; }
+.kv-main{ min-width:0; }
+.kv-name{ font-size:0.95rem; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kv-name span{ font-size:0.74rem; font-weight:400; color:var(--muted); }
+.kv-doc{ font-size:0.78rem; color:var(--brown); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.kv-doc i{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:0; }
+.kv-when{ font-size:0.78rem; color:var(--muted); margin-top:2px; }
+.kv-when b{ font-weight:700; margin-right:4px; }
+.st-booked-t{ color:#8A5F26; } .st-wait-t{ color:#B4802C; } .st-chair-t{ color:#185FA5; } .st-done-t{ color:#3B6D11; }
+.st-noshow-t{ color:#A32D2D; } .st-rough-t{ color:var(--muted); }
+.drawer-wrap{ z-index:60 !important; }
+.prev-rx{ z-index:70 !important; }
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -262,8 +324,8 @@ body{ padding-bottom:28px; }
     </div>
   </div>
   <div class="tabbar">
-    <button class="tab-btn active" data-tab="calendar" onclick="setTab('calendar')">Calendar</button>
-    <button class="tab-btn" data-tab="patients" onclick="setTab('patients')">Patients</button>
+    <button class="tab-btn active" data-tab="calendar" onclick="setTab('calendar')"><span class="lite-tab-ico">📅</span>Calendar</button>
+    <button class="tab-btn" data-tab="patients" onclick="setTab('patients')"><span class="lite-tab-ico">👥</span>Patients</button>
   </div>
 </div>
 <div id="pullCue" class="pull-cue"><span id="pullText">Pull to refresh</span></div>
@@ -277,14 +339,16 @@ body{ padding-bottom:28px; }
   </div>
   <div id="appScreen" class="hidden">
     <div id="viewCalendar">
-      <div class="cal-top">
-        <button type="button" class="cal-title" id="calTitle" onclick="openDatePicker()">&mdash;</button>
-        <input type="date" id="calPicker" onchange="goDay(this.value)">
-        <div class="cal-rel" id="calRel"></div>
+      <div class="cal-band">
+        <div class="cal-band-row">
+          <button type="button" class="cal-month" id="calMonth" onclick="openDatePicker()">&mdash;</button>
+          <input type="date" id="calPicker" onchange="goDay(this.value)">
+          <span class="cal-total">Total appointments <b id="calTotal">0</b></span>
+        </div>
+        <div class="cal-strip" id="calStrip"></div>
       </div>
-      <div class="cal-strip" id="calStrip"></div>
-      <div class="cal-range" id="calRange"></div>
-      <div class="cal-fresh" id="calFresh"></div>
+      <div class="cal-sched-head"><span id="calDayWord"></span><span class="cal-fresh" id="calFresh"></span></div>
+      <div class="cal-chips" id="calChips"></div>
       <div id="calList"></div>
     </div>
     <div id="viewPatients" class="hidden">
@@ -317,7 +381,7 @@ body{ padding-bottom:28px; }
    reads its whole week and the next in one request, so the next tap is on
    the phone already.
    ========================================================================== */
-const LITE_VERSION = 'v3.1';
+const LITE_VERSION = 'v3.2';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -451,16 +515,34 @@ async function hydrate(){
 function S(name){ const r = mem.settings[name]; return r ? r.value : null; }
 
 let settingsFreshThisOpen = false;
+/* ONE REQUEST FOR ALL FIVE (relay r2.0), told which versions this phone holds
+   so unchanged ones are not sent again. A relay from before r2.0 answers
+   "unknown action", and the five are asked for one at a time as before. */
 async function refreshSettings(force){
   if(settingsFreshThisOpen && !force) return;
   settingsFreshThisOpen = true;
-  await Promise.all(SETTINGS.map(async name => {
-    try{
-      const r = await relay({ action: 'settings', name });
-      mem.settings[name] = { value: r.value, modified: r.modified, at: Date.now() };
+  const sinceMap = {};
+  SETTINGS.forEach(n => { if(!force && mem.settings[n] && mem.settings[n].modified) sinceMap[n] = mem.settings[n].modified; });
+  try{
+    const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap) };
+    if(force) params.fresh = '1';
+    const r = await relay(params);
+    Object.keys(r.values || {}).forEach(name => {
+      const v = r.values[name];
+      if(!v || v.error || v.notModified) return;
+      mem.settings[name] = { value: v.value, modified: v.modified, at: Date.now() };
       idbPut('set:' + name, mem.settings[name]);
-    }catch(e){ /* the saved copy stands */ }
-  }));
+    });
+  }catch(e){
+    if(!(e && e.message === 'unknown action')){ repaint(); return; }
+    await Promise.all(SETTINGS.map(async name => {
+      try{
+        const r = await relay({ action: 'settings', name });
+        mem.settings[name] = { value: r.value, modified: r.modified, at: Date.now() };
+        idbPut('set:' + name, mem.settings[name]);
+      }catch(err){}
+    }));
+  }
   repaint();
 }
 
@@ -481,7 +563,7 @@ async function ensureWeek(anyDay, force){
   weekAsked[range] = Date.now();
   setFreshness('updating');
   try{
-    const r = await relay({ action: 'week', from, to });
+    const r = await relay(force ? { action: 'week', from, to, fresh: '1' } : { action: 'week', from, to });
     Object.keys(r.days || {}).forEach(d => {
       mem.days[d] = { appointments: r.days[d].appointments || [], visits: r.days[d].visits || [], modified: r.days[d].modified, at: Date.now() };
       idbPut('day:' + d, mem.days[d]);
@@ -653,6 +735,16 @@ function rowsFor(day){
   rows.sort((x, y) => sortKey(x) - sortKey(y));
   return rows;
 }
+const AV_TONES = [['#EEEDFE','#3C3489'],['#E1F5EE','#085041'],['#FBEAF0','#72243E'],['#E6F1FB','#0C447C'],['#EAF3DE','#27500A']];
+function avatarOf(r){
+  const src = String(r.name || '').replace(/^ID\s+/, '').trim();
+  const parts = src.split(/\s+/).filter(Boolean);
+  const ini = ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  let h = 0; const k = String(r.patientId || r.name || '');
+  for(let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) % 9973;
+  const t = AV_TONES[h % AV_TONES.length];
+  return '<div class="kv-av" style="background:' + t[0] + ';color:' + t[1] + ';">' + escapeHtml(ini) + '</div>';
+}
 function rowHtml(r, day){
   if(r.kind === 'block' || r.kind === 'leave'){
     const when = r.allDay ? 'all day' : (Number.isFinite(r.mins) ? clock(r.mins) + (Number.isFinite(r.end) ? ' \u2013 ' + clock(r.end) : '') : '');
@@ -661,59 +753,107 @@ function rowHtml(r, day){
   }
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
   const rxN = r.patientId ? rxFor(r.patientId).length : 0;
-  const sub = [r.reason || (r.kind === 'walkin' ? 'no reason given' : ''), doctorLabel(r.doctor), rxN ? '\u211e ' + rxN : ''].filter(Boolean).join(' \u00b7 ');
   const as = r.patientId ? ageSexOf(r.patientId) : '';
-  return '<div class="cal-row' + (r.rough ? ' is-rough' : '') + (r.struck ? ' is-struck' : '') + '" style="border-left-color:' + doctorColor(r.doctor) + ';"'
+  const docLine = [doctorLabel(r.doctor) || (r.rough ? 'rough slot' : 'no doctor yet'), r.reason, rxN ? '\u211e ' + rxN : ''].filter(Boolean).join(' \u00b7 ');
+  let when;
+  if(r.kind === 'walkin') when = 'walk-in' + (Number.isFinite(r.mins) ? ' \u00b7 ' + clock(r.mins) : '');
+  else if(Number.isFinite(r.mins)) when = clock(r.mins) + (r.len && !r.rough ? ' \u2013 ' + clock(r.mins + r.len) : '');
+  else when = 'any time';
+  return '<div class="kv-card' + (r.rough ? ' is-rough' : '') + (r.struck ? ' is-struck' : '') + '"'
     + ' onclick="openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')">'
-    + '<div class="cal-time">' + (Number.isFinite(r.mins)
-        ? clock(r.mins).replace(/ (am|pm)$/, '<small>$1</small>') : 'Any')
-      + '<span>' + (r.kind === 'walkin' ? 'walk-in' : (Number.isFinite(r.mins) ? r.len + ' min' : 'time')) + '</span>'
-    + '</div>'
-    + '<div class="cal-main"><div class="cal-name">' + escapeHtml(r.name) + (as ? ' <span>' + escapeHtml(as) + '</span>' : '') + '</div>'
-      + '<div class="cal-sub">' + escapeHtml(sub) + '</div></div>'
-    + '<span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>'
-    + '</div>';
+    + avatarOf(r)
+    + '<div class="kv-main">'
+      + '<div class="kv-name">' + escapeHtml(r.name) + (as ? ' <span>' + escapeHtml(as) + '</span>' : '') + '</div>'
+      + '<div class="kv-doc"><i style="background:' + doctorColor(r.doctor) + ';"></i>' + escapeHtml(docLine) + '</div>'
+      + '<div class="kv-when"><b class="' + chip[1] + '-t">' + chip[0] + '</b> ' + escapeHtml(when) + '</div>'
+    + '</div></div>';
 }
 
 /* ---------------------------------------------------------- the calendar -- */
 let currentTab = 'calendar';
 let viewDay = todayStr();
+let statusFilter = '';
+const STRIP_BACK = 90, STRIP_AHEAD = 120;
+let stripFrom = '', stripTo = '';
+const CHIP_DEFS = [
+  ['booked', 'Booked', r => r.status === 'booked'],
+  ['waiting', 'Waiting', r => r.status === 'waiting'],
+  ['ongoing', 'In chair', r => r.status === 'ongoing'],
+  ['done', 'Done', r => r.status === 'done' || r.status === 'came']
+];
+function setStatusFilter(k){ statusFilter = (statusFilter === k) ? '' : k; renderCalendar(); }
+
+/* THE STRIP IS BUILT ONCE and scrolled, not rebuilt on every tap - that is
+   what made it jump. Three months back, four ahead; a date picked outside
+   that simply rebuilds it around the new day. */
+function buildStrip(centerDay){
+  const el = document.getElementById('calStrip');
+  if(!el) return;
+  stripFrom = addDays(centerDay, -STRIP_BACK); stripTo = addDays(centerDay, STRIP_AHEAD);
+  const today = todayStr();
+  let h = '';
+  for(let d = stripFrom; d <= stripTo; d = addDays(d, 1)){
+    const dt = dateOf(d);
+    h += '<button type="button" class="kv-d' + (d === today ? ' is-today' : '') + '" data-d="' + d + '" onclick="goDay(' + jsArg(d) + ')">'
+      + '<span>' + dt.toLocaleDateString('en-IN', { weekday:'short' }) + '</span><b>' + dt.getDate() + '</b></button>';
+  }
+  el.innerHTML = h;
+  markStrip(false);
+}
+function markStrip(smooth){
+  const el = document.getElementById('calStrip');
+  if(!el) return;
+  el.querySelectorAll('.kv-d.sel').forEach(b => b.classList.remove('sel'));
+  const b = el.querySelector('.kv-d[data-d="' + viewDay + '"]');
+  if(!b) return;
+  b.classList.add('sel');
+  const left = b.offsetLeft - (el.clientWidth - b.offsetWidth) / 2;
+  try{ el.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' }); }catch(e){ el.scrollLeft = left; }
+}
+function paintMonth(){
+  const el = document.getElementById('calStrip'), label = document.getElementById('calMonth');
+  if(!el || !label) return;
+  const mid = el.scrollLeft + el.clientWidth / 2;
+  let hit = null;
+  el.querySelectorAll('.kv-d').forEach(b => { if(!hit && b.offsetLeft + b.offsetWidth >= mid) hit = b; });
+  const d = hit ? hit.getAttribute('data-d') : viewDay;
+  label.textContent = dateOf(d).toLocaleDateString('en-IN', { month:'short', year:'numeric' });
+}
 function renderCalendar(){
   const today = todayStr();
-  document.getElementById('calTitle').textContent = dayTitle(viewDay);
-  const offset = daysBetween(today, viewDay);
-  document.getElementById('calRel').innerHTML = offset === 0 ? '<span class="cal-today-word">Today</span>'
-    : escapeHtml(offset === 1 ? 'Tomorrow' : offset === -1 ? 'Yesterday' : offset > 0 ? 'In ' + offset + ' days' : Math.abs(offset) + ' days ago')
-      + ' \u00b7 <button type="button" class="link" onclick="goDay(todayStr())">Today</button>';
-  const ws = weekStart(viewDay);
-  const cell = (d, peek) => {
-    const cls = ['cal-d'];
-    if(peek) cls.push('peek');
-    if(d === viewDay) cls.push('sel');
-    else if(d === today) cls.push('today');
-    return '<button type="button" class="' + cls.join(' ') + '" onclick="goDay(' + jsArg(d) + ')">'
-      + dateOf(d).toLocaleDateString('en-IN', { weekday:'narrow' }) + '<b>' + dateOf(d).getDate() + '</b></button>';
-  };
-  document.getElementById('calStrip').innerHTML = cell(addDays(ws, -1), true)
-    + Array.from({ length: 7 }, (_, i) => cell(addDays(ws, i), false)).join('')
-    + cell(addDays(ws, 7), true);
-  document.getElementById('calRange').textContent = shortDate(ws) + ' \u2013 ' + shortDate(addDays(ws, 6));
+  const strip = document.getElementById('calStrip');
+  if(strip && (!strip.children.length || viewDay < stripFrom || viewDay > stripTo)) buildStrip(viewDay);
+  paintMonth();
+  const all = rowsFor(viewDay);
+  const people = (all || []).filter(r => r.kind === 'appt' || r.kind === 'walkin');
+  document.getElementById('calTotal').textContent = String(people.filter(r => r.kind === 'appt' && !r.rough).length);
+  const head = document.getElementById('calDayWord');
+  head.innerHTML = viewDay === today ? 'Today\u2019s schedule'
+    : escapeHtml(dayTitle(viewDay)) + ' <button type="button" class="link kv-today" onclick="goDay(todayStr())">Today</button>';
+  document.getElementById('calChips').innerHTML = CHIP_DEFS.map(([k, label, f]) =>
+    '<button type="button" class="kv-chip kv-chip-' + k + (statusFilter === k ? ' on' : '') + '" onclick="setStatusFilter(' + jsArg(k) + ')">'
+    + label + ' <b>' + people.filter(f).length + '</b></button>').join('');
   const list = document.getElementById('calList');
-  const rows = rowsFor(viewDay);
-  if(rows === null){
+  if(all === null){
     list.innerHTML = '<div class="cal-skel"></div><div class="cal-skel"></div><div class="cal-skel"></div>';
-  } else if(!rows.length){
-    list.innerHTML = '<div class="empty-state">' + (viewDay < today ? 'Nobody booked or came' : 'Nothing booked yet') + '</div>';
   } else {
-    list.innerHTML = rows.map(r => rowHtml(r, viewDay)).join('');
+    const def = CHIP_DEFS.find(c => c[0] === statusFilter);
+    const shown = def ? all.filter(r => (r.kind === 'appt' || r.kind === 'walkin') && def[2](r)) : all;
+    list.innerHTML = shown.length ? shown.map(r => rowHtml(r, viewDay)).join('')
+      : '<div class="empty-state">' + (def ? 'Nobody ' + def[1].toLowerCase() : (viewDay < today ? 'Nobody booked or came' : 'Nothing booked yet')) + '</div>';
   }
   paintFreshness();
+  if(typeof paintAdminExtras === 'function') paintAdminExtras();
 }
 function goDay(d){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d || ''))) return;
   viewDay = d;
-  renderCalendar();          // from the phone, now
-  ensureWeek(d, false);       // and the relay behind it
+  statusFilter = '';
+  const strip = document.getElementById('calStrip');
+  const inRange = strip && strip.children.length && d >= stripFrom && d <= stripTo;
+  renderCalendar();
+  if(inRange) markStrip(true); else markStrip(false);
+  ensureWeek(d, false);
 }
 function openDatePicker(){
   const inp = document.getElementById('calPicker');
@@ -723,14 +863,9 @@ function openDatePicker(){
 }
 function wireStripSwipe(){
   const el = document.getElementById('calStrip');
-  let x0 = null, y0 = null;
-  el.addEventListener('touchstart', e => { if(e.touches.length === 1){ x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; } }, { passive: true });
-  el.addEventListener('touchend', e => {
-    if(x0 === null) return;
-    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
-    x0 = null;
-    if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) goDay(addDays(viewDay, dx < 0 ? 7 : -7));
-  }, { passive: true });
+  if(!el) return;
+  let raf = 0;
+  el.addEventListener('scroll', () => { if(raf) return; raf = requestAnimationFrame(() => { raf = 0; paintMonth(); }); }, { passive: true });
 }
 
 /* ------------------------------------------------------------- the drawer -- */
