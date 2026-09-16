@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-v50';  // v50: paired with apps 4.8 (tap version to update)
+const CACHE_VERSION = 'echo-nexus-v51';  // v51: apps 4.9 - unique fetch address, fresh requests wait
 const PAGE_FUSE_MS = 2500;
 
 const SHELL = [
@@ -79,14 +79,25 @@ self.addEventListener('fetch', (event) => {
 
   if(isPage){
     const pageKey = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
+    /* ?fresh=... is the app itself asking for the newest page (the version
+       check, or the version tap). It waits for the network - no fuse - and
+       whatever arrives becomes the saved copy. */
+    const wantsFresh = url.searchParams.has('fresh');
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_VERSION);
-      /* no-cache: always ask GitHub whether the page changed, instead of the
-         browser quietly reusing its copy for up to ten minutes. */
-      const fresh = fetch(new Request(req, { cache: 'no-cache' })).then(res => {
+      /* A NEW ADDRESS EVERY TIME (v51). GitHub's servers and some internet
+         providers keep a page for ~10 minutes; asking for the same address
+         could be handed that older copy even with no-cache. A unique query
+         can only be answered by the newest file. */
+      const bust = url.pathname + '?_=' + Date.now();
+      const fresh = fetch(bust, { cache: 'no-store', credentials: 'same-origin' }).then(res => {
         if(res && res.ok) cache.put(pageKey, res.clone());
         return res;
       }).catch(() => null);
+      if(wantsFresh){
+        const res = await fresh;
+        return res || new Response('', { status: 504 });
+      }
       const fuse = new Promise(resolve => setTimeout(() => resolve('timeout'), PAGE_FUSE_MS));
       const first = await Promise.race([fresh, fuse]);
       if(first && first !== 'timeout') return first;
@@ -95,7 +106,6 @@ self.addEventListener('fetch', (event) => {
         event.waitUntil(fresh);   // keep fetching for next time
         return cached;
       }
-      /* Slow AND never saved: wait for the network after all. */
       const late = await fresh;
       if(late) return late;
       return new Response(

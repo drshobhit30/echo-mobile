@@ -588,6 +588,8 @@ body{ background:#FAF7F2 !important; }
 
 .hd-v{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .hd-v:active{ opacity:0.6; }
+
+.upd-bar{ position:fixed; left:12px; right:12px; bottom:calc(76px + env(safe-area-inset-bottom)); z-index:80; border:0; border-radius:14px; padding:12px 14px; background:#1D9E75; color:#fff; font:inherit; font-size:0.9rem; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,0.25); cursor:pointer; }
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -2451,7 +2453,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.8';
+const ADMIN_VERSION = '4.9';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -3682,11 +3684,43 @@ function pasteSetupLink(){
   if(typeof boot === 'function') boot();
 }
 
-/* TAP THE VERSION TO UPDATE (4.8). Asks for a newer service worker, then
-   reloads; the worker fetches the page fresh from GitHub (no-cache) before
-   anything else. Nothing saved is deleted first - with no signal the reload
-   simply shows the saved copy again rather than a blank screen. The phone's
-   setup, its saved calendar and an open admin session all stay. */
+/* NEW VERSION CHECK AND TAP-TO-UPDATE (4.9). A slow clinic network let the
+   2.5-second fuse hand out the saved page on nearly every open, so the phone
+   never moved on. Now, a few seconds after opening, the app quietly fetches
+   the page from GitHub itself (?fresh - the worker waits for it and saves
+   it). If the version there is newer, a bar offers to load it; tapping the
+   version number does the same fetch and reloads. */
+const VERSION_RE = /const (?:LITE|ADMIN)_VERSION = '([^']+)'/;
+function versionNewer(a, b){
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  for(let i = 0; i < Math.max(pa.length, pb.length); i++){
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if(x !== y) return x > y;
+  }
+  return false;
+}
+async function fetchLatestPage(){
+  try{
+    const res = await fetch(location.pathname + '?fresh=' + Date.now(), { cache: 'no-store' });
+    if(!res || !res.ok) return null;
+    const text = await res.text();
+    const m = VERSION_RE.exec(text);
+    return m ? m[1] : null;
+  }catch(e){ return null; }
+}
+function currentVersion(){ return (typeof ADMIN_VERSION !== 'undefined') ? ADMIN_VERSION : LITE_VERSION; }
+function showUpdateBar(v){
+  if(document.getElementById('updBar')) return;
+  const bar = document.createElement('button');
+  bar.id = 'updBar'; bar.type = 'button'; bar.className = 'upd-bar';
+  bar.textContent = 'New version ' + v + ' is ready \u00b7 tap to load';
+  bar.onclick = () => { bar.textContent = 'Loading\u2026'; location.reload(); };
+  document.body.appendChild(bar);
+}
+async function checkForUpdate(){
+  const latest = await fetchLatestPage();
+  if(latest && versionNewer(latest, currentVersion())) showUpdateBar(latest);
+}
 async function hardRefresh(){
   const ver = document.getElementById('appVer');
   if(ver) ver.textContent = 'updating\u2026';
@@ -3694,8 +3728,12 @@ async function hardRefresh(){
     const reg = await navigator.serviceWorker.getRegistration();
     if(reg) await Promise.race([reg.update(), new Promise(r => setTimeout(r, 3000))]);
   }catch(e){}
+  const latest = await fetchLatestPage();   // waits for GitHub and saves the newest page
+  if(!latest && ver){ ver.textContent = 'no connection'; setTimeout(() => { ver.textContent = currentVersion(); }, 2500); return; }
   location.reload();
 }
+window.addEventListener('load', () => { setTimeout(checkForUpdate, 4000); });
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') setTimeout(checkForUpdate, 1500); });
 /* THE SAVED COPY OF THIS PAGE (v48 service worker). Registered here so the
    page itself opens with no network wait, not only its data. */
 if('serviceWorker' in navigator){
