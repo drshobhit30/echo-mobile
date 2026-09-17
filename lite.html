@@ -631,7 +631,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.22';
+const LITE_VERSION = '4.23';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1023,7 +1023,13 @@ function rowsFor(day){
     else status = 'booked';
     rows.push({ kind: 'appt', id: a.id, visitId: v ? v.id : '', patientId: a.patientId || '', name: a.patientId ? (nameOf(a.patientId) || ('ID ' + a.patientId)) : (a.newName || (a.rough ? 'no name yet' : 'New patient')),
       mins: t, len: Number(a.mins) || 15, doctor: a.doctor || '', reason: (v && v.cameFor) || a.cameFor || a.note || '',
-      status, struck: status === 'noshow', rough: !!a.rough, bookedAt: a.createdAt || '', chair: v && v.chair });
+      status, struck: status === 'noshow', rough: !!a.rough, bookedAt: a.createdAt || '', chair: v && v.chair,
+      /* NOT YET AT THE DESK (4.23). The relay hands these over from the
+         booking inbox when the reception PC is off, so every phone can see
+         what has been asked for instead of only the phone that asked. It is
+         drawn as pending and cannot be opened: there is nothing in the day's
+         file to open yet. */
+      pending: !!a.pending, notFiled: !!a.pending });
   });
   bkPendingFor(day).forEach(a => {
     rows.push({ kind: 'appt', id: a.id, visitId: '', patientId: a.patientId || '', name: a.patientId ? (nameOf(a.patientId) || ('ID ' + a.patientId)) : (a.newName || 'no name yet'),
@@ -1079,11 +1085,18 @@ function rowHtml(r, day){
   return '<div class="ka-card' + (r.rough ? ' is-rough' : '') + (r.struck ? ' is-struck' : '') + (r.pending ? ' is-pending' : '') + '"'
     /* The patient, so a tapped notification can find this row (4.20). */
     + (r.patientId ? ' data-pid="' + escapeHtml(String(r.patientId)) + '"' : '')
-    + ' onclick="openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')">'
+    /* A BOOKING THE DESK HAS NOT FILED CANNOT BE OPENED (4.23). The drawer
+       reads the day's own file, and this is not in it yet - tapping would
+       open an empty drawer, or worse offer to change something that is not
+       there. It appears in its place on the diary and says what it is. */
+    + (r.notFiled ? '' : ' onclick="openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')"') + '>'
     + '<div class="ka-band" style="background:' + (BAND[r.status] || BAND.booked) + ';"></div>'
     + '<div class="ka-in">'
       + '<div class="ka-top"><span class="ka-when ' + chip[1] + '-t">' + escapeHtml(when) + '</span><span>'
-        + (r.pending ? '<span class="ka-pend">\u23F3 ' + (r.sent ? 'Sent to desk' : 'Waiting for signal') + '</span>' : '<span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>')
+        + (r.pending
+            ? '<span class="ka-pend">\u23F3 ' + (r.notFiled ? 'Not at the desk yet'
+                : (r.sent ? 'Sent to desk' : 'Waiting for signal')) + '</span>'
+            : '<span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>')
       + '</span></div>'
       + '<div class="ka-name">' + escapeHtml(r.name) + (as ? ' <span>' + escapeHtml(as) + '</span>' : '') + '</div>'
       + '<div class="ka-meta">' + meta + '</div>'
