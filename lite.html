@@ -479,6 +479,14 @@ body{ background:#FAF7F2 !important; }
 .bk-toast.on{ opacity:1; transform:none; }
 .ka-card.is-pending{ outline:1.5px dashed #C9A56B; outline-offset:-1.5px; }
 .ka-pend{ font-size:0.66rem; background:#F6EBD9; color:#8A5F26; border-radius:9px; padding:1px 7px; margin-left:6px; }
+
+/* 4.17 audit: room under the list so the + button never covers the last card */
+#calList{ padding-bottom:72px; }
+
+/* 4.18: the older-prescriptions line on the history screen */
+.hs-more{ display:block; width:100%; margin:6px 0 10px; border:1px dashed #C9A56B; background:#fff; border-radius:12px;
+  padding:11px; font:inherit; font-size:0.84rem; color:#8A5F26; cursor:pointer; }
+.hs-more[disabled]{ opacity:0.6; }
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -565,7 +573,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.13';
+const LITE_VERSION = '4.18';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -614,11 +622,18 @@ async function relay(params){
   const url = new URL(relayUrl());
   url.searchParams.set('key', relayKey());
   Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-  let res;
-  try{ res = await fetch(url.toString(), { redirect: 'follow', cache: 'no-store' }); }
-  catch(e){ throw new RelayError('offline'); }
-  let body = null;
-  try{ body = await res.json(); }catch(e){ throw new RelayError('unreadable'); }
+  /* ONE RETRY (4.14). Google sometimes answers with an error page instead of
+     data for a moment (just after a deployment, or when busy): that read as
+     "unreadable" and the phone gave up at once. */
+  let body = null, lastErr = 'offline';
+  for(let attempt = 0; attempt < 2 && body === null; attempt++){
+    if(attempt) await new Promise(r => setTimeout(r, 1500));
+    let res;
+    try{ res = await fetch(url.toString(), { redirect: 'follow', cache: 'no-store' }); }
+    catch(e){ lastErr = 'offline'; continue; }
+    try{ body = await res.json(); }catch(e){ lastErr = 'unreadable'; body = null; }
+  }
+  if(body === null) throw new RelayError(lastErr);
   if(!body || !body.ok){
     if(body && body.error === 'bad key') keyRejected();
     throw new RelayError((body && body.error) || 'relay', body);
@@ -708,7 +723,7 @@ async function refreshSettings(force){
   const sinceMap = {};
   SETTINGS.forEach(n => { if(!force && mem.settings[n] && mem.settings[n].modified) sinceMap[n] = mem.settings[n].modified; });
   try{
-    const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap) };
+    const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap), rxYears: String(RX_YEARS) };
     if(force) params.fresh = '1';
     const r = await relay(params);
     Object.keys(r.values || {}).forEach(name => {
@@ -721,7 +736,7 @@ async function refreshSettings(force){
     if(!(e && e.message === 'unknown action')){ repaint(); return; }
     await Promise.all(SETTINGS.map(async name => {
       try{
-        const r = await relay({ action: 'settings', name });
+        const r = await relay(name === 'prescriptions-index.json' ? { action: 'settings', name, rxYears: String(RX_YEARS) } : { action: 'settings', name });
         mem.settings[name] = { value: r.value, modified: r.modified, at: Date.now() };
         idbPut('set:' + name, mem.settings[name]);
       }catch(err){}
@@ -795,11 +810,37 @@ function doctorColor(name){
 function doctorLabel(name){ return !name ? '' : (name === 'NEW' ? 'doctor not assigned' : name); }
 
 /* ------------------------------------------------------ prescriptions -- */
+/* THE INDEX IS A WINDOW, NOT THE WHOLE HISTORY (4.18). The file holds every
+   prescription the clinic has ever written and only grows; the phone asks
+   the relay for the last RX_YEARS, plus each patient's newest whatever its
+   age, plus a true count per patient. Anything older is fetched for one
+   patient at a time, on a tap, and kept for the session. */
+const RX_YEARS = 2;
+const rxFull = {};                       // pid -> the whole history, once asked for
 function rxAll(){ const idx = S('prescriptions-index.json'); return (idx && Array.isArray(idx.list)) ? idx.list : []; }
+function rxCounts(){ const idx = S('prescriptions-index.json'); return (idx && idx.counts) || null; }
+/* How many that patient HAS, which is not always how many are on the phone. */
+function rxCount(pid){
+  if(rxFull[pid]) return rxFull[pid].length;
+  const c = rxCounts();
+  if(c && c[String(pid)] !== undefined) return c[String(pid)];
+  return rxFor(pid).length;
+}
+function rxHasOlder(pid){ return rxCount(pid) > rxFor(pid).length; }
+async function rxLoadAll(pid){
+  pid = String(pid);
+  if(rxFull[pid]) return true;
+  try{
+    const r = await relay({ action: 'rxFor', pid: pid });
+    rxFull[pid] = Array.isArray(r.list) ? r.list : [];
+    return true;
+  }catch(e){ return false; }
+}
 function rxIsStruck(rec){ return !!(rec && rec.struckAt); }
 function rxFor(patientId){
   const byDate = (a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || ''));
-  return rxAll().filter(r => r && String(r.patientId) === String(patientId))
+  const src = rxFull[String(patientId)] || rxAll();
+  return src.filter(r => r && String(r.patientId) === String(patientId))
     .sort((a, b) => (rxIsStruck(a) ? 1 : 0) - (rxIsStruck(b) ? 1 : 0) || byDate(a, b));
 }
 function rxWhat(rec){
@@ -906,7 +947,7 @@ function rowsFor(day){
   bkPendingFor(day).forEach(a => {
     rows.push({ kind: 'appt', id: a.id, visitId: '', patientId: a.patientId || '', name: a.patientId ? (nameOf(a.patientId) || ('ID ' + a.patientId)) : (a.newName || 'no name yet'),
       mins: minsOf(a.time), len: Number(a.mins) || 15, doctor: a.doctor || '', reason: a.cameFor || '',
-      status: a.rough ? 'rough' : 'booked', struck: false, rough: !!a.rough, bookedAt: '', pending: true, sent: !!a.sent });
+      status: a.rough ? 'rough' : 'booked', struck: false, rough: !!a.rough, bookedAt: '', pending: !a.filedAt, sent: !!a.sent });
   });
   visits.forEach(v => {
     if(used[String(v.id)]) return;
@@ -936,7 +977,7 @@ function rowHtml(r, day){
       + (r.title ? ' \u00b7 ' + escapeHtml(r.title) : '') + '</div>';
   }
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
-  const rxN = r.patientId ? rxFor(r.patientId).length : 0;
+  const rxN = r.patientId ? rxCount(r.patientId) : 0;
   const as = r.patientId ? ageSexOf(r.patientId) : '';
   let when;
   if(r.kind === 'walkin') when = 'walk-in' + (Number.isFinite(r.mins) ? ' \u00b7 ' + clock(r.mins) : '');
@@ -992,8 +1033,13 @@ function historyHtml(pid, openIdx, toggleCall){
   const mine = rxFor(pid).slice().sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')));
   const as = ageSexOf(pid);
   let h = '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
-    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + mine.length + ' prescription' + (mine.length === 1 ? '' : 's') + '</span></div>';
-  if(!mine.length) return h + '<div class="empty-state">No prescriptions on record</div>';
+    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + rxCount(pid) + ' prescription' + (rxCount(pid) === 1 ? '' : 's') + '</span></div>';
+  const older = rxCount(pid) - mine.length;
+  const moreBtn = older > 0
+    ? '<button type="button" class="hs-more" id="hsMore" onclick="rxShowOlder(' + jsArg(pid) + ')">'
+      + older + ' older prescription' + (older === 1 ? '' : 's') + ' not on this phone \u00b7 tap to load</button>'
+    : '';
+  if(!mine.length) return h + moreBtn + '<div class="empty-state">No recent prescriptions on this phone</div>';
   let month = '';
   mine.forEach((r, i) => {
     const d = String(r.date || r.createdAt || '').slice(0, 10);
@@ -1011,7 +1057,22 @@ function historyHtml(pid, openIdx, toggleCall){
       + (open ? slipHtml(r, '') : '')
       + '</div>';
   });
-  return h + '</div>';
+  return h + '</div>' + moreBtn;
+}
+let rxLoadingFor = '';
+async function rxShowOlder(pid){
+  if(rxLoadingFor) return;
+  rxLoadingFor = String(pid);
+  const b = document.getElementById('hsMore');
+  if(b){ b.disabled = true; b.textContent = 'Loading\u2026'; }
+  const ok = await rxLoadAll(pid);
+  rxLoadingFor = '';
+  if(!ok){
+    if(b){ b.disabled = false; b.textContent = 'Could not load them \u2014 tap to try again'; }
+    return;
+  }
+  repaint();
+  if(document.getElementById('prevRx') && !document.getElementById('prevRx').classList.contains('hidden')) renderPrevRx(pid);
 }
 
 /* ---------------------------------------------------------- the calendar -- */
@@ -1208,7 +1269,10 @@ function bkSave(){ idbPut('bk:pending', bkPending); }
 function bkPendingFor(day){
   const held = mem.days[day];
   const ids = new Set(((held && held.appointments) || []).map(a => a && String(a.id)));
-  bkPending = bkPending.filter(p => !(mem.days[p.date] && ids.has(p.id) && p.date === day) && p.date >= todayStr());
+  /* 4.16 audit: an UNSENT booking is never pruned - one made late in the
+     evening with no signal used to vanish at midnight before it was ever
+     sent. Only sent ones for a day gone by are let go. */
+  bkPending = bkPending.filter(p => !(mem.days[p.date] && ids.has(p.id) && p.date === day) && (!p.sent || p.date >= todayStr()));
   return bkPending.filter(p => p.date === day && !ids.has(p.id));
 }
 function bkDocs(){ const d = S('doctors.json'); return (Array.isArray(d) ? d : []).map(x => x && (x.name || x)).filter(Boolean); }
@@ -1347,7 +1411,10 @@ async function bkSend(){
         await relay({ action: 'book', booking: JSON.stringify(p) });
         p.sent = true; p.sentAt = Date.now(); bkSave();
       }catch(e){
-        if(e && e.message !== 'offline' && e.message !== 'unreadable' && e.body && e.body.error){
+        /* 4.16 audit: a relay FAULT ("relay error: ...", a Drive blip) is not a
+           refusal - the booking stays and is retried. Only a rule ("that
+           patient is not in the directory") removes it, with the reason. */
+        if(e && e.message !== 'offline' && e.message !== 'unreadable' && e.body && e.body.error && !/^relay error/i.test(e.body.error)){
           bkPending = bkPending.filter(x => x.id !== p.id); bkSave();
           alert('Not booked: ' + e.body.error);
         }
@@ -1407,11 +1474,18 @@ async function bkWatch(){
       for(const p of old){
         p.checkedAt = now;
         if(st[p.id] === 'filed'){
-          await bkFreshDay(p.date);
-          const inDay = ((mem.days[p.date] && mem.days[p.date].appointments) || []).some(a => a && String(a.id) === p.id);
-          bkPending = bkPending.filter(x => x.id !== p.id);   // filed: in the day now, or deleted at the desk - either way no longer this phone's to show
-          if(!inDay) toast('A booking made from this phone was removed at the desk');
+          /* 4.16 audit: "filed" means Nexus has it - but the day file may not
+             have synced up to Drive yet, so "not in the day" is NOT proof it
+             was deleted at the desk (4.13 said so, wrongly). The card turns
+             into an ordinary booked one from this phone's own copy and the
+             note is kept until the day file shows it, or quietly let go after
+             30 more minutes. */
+          if(!p.filedAt){ p.filedAt = now; }
+          else if(now - p.filedAt > 30 * 60 * 1000){ bkPending = bkPending.filter(x => x.id !== p.id); }
         } else if(st[p.id] === 'unknown' && now - (p.sentAt || now) > 10 * 60 * 1000){
+          /* Neither waiting nor filed: something went wrong between the relay
+             and the desk. Said out loud, never dropped in silence. */
+          toast('Could not confirm the booking for ' + (p.patientId ? (nameOf(p.patientId) || p.patientId) : (p.newName || 'the rough slot')) + ' \u2014 please check with the desk');
           bkPending = bkPending.filter(x => x.id !== p.id);
         }
       }
@@ -1527,8 +1601,11 @@ async function boot(){
   await hydrate();          // the phone's own copy - no network
   await bkLoad();
   setTab('calendar');       // painted from it
-  refreshSettings(true);    // then the relay, behind
-  ensureWeek(viewDay, true);
+  /* OPENING USES THE READY COPY (4.14). It asked Drive fresh on every open,
+     so the relay's 5-minute copy was never used and each open read ~30
+     files. Only pull-to-refresh asks fresh now. */
+  refreshSettings(false);   // then the relay, behind
+  ensureWeek(viewDay, false);
   bkSend();
 }
 window.addEventListener('load', () => {

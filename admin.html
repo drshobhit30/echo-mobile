@@ -630,6 +630,14 @@ body{ background:#FAF7F2 !important; }
 .bk-toast.on{ opacity:1; transform:none; }
 .ka-card.is-pending{ outline:1.5px dashed #C9A56B; outline-offset:-1.5px; }
 .ka-pend{ font-size:0.66rem; background:#F6EBD9; color:#8A5F26; border-radius:9px; padding:1px 7px; margin-left:6px; }
+
+/* 4.17 audit: room under the list so the + button never covers the last card */
+#calList{ padding-bottom:72px; }
+
+/* 4.18: the older-prescriptions line on the history screen */
+.hs-more{ display:block; width:100%; margin:6px 0 10px; border:1px dashed #C9A56B; background:#fff; border-radius:12px;
+  padding:11px; font:inherit; font-size:0.84rem; color:#8A5F26; cursor:pointer; }
+.hs-more[disabled]{ opacity:0.6; }
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -932,7 +940,7 @@ async function refreshSettings(force){
   const sinceMap = {};
   SETTINGS.forEach(n => { if(!force && mem.settings[n] && mem.settings[n].modified) sinceMap[n] = mem.settings[n].modified; });
   try{
-    const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap) };
+    const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap), rxYears: String(RX_YEARS) };
     if(force) params.fresh = '1';
     const r = await relay(params);
     Object.keys(r.values || {}).forEach(name => {
@@ -945,7 +953,7 @@ async function refreshSettings(force){
     if(!(e && e.message === 'unknown action')){ repaint(); return; }
     await Promise.all(SETTINGS.map(async name => {
       try{
-        const r = await relay({ action: 'settings', name });
+        const r = await relay(name === 'prescriptions-index.json' ? { action: 'settings', name, rxYears: String(RX_YEARS) } : { action: 'settings', name });
         mem.settings[name] = { value: r.value, modified: r.modified, at: Date.now() };
         idbPut('set:' + name, mem.settings[name]);
       }catch(err){}
@@ -1019,11 +1027,37 @@ function doctorColor(name){
 function doctorLabel(name){ return !name ? '' : (name === 'NEW' ? 'doctor not assigned' : name); }
 
 /* ------------------------------------------------------ prescriptions -- */
+/* THE INDEX IS A WINDOW, NOT THE WHOLE HISTORY (4.18). The file holds every
+   prescription the clinic has ever written and only grows; the phone asks
+   the relay for the last RX_YEARS, plus each patient's newest whatever its
+   age, plus a true count per patient. Anything older is fetched for one
+   patient at a time, on a tap, and kept for the session. */
+const RX_YEARS = 2;
+const rxFull = {};                       // pid -> the whole history, once asked for
 function rxAll(){ const idx = S('prescriptions-index.json'); return (idx && Array.isArray(idx.list)) ? idx.list : []; }
+function rxCounts(){ const idx = S('prescriptions-index.json'); return (idx && idx.counts) || null; }
+/* How many that patient HAS, which is not always how many are on the phone. */
+function rxCount(pid){
+  if(rxFull[pid]) return rxFull[pid].length;
+  const c = rxCounts();
+  if(c && c[String(pid)] !== undefined) return c[String(pid)];
+  return rxFor(pid).length;
+}
+function rxHasOlder(pid){ return rxCount(pid) > rxFor(pid).length; }
+async function rxLoadAll(pid){
+  pid = String(pid);
+  if(rxFull[pid]) return true;
+  try{
+    const r = await relay({ action: 'rxFor', pid: pid });
+    rxFull[pid] = Array.isArray(r.list) ? r.list : [];
+    return true;
+  }catch(e){ return false; }
+}
 function rxIsStruck(rec){ return !!(rec && rec.struckAt); }
 function rxFor(patientId){
   const byDate = (a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || ''));
-  return rxAll().filter(r => r && String(r.patientId) === String(patientId))
+  const src = rxFull[String(patientId)] || rxAll();
+  return src.filter(r => r && String(r.patientId) === String(patientId))
     .sort((a, b) => (rxIsStruck(a) ? 1 : 0) - (rxIsStruck(b) ? 1 : 0) || byDate(a, b));
 }
 function rxWhat(rec){
@@ -1130,7 +1164,7 @@ function rowsFor(day){
   bkPendingFor(day).forEach(a => {
     rows.push({ kind: 'appt', id: a.id, visitId: '', patientId: a.patientId || '', name: a.patientId ? (nameOf(a.patientId) || ('ID ' + a.patientId)) : (a.newName || 'no name yet'),
       mins: minsOf(a.time), len: Number(a.mins) || 15, doctor: a.doctor || '', reason: a.cameFor || '',
-      status: a.rough ? 'rough' : 'booked', struck: false, rough: !!a.rough, bookedAt: '', pending: true, sent: !!a.sent });
+      status: a.rough ? 'rough' : 'booked', struck: false, rough: !!a.rough, bookedAt: '', pending: !a.filedAt, sent: !!a.sent });
   });
   visits.forEach(v => {
     if(used[String(v.id)]) return;
@@ -1160,7 +1194,7 @@ function rowHtml(r, day){
       + (r.title ? ' \u00b7 ' + escapeHtml(r.title) : '') + '</div>';
   }
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
-  const rxN = r.patientId ? rxFor(r.patientId).length : 0;
+  const rxN = r.patientId ? rxCount(r.patientId) : 0;
   const as = r.patientId ? ageSexOf(r.patientId) : '';
   let when;
   if(r.kind === 'walkin') when = 'walk-in' + (Number.isFinite(r.mins) ? ' \u00b7 ' + clock(r.mins) : '');
@@ -1216,8 +1250,13 @@ function historyHtml(pid, openIdx, toggleCall){
   const mine = rxFor(pid).slice().sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')));
   const as = ageSexOf(pid);
   let h = '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
-    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + mine.length + ' prescription' + (mine.length === 1 ? '' : 's') + '</span></div>';
-  if(!mine.length) return h + '<div class="empty-state">No prescriptions on record</div>';
+    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + rxCount(pid) + ' prescription' + (rxCount(pid) === 1 ? '' : 's') + '</span></div>';
+  const older = rxCount(pid) - mine.length;
+  const moreBtn = older > 0
+    ? '<button type="button" class="hs-more" id="hsMore" onclick="Cal.rxShowOlder(' + jsArg(pid) + ')">'
+      + older + ' older prescription' + (older === 1 ? '' : 's') + ' not on this phone \u00b7 tap to load</button>'
+    : '';
+  if(!mine.length) return h + moreBtn + '<div class="empty-state">No recent prescriptions on this phone</div>';
   let month = '';
   mine.forEach((r, i) => {
     const d = String(r.date || r.createdAt || '').slice(0, 10);
@@ -1235,7 +1274,22 @@ function historyHtml(pid, openIdx, toggleCall){
       + (open ? slipHtml(r, '') : '')
       + '</div>';
   });
-  return h + '</div>';
+  return h + '</div>' + moreBtn;
+}
+let rxLoadingFor = '';
+async function rxShowOlder(pid){
+  if(rxLoadingFor) return;
+  rxLoadingFor = String(pid);
+  const b = document.getElementById('hsMore');
+  if(b){ b.disabled = true; b.textContent = 'Loading\u2026'; }
+  const ok = await rxLoadAll(pid);
+  rxLoadingFor = '';
+  if(!ok){
+    if(b){ b.disabled = false; b.textContent = 'Could not load them \u2014 tap to try again'; }
+    return;
+  }
+  repaint();
+  if(document.getElementById('prevRx') && !document.getElementById('prevRx').classList.contains('hidden')) renderPrevRx(pid);
 }
 
 /* ---------------------------------------------------------- the calendar -- */
@@ -1435,7 +1489,10 @@ function bkSave(){ idbPut('bk:pending', bkPending); }
 function bkPendingFor(day){
   const held = mem.days[day];
   const ids = new Set(((held && held.appointments) || []).map(a => a && String(a.id)));
-  bkPending = bkPending.filter(p => !(mem.days[p.date] && ids.has(p.id) && p.date === day) && p.date >= todayStr());
+  /* 4.16 audit: an UNSENT booking is never pruned - one made late in the
+     evening with no signal used to vanish at midnight before it was ever
+     sent. Only sent ones for a day gone by are let go. */
+  bkPending = bkPending.filter(p => !(mem.days[p.date] && ids.has(p.id) && p.date === day) && (!p.sent || p.date >= todayStr()));
   return bkPending.filter(p => p.date === day && !ids.has(p.id));
 }
 function bkDocs(){ const d = S('doctors.json'); return (Array.isArray(d) ? d : []).map(x => x && (x.name || x)).filter(Boolean); }
@@ -1574,7 +1631,10 @@ async function bkSend(){
         await relay({ action: 'book', booking: JSON.stringify(p) });
         p.sent = true; p.sentAt = Date.now(); bkSave();
       }catch(e){
-        if(e && e.message !== 'offline' && e.message !== 'unreadable' && e.body && e.body.error){
+        /* 4.16 audit: a relay FAULT ("relay error: ...", a Drive blip) is not a
+           refusal - the booking stays and is retried. Only a rule ("that
+           patient is not in the directory") removes it, with the reason. */
+        if(e && e.message !== 'offline' && e.message !== 'unreadable' && e.body && e.body.error && !/^relay error/i.test(e.body.error)){
           bkPending = bkPending.filter(x => x.id !== p.id); bkSave();
           alert('Not booked: ' + e.body.error);
         }
@@ -1634,11 +1694,18 @@ async function bkWatch(){
       for(const p of old){
         p.checkedAt = now;
         if(st[p.id] === 'filed'){
-          await bkFreshDay(p.date);
-          const inDay = ((mem.days[p.date] && mem.days[p.date].appointments) || []).some(a => a && String(a.id) === p.id);
-          bkPending = bkPending.filter(x => x.id !== p.id);   // filed: in the day now, or deleted at the desk - either way no longer this phone's to show
-          if(!inDay) toast('A booking made from this phone was removed at the desk');
+          /* 4.16 audit: "filed" means Nexus has it - but the day file may not
+             have synced up to Drive yet, so "not in the day" is NOT proof it
+             was deleted at the desk (4.13 said so, wrongly). The card turns
+             into an ordinary booked one from this phone's own copy and the
+             note is kept until the day file shows it, or quietly let go after
+             30 more minutes. */
+          if(!p.filedAt){ p.filedAt = now; }
+          else if(now - p.filedAt > 30 * 60 * 1000){ bkPending = bkPending.filter(x => x.id !== p.id); }
         } else if(st[p.id] === 'unknown' && now - (p.sentAt || now) > 10 * 60 * 1000){
+          /* Neither waiting nor filed: something went wrong between the relay
+             and the desk. Said out loud, never dropped in silence. */
+          toast('Could not confirm the booking for ' + (p.patientId ? (nameOf(p.patientId) || p.patientId) : (p.newName || 'the rough slot')) + ' \u2014 please check with the desk');
           bkPending = bkPending.filter(x => x.id !== p.id);
         }
       }
@@ -1737,7 +1804,7 @@ function drawerReturn(){ return lastDrawer; }
 function togglePatientRx(i){ prevOpen = (prevOpen === i ? -1 : i); renderPatients(); }
 function forgetForLock(){ unsettledAsked = false; }
 
-return { bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
+return { rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear,
   resetFresh: () => { settingsFreshThisOpen = false; } };
@@ -1776,11 +1843,18 @@ async function relay(params){
   url.searchParams.set('key', relayKey());
   if(adminSession) url.searchParams.set('session', adminSession);
   Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-  let res;
-  try{ res = await fetch(url.toString(), { redirect: 'follow', cache: 'no-store' }); }
-  catch(e){ throw new RelayError('offline'); }
-  let body = null;
-  try{ body = await res.json(); }catch(e){ throw new RelayError('unreadable'); }
+  /* ONE RETRY (4.14). Google sometimes answers with an error page instead of
+     data for a moment (just after a deployment, or when busy): that read as
+     "unreadable" and the phone gave up at once. */
+  let body = null, lastErr = 'offline';
+  for(let attempt = 0; attempt < 2 && body === null; attempt++){
+    if(attempt) await new Promise(r => setTimeout(r, 1500));
+    let res;
+    try{ res = await fetch(url.toString(), { redirect: 'follow', cache: 'no-store' }); }
+    catch(e){ lastErr = 'offline'; continue; }
+    try{ body = await res.json(); }catch(e){ lastErr = 'unreadable'; body = null; }
+  }
+  if(body === null) throw new RelayError(lastErr);
   if(!body || !body.ok){
     if(body && body.error === 'bad key'){
       document.getElementById('setupMsg').textContent = 'This phone\u2019s link is no longer valid. Open the new admin setup link.';
@@ -1806,21 +1880,37 @@ async function driveFindChild(parentId, name, isFolder){
 }
 async function driveFindChildFresh(parentId, name, isFolder){ return driveFindChild(parentId, name, isFolder); }
 let lastFoundModifiedTime = null;
+const CAL_SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-blocks.json'];
 async function driveReadJson(fileId){
   const m = /^file:([a-z-]+)\/(.+)$/.exec(String(fileId || ''));
   if(!m) return null;
   const folder = m[1], name = m[2], key = folder + '/' + name;
+  /* NOT TWICE (4.15). The calendar already holds these five, read in one
+     request at open; the money screens were asking the relay for them again. */
+  if(folder === 'settings' && CAL_SETTINGS.indexOf(name) !== -1){
+    try{ const v = Cal.settingValue(name); if(v !== undefined) return v; }catch(e){}
+  }
   const held = relayHeld[key];
+  /* A FINISHED DAY DOES NOT CHANGE (4.15): once read, a past day book is
+     served from memory for the rest of the session; today is re-asked at
+     most every 45 seconds. Each avoided ask is a second on the phone. */
+  const isDay = /^\d{4}-\d{2}-\d{2}\.json$/.test(name) && ['data', 'visits', 'appointments'].indexOf(folder) !== -1;
+  if(held && isDay){
+    const day = name.slice(0, 10);
+    if(day < todayStr() || (held.at && Date.now() - held.at < 45000)) return held.value;
+  }
   const q = folder === 'settings' ? { action: 'settings', name }
     : (['data', 'visits', 'appointments'].indexOf(folder) !== -1 && /^\d{4}-\d{2}-\d{2}\.json$/.test(name))
       ? { action: 'day', folder, date: name.slice(0, 10) }
       : { action: 'file', folder, name };
   if(held && held.modified) q.since = held.modified;
   const r = await relay(q);
-  if(r.notModified && held) return held.value;
-  relayHeld[key] = { modified: r.modified || null, value: r.value };
+  if(r.notModified && held){ held.at = Date.now(); return held.value; }
+  relayHeld[key] = { modified: r.modified || null, value: r.value, at: Date.now() };
   return r.value;
 }
+/* A pull-to-refresh or a session change must drop the memo. */
+function relayHeldClear(){ Object.keys(relayHeld).forEach(k => { delete relayHeld[k]; }); }
 async function driveListChildren(parentId){
   const folder = String(parentId || '').replace(/^dir:/, '');
   const r = await relay({ action: 'list', folder });
@@ -1831,6 +1921,8 @@ function forgetIds(){}
 function cacheIdsNoop(){}
 
 /* ---- the lock ---- */
+/* A tag for this phone (random, kept), so PIN lockouts are per phone. */
+function deviceTag(){ try{ let t = localStorage.getItem('echoAdmin_device'); if(!t){ t = Math.random().toString(36).slice(2, 12); localStorage.setItem('echoAdmin_device', t); } return t; }catch(e){ return 'nodevice'; } }
 function paintLock(){
   const b = document.getElementById('adminBtn');
   if(!b) return;
@@ -1858,11 +1950,17 @@ async function pinKey(k){
   const msg = document.getElementById('pinMsg');
   msg.textContent = 'Checking\u2026';
   try{
-    const r = await relay({ action: 'unlock', pin: pinDigits });
+    const r = await relay({ action: 'unlock', pin: pinDigits, device: deviceTag() });
     adminSession = r.session;
     keepSession(r.session);
     closePinPad();
     paintLock(); paintTabs();
+    /* 4.18 audit: the settings on this phone were fetched while it was
+       locked, so patient-contacts came back with the numbers stripped out -
+       and the patient record showed "no number on file" to an admin who had
+       just unlocked. Fetched again now the relay will send them. */
+    relayHeldClear();
+    Cal.refreshSettings(true);
     setTab('calendar');
   }catch(e){
     const b = (e && e.body) || {};
@@ -1885,6 +1983,10 @@ function lockAdmin(){
     }catch(e){}
   }
   paintLock(); paintTabs();
+  /* And on the way out: the copy kept on this phone is replaced by the one a
+     locked app is allowed to have, rather than left carrying numbers. */
+  relayHeldClear();
+  try{ Cal.refreshSettings(true); }catch(e){}
   if(ADMIN_ONLY_TABS.indexOf(currentTab) !== -1 || currentTab === 'patients') setTab('calendar');
   else renderCurrent();
 }
@@ -2070,6 +2172,9 @@ async function loadAllEntries(){
      than one after another — they are independent, and waiting for each in
      turn was most of the cold-open delay. */
   const list = await listRecentDays();
+  /* 4.15: the data folder was never resolved on this path (ensureDataFolder
+     existed but nothing called it), so the direct reads below found nothing. */
+  if(missing.length) await ensureDataFolder();
   const fetches = missing.map(async (d) => {
     try{
       const fileId = list
@@ -2100,14 +2205,10 @@ async function loadLabCases(){
     if(!fileId) return (labCasesCache = null);
     const idx = await driveReadJson(fileId);
     if(!idx || !Array.isArray(idx.cases) || !Array.isArray(idx.keys)) return (labCasesCache = null);
-    if(!cachedLabcasesFolderId) cachedLabcasesFolderId = await driveFindChild(driveFolderId, 'labcases', true);
-    if(!cachedLabcasesFolderId) return (labCasesCache = null);
-    const files = await driveListChildren(cachedLabcasesFolderId);
-    const onDisk = files.map(f => String(f.name || '').replace(/\.json$/, ''))
-                        .filter(Boolean).map(n => 'labcase:' + n).sort();
-    const inIndex = idx.keys.slice().sort();
-    if(onDisk.length !== inIndex.length) return (labCasesCache = null);
-    for(let i = 0; i < onDisk.length; i++) if(onDisk[i] !== inIndex[i]) return (labCasesCache = null);
+    /* THE INDEX IS ENOUGH (4.15). It used to list labcases/ to prove the
+       index matched the folder - a Drive listing of every case, seconds
+       long through the relay, and growing. The desk keeps the index; the
+       phone trusts it, as it trusts the bills index. */
     labCasesCache = idx.cases;
   }catch(err){
     if(err && err.name === 'TokenExpiredError') throw err;
@@ -2203,25 +2304,13 @@ async function ensureDataFolder(){
   return cachedDataFolderId;
 }
 async function listRecentDays(){
-  if(dayListCache && !dayListRevalidate) return dayListCache;
-  if(dayListInFlight) return await dayListInFlight;
-  dayListInFlight = (async () => {
-    try{
-      const files = await driveListChildren('dir:data');
-      const map = {};
-      let oldest = null;
-      files.map(f => f.name).filter(n => /^\d{4}-\d{2}-\d{2}\.json$/.test(n)).sort().reverse().slice(0, DAY_LIST_SIZE).forEach(n => {
-        const d = n.slice(0, 10);
-        const f = files.find(x => x.name === n);
-        map[d] = { id: f.id, modifiedTime: f.modifiedTime || null };
-        if(!oldest || d < oldest) oldest = d;
-      });
-      dayListCache = map; dayListOldest = oldest; dayListRevalidate = false;
-      return map;
-    }catch(err){ return null; }
-  })();
-  try{ return await dayListInFlight; }
-  finally{ dayListInFlight = null; }
+  /* NO LISTING (4.15). This listed the whole data/ folder - every day book
+     the clinic has ever written, each with its modified time - to learn the
+     ids of at most seven recent files. Through the relay that was the
+     single slowest thing the Payment tab did, and it grew with every day.
+     Returning null makes loadAllEntries ask for each candidate day directly;
+     a day with no file answers null in one quick round. */
+  return null;
 }
 
 /* KEPT ON THE DEVICE (a2.7). Opening one patient's record read twelve
@@ -2575,26 +2664,13 @@ async function loadSettingsMap(fileName, state){
 const CACHE_KEY_VERIFIED = 'echoAdmin_verified';
 let rxVerifyDone = false;
 async function verifyRxIndexLater(idx){
-  if(rxVerifyDone) return;
+  /* OFF (4.15). This listed the entire prescriptions/ folder - thousands of
+     files, each with its modified time - through the relay, once a day, in
+     the background. On Google's side that was thousands of Drive calls in
+     one run: the likeliest cause of the "Service error: Drive" and the
+     error pages the phones were seeing. The desk keeps the index; the phone
+     trusts it, as it trusts the other indexes. */
   rxVerifyDone = true;
-  const last = Number(localStorage.getItem(CACHE_KEY_VERIFIED) || 0);
-  if(last && (Date.now() - last) < 12 * 60 * 60 * 1000) return;
-  try{
-    if(!cachedRxFolderId) cachedRxFolderId = await driveFindChild(driveFolderId, 'prescriptions', true);
-    if(!cachedRxFolderId) return;
-    const files = await driveListChildren(cachedRxFolderId);
-    const onDisk = files.map(f => String(f.name || '').replace(/\.json$/, ''))
-                        .filter(Boolean).map(x => 'rx:' + x).sort();
-    const inIndex = (idx.keys || []).slice().sort();
-    let same = onDisk.length === inIndex.length;
-    if(same) for(let i = 0; i < onDisk.length; i++) if(onDisk[i] !== inIndex[i]){ same = false; break; }
-    try{ localStorage.setItem(CACHE_KEY_VERIFIED, String(Date.now())); }catch(e){}
-    if(same) return;
-    /* The index is behind the folder: say so rather than show a record that
-       may be missing someone's latest prescription. */
-    rxIndexCache = null;
-    repaint();
-  }catch(err){ /* a failed check leaves what was already shown alone */ }
 }
 /* AGE AND SEX (v2.0). They live in patient-contacts.json beside the names —
    one more small file from settings/, kept on the device like the rest, so
@@ -2736,7 +2812,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.13';
+const ADMIN_VERSION = '4.18';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -2840,6 +2916,7 @@ async function doRefresh(){
   try{ localStorage.removeItem('echoAdmin_bills');
        localStorage.removeItem('echoAdmin_entries'); }catch(e){}
   billsRevalidate = true; entriesRevalidate = true;
+  relayHeldClear();
   try{ await Promise.all([Cal.refreshSettings(true), Cal.ensureWeek(Cal.getViewDay(), true)]); }catch(e){}
   setTab(currentTab);
   await new Promise(r => setTimeout(r, 400));
@@ -3840,9 +3917,15 @@ async function renderPtRecord(body, pid){
 
   /* ---- everything this patient has, as typed events ---- */
   const mine = { prescription:[], visit:[], bill:[], payment:[], labcase:[], implant:[], followup:[], note:[] };
-  (rx || []).filter(r => r && String(r.patientId) === P).forEach(r =>
+  /* 4.18: through the calendar's own list, so a patient whose older
+     prescriptions have been loaded shows all of them here too, and the
+     header count is the true one either way. */
+  Cal.rxFor(P).forEach(r =>
     mine.prescription.push({ when:String(r.date || r.createdAt || '').slice(0,10),
       what: rxWhat(r), struck: rxIsStruck(r), body: () => rxDetailHtml(r) }));
+  const rxOlder = Cal.rxCount(P) - mine.prescription.length;
+  if(rxOlder > 0) mine.prescription.push({ when:'', what: rxOlder + ' older not loaded \u2014 open Previous \u211e from the calendar',
+    struck:false, body: () => '' });
   (bills || []).filter(b => b && String(b.patientId) === P).forEach(b =>
     mine.bill.push({ when:String(b.date || '').slice(0,10),
       what: (b.billNo ? '#' + b.billNo + ' \u00b7 ' : '') + fmtINR(Number(b.grandTotal)||0)
@@ -3946,8 +4029,9 @@ async function boot(){
   await Cal.bkLoad();
   setTab('calendar');
   Cal.bkSend();
-  Cal.refreshSettings(true);
-  Cal.ensureWeek(Cal.getViewDay(), true);
+  /* OPENING USES THE READY COPY (4.14); only pull-to-refresh asks fresh. */
+  Cal.refreshSettings(false);
+  Cal.ensureWeek(Cal.getViewDay(), false);
 }
 window.addEventListener('load', () => {
   const ver = document.getElementById('appVer');
