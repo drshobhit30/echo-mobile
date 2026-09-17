@@ -1,5 +1,5 @@
 /* ======================================================================
-   ECHO NEXUS — PHONE RELAY  (r3.7, 17 Sep 2026)
+   ECHO NEXUS — PHONE RELAY  (r3.9, 17 Sep 2026)
 
    The phone apps (lite.html, admin.html) never sign in to Google. They ask
    this script instead, and this script reads the clinic folder as the
@@ -154,7 +154,7 @@ function handle_(p){
   if(action === 'deviceForget') return deviceForget_(p, role);
   if(action === 'deviceName')   return deviceName_(p, role);
   if(action === 'batch')    return readBatch_(String(p.items || ''), level, rxYears);
-  if(action === 'day')      return readDay_(String(p.folder || ''), String(p.date || ''), level, since);
+  if(action === 'day')      return readDay_(String(p.folder || ''), String(p.date || ''), level, since, fresh);
   if(action === 'week')     return readWeek_(String(p.from || ''), String(p.to || ''), level, fresh);
   if(action === 'list')     return listFolder_(String(p.folder || ''), level);
   if(action === 'file')     return readRecord_(String(p.folder || ''), String(p.name || ''), level, since);
@@ -304,6 +304,28 @@ function stripContacts_(map){
   });
   return out;
 }
+/* PENDING BOOKINGS, MERGED INTO A DAY (r3.9).
+
+   Marked `pending` so a phone can draw them as what they are - asked for,
+   not yet at the desk - and never offer to change one: there is nothing in
+   the day's file to change yet.
+
+   DE-DUPLICATED BY ID, which is the whole difficulty. The moment the desk
+   files a booking it is in the day's file AND still in this memory until the
+   next sweep, so without this it would show twice for up to five minutes.
+   The filed copy wins: it is the real record, and it may have been edited at
+   the desk since. */
+function withPending_(day, list){
+  let held = null;
+  try{ held = cacheGetJson_('pending:all'); }catch(e){ held = null; }
+  const waiting = (held && held[day]) || [];
+  if(!waiting.length) return list || [];
+  const have = {};
+  (list || []).forEach(a => { if(a && a.id) have[a.id] = true; });
+  const extra = waiting.filter(b => b && b.id && !have[b.id])
+    .map(b => Object.assign({}, b, { pending: true }));
+  return (list || []).concat(extra);
+}
 function stripBookings_(list){
   return (list || []).map(a => { const r = Object.assign({}, a); delete r.newPhone; return r; });
 }
@@ -340,7 +362,7 @@ function readSettings_(name, level, since, fresh, rxYears){
 
 function validDate_(d){ return /^\d{4}-\d{2}-\d{2}$/.test(d); }
 
-function readDay_(folder, date, level, since){
+function readDay_(folder, date, level, since, fresh){
   const allowed = level === 'admin' ? ADMIN_FOLDERS : LITE_FOLDERS;
   if(allowed.indexOf(folder) === -1 || folder === 'prescriptions' || folder === 'bills' || folder === 'labcases'){
     return { ok: false, error: 'not allowed', locked: level !== 'admin' };
@@ -355,9 +377,15 @@ function readDay_(folder, date, level, since){
      the desk, so a correction shows within five minutes. An older day gets
      no such check, and a six-hour-stale figure is worse than a Drive read,
      so anything before the window always goes to Drive. */
+  /* AND A PULL TO REFRESH MEANS THIS DAY TOO (r3.8). `fresh` reached the
+     week read and the settings read and stopped there - the single-day read
+     never took the argument at all. So somebody who pulled to refresh on a
+     past day, which is a thing people do precisely because they believe
+     something has changed, was handed the same copy the timer left up to
+     five minutes ago. Asked for fresh, they get Drive. */
   const today0 = clinicToday_();
   const warm = (folder === 'data' && date < today0 && date >= addDaysStr_(today0, -WARM_DAYS_BACK));
-  if(warm){
+  if(warm && !fresh){
     const c = cacheGetJson_('dayf:data:' + date);
     if(c){
       if(since && c.modified === since) return { ok: true, folder: folder, date: date, notModified: true, modified: since };
@@ -369,7 +397,10 @@ function readDay_(folder, date, level, since){
   const f = it && it.hasNext() ? it.next() : null;
   if(notModified_(f, since)) return { ok: true, folder: folder, date: date, notModified: true, modified: since };
   let value = parseOrNull_(f);
-  if(folder === 'appointments' && level !== 'admin') value = stripBookings_(value);
+  if(folder === 'appointments'){
+    value = withPending_(date, value || []);
+    if(level !== 'admin') value = stripBookings_(value);
+  }
   const modified = f ? f.getLastUpdated().toISOString() : null;
   if(warm) cachePutJson_('dayf:data:' + date, { value: value, modified: modified });
   return { ok: true, folder: folder, date: date, value: value, modified: modified };
@@ -412,7 +443,13 @@ function readWeek_(from, to, level, fresh){
   days.forEach(day => {
     const d = out[day] || { appointments: [], visits: [], modified: null };
     shaped[day] = {
-      appointments: level === 'admin' ? (d.appointments || []) : stripBookings_(d.appointments || []),
+      /* THE STRIP RUNS OVER THE MERGED LIST, not the filed one: a pending
+         booking carries a phone number too, and a staff key must not be
+         handed it just because the desk has not filed it yet. */
+      appointments: (function(){
+        const merged = withPending_(day, d.appointments || []);
+        return level === 'admin' ? merged : stripBookings_(merged);
+      })(),
       visits: d.visits || [],
       modified: d.modified || null
     };
@@ -1074,6 +1111,36 @@ function warmSweep_(){
       cachePutJson_('dayf:data:' + day, { value: parseOrNull_(f), modified: f.getLastUpdated().toISOString() });
     });
   }
+
+  /* ---- BOOKINGS NOT YET AT THE DESK (r3.9) ----------------------------
+     A phone's booking is handed to this relay and filed into the day by the
+     reception PC, which picks the inbox up every fifteen seconds. With that
+     PC off nobody files it, and the calendar reads only the appointments
+     folder - so a booking existed and no phone could see it, including the
+     one that made it once its app was reinstalled.
+
+     Read HERE rather than on every calendar read. A week view answers out of
+     this memory with no Drive calls at all, which is what made it quick; a
+     live inbox listing on each read would have put a Drive round trip back
+     into every calendar open on every phone, for ever, to cover the hours a
+     year the desk is shut. This costs one listing per sweep instead, and a
+     pull to refresh sweeps first, so it is immediate when somebody asks.
+
+     Only the top level is walked: a filed booking is moved into done/, so
+     what is left here is exactly what has not reached the desk. */
+  const pendingByDay = {};
+  try{
+    const inbox = inboxFolder_();
+    const it = inbox ? inbox.getFiles() : null;
+    while(it && it.hasNext()){
+      const pf = it.next();
+      if(!/\.json$/.test(pf.getName())) continue;
+      const b = parseOrNull_(pf);
+      if(!b || !b.date) continue;
+      (pendingByDay[b.date] = pendingByDay[b.date] || []).push(b);
+    }
+  }catch(e){ /* additive: a sweep that cannot read the inbox still warms the rest */ }
+  cachePutJson_('pending:all', pendingByDay);
 
   /* ---- the PIN ---- */
   if(!changed || changed.settings[PIN_FILE] || !cache.get('c:pin')){
