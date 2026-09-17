@@ -631,7 +631,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.20';
+const LITE_VERSION = '4.21';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1741,6 +1741,19 @@ function appInstalled(){
       || window.navigator.standalone === true;
   }catch(e){ return false; }
 }
+/* A relay refusal carries its own words; anything else is the network. The
+   relay's internal faults arrive as "relay error: ..." and are worth showing
+   in full, because that text is the thing that identifies the fault. */
+function notifWhy(e){
+  const m = String((e && e.message) || '').trim();
+  if(!m || m === 'offline') return 'no signal reached it. Try again where the signal is better.';
+  if(m === 'took too long') return 'it did not answer in time. Try again in a moment.';
+  if(m === 'unreadable') return 'it sent something this app could not read. Try again in a moment.';
+  if(m === 'unknown action') return 'the clinic\u2019s relay is an older version and does not know about notifications yet.';
+  if(m === 'session ended') return 'the admin session has ended. Unlock again and retry.';
+  if(m === 'bad key') return 'this phone\u2019s setup link is no longer valid.';
+  return m;
+}
 function notifSupported(){
   return typeof Notification !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
 }
@@ -1789,8 +1802,13 @@ async function notifApply(mode){
   try{ perm = await Notification.requestPermission(); }catch(e){ perm = 'denied'; }
   if(perm !== 'granted') return { ok: false, error: 'This phone is blocking notifications for the app. Turn them on in the phone’s own settings, then try again.' };
   let key;
+  /* THE REASON, NOT A SHRUG (4.21). These used to swallow what the relay
+     said and show one general line, so the difference between no signal, a
+     Drive permission the clinic has not granted, and a key that is not set
+     up was invisible from the phone - and the only way to tell them apart
+     was to read the relay's own log. Whatever comes back is shown. */
   try{ key = await relay({ action: 'pushKey' }); }
-  catch(e){ return { ok: false, error: 'Could not reach the clinic just now. Try again with a signal.' }; }
+  catch(e){ return { ok: false, error: 'Could not reach the clinic: ' + notifWhy(e) }; }
   if(!key.ready) return { ok: false, error: 'The clinic has not switched notifications on yet. Open Nexus on the reception PC once, then try again.' };
   let reg, sub;
   try{
@@ -1811,7 +1829,7 @@ async function notifApply(mode){
   try{
     await relay({ action: 'pushSub', dev: phoneTag(), app: appLetter(), ver: appVersion(), mode: mode,
       name: notifPhoneName(), sub: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }) });
-  }catch(e){ return { ok: false, error: 'Could not tell the clinic where to send them. Try again with a signal.' }; }
+  }catch(e){ return { ok: false, error: 'The clinic would not register this phone: ' + notifWhy(e) }; }
   notifStore(mode);
   return { ok: true };
 }
