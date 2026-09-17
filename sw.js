@@ -26,8 +26,20 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-v60';  // v60: apps 4.18 - windowed prescription index
+const CACHE_VERSION = 'echo-nexus-v62';  // v62: apps 4.20 - audit fixes
 const PAGE_FUSE_MS = 2500;
+/* Which app this phone runs. lite.html and admin.html share one worker
+   because they share a folder, so when a notification is tapped with no
+   window open there is otherwise no way to know which page to open. The
+   worker notes whichever page it last served and opens that one. */
+const LAST_APP = '/__lastapp';
+/* A CACHE OF ITS OWN, NOT THE VERSIONED ONE (v62). It was kept in the
+   versioned cache, which `activate` deletes on every release - so after an
+   update the worker forgot which app this phone runs, and a notification
+   tapped before the app was next opened launched lite.html. On the owner's
+   phone that is a setup screen, and worse, that launch then recorded
+   lite.html as the answer for ever after. This cache is never deleted. */
+const LAST_APP_CACHE = 'echo-nexus-lastapp';
 
 const SHELL = [
   './lite.html',
@@ -56,7 +68,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const names = await caches.keys();
-    await Promise.all(names.map(n => n === CACHE_VERSION ? null : caches.delete(n)));
+    await Promise.all(names.map(n => (n === CACHE_VERSION || n === LAST_APP_CACHE) ? null : caches.delete(n)));
     await self.clients.claim();
   })());
 });
@@ -79,6 +91,10 @@ self.addEventListener('fetch', (event) => {
 
   if(isPage){
     const pageKey = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
+    if(/admin\.html$|lite\.html$/.test(url.pathname)){
+      event.waitUntil(caches.open(LAST_APP_CACHE).then(c =>
+        c.put(LAST_APP, new Response(url.pathname.split('/').pop()))).catch(() => {}));
+    }
     /* ?fresh=... is the app itself asking for the newest page (the version
        check, or the version tap). It waits for the network - no fuse - and
        whatever arrives becomes the saved copy. */
@@ -130,5 +146,103 @@ self.addEventListener('fetch', (event) => {
     }catch(e){
       return new Response('', { status: 504 });
     }
+  })());
+});
+
+/* ======================================================================
+   NOTIFICATIONS (v61)
+
+   Nexus on the reception PC sends these directly, the instant a visit is
+   marked. Everything the notification says is already inside the push - the
+   worker does no reading of its own, so it is quick and works with the app
+   closed and the phone locked.
+
+   The payload is whatever Nexus put there: { title, body, date, pid, silent }.
+   Nothing is ever shown without text, because a push that shows nothing is
+   how a browser withdraws permission to push at all.
+   ====================================================================== */
+self.addEventListener('push', (event) => {
+  let d = {};
+  try{ d = event.data ? event.data.json() : {}; }catch(e){ d = {}; }
+  const title = String(d.title || 'Echo Nexus');
+  const body = String(d.body || 'A visit was marked at the desk.');
+  const opts = {
+    body: body,
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    /* One tag, so a busy morning replaces rather than stacks. */
+    tag: String(d.tag || 'echo-visit'),
+    renotify: true,
+    silent: !!d.silent,
+    timestamp: Date.now(),
+    data: { date: String(d.date || ''), pid: String(d.pid || '') }
+  };
+  if(!d.silent) opts.vibrate = [40, 60, 40];
+  event.waitUntil(self.registration.showNotification(title, opts));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const d = event.notification.data || {};
+  const tail = d.date ? '#day=' + d.date + (d.pid ? '&pid=' + d.pid : '') : '';
+  event.waitUntil((async () => {
+    const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for(const c of open){
+      if(/admin\.html|lite\.html/.test(c.url)){
+        try{ await c.focus(); }catch(e){}
+        try{ c.postMessage({ type: 'openVisit', date: d.date || '', pid: d.pid || '' }); }catch(e){}
+        return;
+      }
+    }
+    let page = 'lite.html';
+    try{
+      const cache = await caches.open(LAST_APP_CACHE);
+      const hit = await cache.match(LAST_APP);
+      if(hit) page = (await hit.text()) || page;
+    }catch(e){}
+    await self.clients.openWindow('./' + page + tail);
+  })());
+});
+
+/* ======================================================================
+   A SUBSCRIPTION THE BROWSER RETIRES (v62)
+
+   Chrome and Safari may retire a push subscription on their own - after a
+   long silence, or when storage is cleared - and they say so exactly once,
+   here. Without this the phone kept a subscription it no longer had, the
+   clinic went on sending to an address nobody was listening at, and the app
+   only noticed the next time somebody opened it. Which is precisely the case
+   notifications exist to cover.
+
+   The new subscription is sent straight to the relay, using the setup this
+   phone already holds. The worker cannot read the app's localStorage, so the
+   address and key are kept in a small cache entry the app writes on each
+   open (see notifRefresh).
+   ====================================================================== */
+const SETUP_KEY = '/__relay';
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    try{
+      const cache = await caches.open(LAST_APP_CACHE);
+      const hit = await cache.match(SETUP_KEY);
+      if(!hit) return;
+      const setup = await hit.json();
+      if(!setup || !setup.url || !setup.key) return;
+      let sub = event.newSubscription || null;
+      if(!sub && setup.pub){
+        const raw = Uint8Array.from(atob(String(setup.pub).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+        sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: raw });
+      }
+      if(!sub) return;
+      const j = sub.toJSON();
+      const u = new URL(setup.url);
+      u.searchParams.set('key', setup.key);
+      u.searchParams.set('action', 'pushSub');
+      u.searchParams.set('dev', setup.dev || '');
+      u.searchParams.set('mode', setup.mode || 'on');
+      u.searchParams.set('sub', JSON.stringify({ endpoint: j.endpoint, keys: j.keys }));
+      await fetch(u.toString(), { cache: 'no-store' });
+    }catch(e){}
   })());
 });

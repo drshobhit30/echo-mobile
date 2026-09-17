@@ -52,7 +52,37 @@ body{ padding-bottom:28px; }
   background:var(--gold-pale); border:1px solid var(--gold-light); color:var(--gold-deep);
   font-size:0.8rem; text-align:center; }
 .signin-bar:active{ background:var(--gold-light); }
-.pull-cue{ height:0; opacity:0; overflow:hidden; display:flex; align-items:center; justify-content:center;
+/* The notification chooser (4.19). Its own small sheet rather than the day
+   drawer: it is reached from the header, on any tab, and must not disturb
+   whatever the drawer is holding. */
+.hd-bell{ border:0; background:transparent; font-size:1.05rem; line-height:1; padding:2px 4px; cursor:pointer; opacity:0.95; }
+.hd-bell.nt-quiet{ opacity:0.6; }
+.hd-bell.nt-off{ opacity:0.32; filter:grayscale(1); }
+.nt-wrap{ position:fixed; inset:0; background:rgba(28,22,16,0.45); z-index:120; display:flex; align-items:flex-end; justify-content:center; }
+.nt-wrap.hidden{ display:none; }
+.nt-card{ width:100%; max-width:460px; background:var(--white); border-radius:18px 18px 0 0; padding:16px 16px 20px; }
+.nt-h{ font-size:1rem; font-weight:700; color:var(--ink); }
+.nt-sub{ font-size:0.76rem; color:var(--muted); margin:3px 0 12px; }
+.nt-opt{ display:block; width:100%; text-align:left; border:1px solid var(--line, #E4DACA); background:var(--white);
+  border-radius:12px; padding:10px 12px; margin-bottom:8px; font-family:inherit; cursor:pointer; }
+.nt-opt b{ display:block; font-size:0.9rem; color:var(--ink); }
+.nt-opt span{ display:block; font-size:0.74rem; color:var(--muted); margin-top:1px; }
+.nt-opt.on{ border-color:var(--gold); background:var(--gold-pale); }
+.nt-warn{ font-size:0.76rem; line-height:1.4; background:#FCEBEB; color:#791F1F; border-radius:10px; padding:9px 11px; margin:2px 0 10px; }
+.nt-tip{ font-size:0.74rem; line-height:1.45; background:var(--cream); color:var(--muted); border-radius:10px; padding:9px 11px; margin:2px 0 10px; }
+.nt-tip b{ color:var(--ink); }
+.hd-bell.nt-broken{ opacity:1; filter:none; }
+.nt-msg{ font-size:0.76rem; color:var(--muted); min-height:16px; margin:2px 2px 10px; }
+.nt-msg.nt-good{ color:#3E6B14; }
+.nt-msg.nt-bad{ color:#9A2F2C; }
+.nt-close{ width:100%; border:0; border-radius:12px; padding:11px; background:var(--ink); color:var(--cream);
+  font-family:inherit; font-weight:700; font-size:0.86rem; cursor:pointer; }
+/* THE CUE FLOATS (owner's report, 4.19). It used to sit in the page and grow,
+   which pushed the sticky header and the whole day down - the "breaks the
+   visual" part. Fixed to the top it slides over the header instead, so
+   nothing below it ever moves, however far the finger travels. */
+.pull-cue{ position:fixed; left:0; right:0; top:0; z-index:40; height:0; opacity:0; overflow:hidden;
+  display:flex; align-items:center; justify-content:center; pointer-events:none; background:var(--cream);
   font-size:0.74rem; letter-spacing:0.05em; color:var(--gold-deep); font-weight:600; }
 .tabbar{ display:flex; gap:6px; margin-top:10px; }
 .tab-btn{ flex:1; border:0; background:transparent; font-family:inherit; font-weight:600;
@@ -315,7 +345,9 @@ body{ padding-bottom:28px; }
 .cal-d.today{ box-shadow: inset 0 0 0 1px var(--gold-deep); }
 .cal-d.today b{ color:var(--gold-deep); }
 .cal-range{ text-align:center; font-size:0.7rem; color:var(--muted); }
-.cal-fresh{ text-align:center; font-size:0.7rem; color:var(--muted); min-height:14px; margin:2px 0 10px; }
+.cal-fresh{ text-align:center; font-size:0.7rem; color:var(--muted); min-height:14px; margin:2px 0 10px;
+  cursor:pointer; text-decoration:underline dotted rgba(138,122,99,0.5); text-underline-offset:3px; }
+.cal-fresh:active{ opacity:0.55; }
 .cal-row{ display:grid; grid-template-columns:58px minmax(0,1fr) auto; gap:8px; align-items:center; background:var(--white); border:1px solid var(--line); border-left:4px solid #B4B2A9; border-radius:11px; padding:9px 10px; margin-bottom:6px; cursor:pointer; }
 .cal-row:active{ transform:scale(0.99); }
 .cal-row.is-rough{ border-left-style:dashed; opacity:0.85; }
@@ -332,8 +364,13 @@ body{ padding-bottom:28px; }
 .st-wait{ background:#FAEEDA; color:#633806; } .st-chair{ background:#E6F1FB; color:#0C447C; }
 .st-done{ background:#EAF3DE; color:#27500A; } .st-booked{ background:#F1EFE8; color:#444441; }
 .st-noshow{ background:#FCEBEB; color:#791F1F; } .st-rough{ border:1px dashed #B4AB98; color:var(--muted); }
-.cal-closed{ text-align:center; font-size:0.74rem; color:var(--muted); border-radius:11px; padding:7px 10px; margin-bottom:6px;
-  background:repeating-linear-gradient(45deg, var(--cream), var(--cream) 6px, #F1EFE8 6px, #F1EFE8 12px); }
+/* CLOSURES ARE EVENTS ON THE TIMELINE (owner's call, 4.19). They used to be a
+   striped bar above the day saying "Closed", which read as though the clinic
+   were shut when it was a meeting, and left an empty day looking broken. Now
+   they sit among the bookings in time order in the same card, with a quiet
+   band and a tinted face so nobody mistakes one for a patient, and with
+   nothing to tap. They never stop a booking - see bkBlockAt. */
+.st-event{ background:#EFE7DA; color:#5B4B36; }
 .cal-skel{ height:52px; border-radius:11px; margin-bottom:6px; background:linear-gradient(90deg,#F3EDE2,#FBF7EF,#F3EDE2); background-size:200% 100%; animation:skel 1.2s ease-in-out infinite; }
 @keyframes skel{ 0%{ background-position:200% 0; } 100%{ background-position:-200% 0; } }
 /* ---- drawer ---- */
@@ -486,6 +523,9 @@ body{ background:#FDFAF4 !important; }
 .ka-meta{ display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; font-size:0.78rem; color:var(--brown); }
 .ka-meta i{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; }
 .ka-rx{ color:#8A5F26; font-weight:600; }
+.ka-card.is-event{ background:#F8F4EC; box-shadow:0 1px 6px rgba(74,59,40,0.05); cursor:default; }
+.ka-card.is-event:active{ transform:none; }
+.ka-card.is-event .ka-name{ font-size:0.95rem; }
 .ka-card.is-rough{ opacity:0.6; }
 .ka-card.is-struck{ opacity:0.72; }
 .ka-card.is-struck .ka-name{ text-decoration:line-through; }
@@ -658,6 +698,7 @@ body{ background:#FAF7F2 !important; }
          small print. The corner used to hold only a version number, which is
          why it read as empty. -->
     <div class="hd-mark">
+      <button type="button" class="hd-bell" id="hdBell" onclick="notifOpen()" aria-label="Notifications">🔔</button>
       <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version">Nexus <b>A</b> &middot; <span id="appVer"></span></div>
     </div>
   </div>
@@ -670,6 +711,23 @@ body{ background:#FAF7F2 !important; }
 </div>
 
 <div id="pullCue" class="pull-cue"><span id="pullText">Pull to refresh</span></div>
+<div id="notifWrap" class="nt-wrap hidden" onclick="if(event.target===this) notifClose()">
+  <div class="nt-card">
+    <div class="nt-h">Notifications on this phone</div>
+    <div class="nt-sub">A buzz the moment a visit is marked at the desk. Nothing else is sent.</div>
+    <button type="button" class="nt-opt" data-m="on" onclick="notifPick('on')"><b>On</b><span>Sound and vibration, as this phone is set</span></button>
+    <button type="button" class="nt-opt" data-m="silent" onclick="notifPick('silent')"><b>Silent</b><span>Shows on the screen, makes no sound</span></button>
+    <button type="button" class="nt-opt" data-m="off" onclick="notifPick('off')"><b>Off</b><span>Nothing is sent to this phone at all</span></button>
+    <div class="nt-warn" id="notifBroken" style="display:none;"></div>
+    <div class="nt-tip" id="notifAndroid" style="display:none;">
+      <b>Android puts apps to sleep.</b> If a notification ever arrives late or not at all, open the phone&rsquo;s
+      Settings &rarr; Apps &rarr; Chrome &rarr; Battery and choose <b>Unrestricted</b>. Nothing in this app can set
+      that for you &mdash; only the phone&rsquo;s owner can.
+    </div>
+    <div class="nt-msg" id="notifMsg"></div>
+    <button type="button" class="nt-close" onclick="notifClose()">Done</button>
+  </div>
+</div>
 <!-- Offered, not imposed: the record stays readable underneath. -->
 
 <div class="wrap">
@@ -692,7 +750,7 @@ body{ background:#FAF7F2 !important; }
         </div>
         <div class="cal-strip" id="calStrip"></div>
       </div>
-      <div class="cal-sched-head"><span id="calDayWord"></span><span class="cal-fresh" id="calFresh"></span></div>
+      <div class="cal-sched-head"><span id="calDayWord"></span><span class="cal-fresh" id="calFresh" onclick="tapRefresh()" title="Tap to read again"></span></div>
       <div class="cal-chips" id="calChips"></div>
       </div>
       <div id="calUnsettled"></div>
@@ -1189,9 +1247,16 @@ const AV_TONES = [['#EEEDFE','#3C3489'],['#E1F5EE','#085041'],['#FBEAF0','#72243
 const BAND = { booked:'#EF9F27', waiting:'#BA7517', ongoing:'#378ADD', done:'#639922', came:'#639922', noshow:'#E24B4A', rough:'#B4B2A9' };
 function rowHtml(r, day){
   if(r.kind === 'block' || r.kind === 'leave'){
-    const when = r.allDay ? 'all day' : (Number.isFinite(r.mins) ? clock(r.mins) + (Number.isFinite(r.end) ? ' \u2013 ' + clock(r.end) : '') : '');
-    return '<div class="cal-closed">' + (r.kind === 'leave' ? 'Away' : 'Closed') + (when ? ' ' + escapeHtml(when) : '')
-      + (r.title ? ' \u00b7 ' + escapeHtml(r.title) : '') + '</div>';
+    const away = r.kind === 'leave';
+    const when = r.allDay ? 'All day'
+      : (Number.isFinite(r.mins) ? clock(r.mins) + (Number.isFinite(r.end) ? ' \u2013 ' + clock(r.end) : '') : 'All day');
+    return '<div class="ka-card is-event">'
+      + '<div class="ka-band" style="background:' + (away ? '#A2865F' : '#8C7A63') + ';"></div>'
+      + '<div class="ka-in">'
+        + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span>'
+          + '<span><span class="cal-chip st-event">' + (away ? 'Away' : 'Clinic event') + '</span></span></div>'
+        + '<div class="ka-name">' + escapeHtml(r.title || (away ? 'Doctor away' : 'Clinic closed')) + '</div>'
+      + '</div></div>';
   }
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
   const rxN = r.patientId ? rxCount(r.patientId) : 0;
@@ -1206,6 +1271,8 @@ function rowHtml(r, day){
     rxN ? '<span class="ka-rx">\u211e ' + rxN + '</span>' : ''
   ].filter(Boolean).join('');
   return '<div class="ka-card' + (r.rough ? ' is-rough' : '') + (r.struck ? ' is-struck' : '') + (r.pending ? ' is-pending' : '') + '"'
+    /* The patient, so a tapped notification can find this row (4.20). */
+    + (r.patientId ? ' data-pid="' + escapeHtml(String(r.patientId)) + '"' : '')
     + ' onclick="Cal.openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')">'
     + '<div class="ka-band" style="background:' + (BAND[r.status] || BAND.booked) + ';"></div>'
     + '<div class="ka-in">'
@@ -1363,15 +1430,23 @@ function renderCalendar(){
     const def = CHIP_DEFS.find(c => c[0] === statusFilter);
     /* DONE IS OUT OF THE WAY (owner's call, lite 3.3 / admin 4.4): with no
        chip picked the list is who is still to come or still in; the finished
-       ones show only under Done. */
+       ones show only under Done.
+
+       TODAY ONLY (owner's call, 4.19). Today the list is a worklist, so the
+       finished ones stepping aside is a help. A past day is a record, and
+       folding the people who came hides most of what happened - you open
+       Tuesday to see Tuesday, not to see who Tuesday still owes. So the fold
+       and its hint line apply to today alone; past days show everyone in
+       order. Future days have nobody done, so they read the same either way. */
+    const foldDone = viewDay === today;
     const isDone = r => r.status === 'done' || r.status === 'came';
     const shown = def ? all.filter(r => (r.kind === 'appt' || r.kind === 'walkin') && def[2](r))
-                      : all.filter(r => !((r.kind === 'appt' || r.kind === 'walkin') && isDone(r)));
+                      : (foldDone ? all.filter(r => !((r.kind === 'appt' || r.kind === 'walkin') && isDone(r))) : all);
     const doneCount = people.filter(isDone).length;
-    const doneHint = (!def && doneCount)
-      ? '<button type="button" class="kv-done-hint" onclick="Cal.setStatusFilter(\'done\')">' + doneCount + ' done \u00b7 tap Done to see ' + (doneCount === 1 ? 'them' : 'them') + '</button>' : '';
+    const doneHint = (!def && foldDone && doneCount)
+      ? '<button type="button" class="kv-done-hint" onclick="Cal.setStatusFilter(\'done\')">' + doneCount + ' done \u00b7 tap Done to see them</button>' : '';
     list.innerHTML = (shown.length ? shown.map(r => rowHtml(r, viewDay)).join('')
-      : '<div class="empty-state">' + (def ? 'Nobody ' + def[1].toLowerCase() : (doneCount ? 'Everyone is done' : (viewDay < today ? 'Nobody booked or came' : 'Nothing booked yet'))) + '</div>') + doneHint;
+      : '<div class="empty-state">' + (def ? 'Nobody ' + def[1].toLowerCase() : (foldDone && doneCount ? 'Everyone is done' : (viewDay < today ? 'Nobody booked or came' : 'Nothing booked yet'))) + '</div>') + doneHint;
   }
   paintFreshness();
   if(typeof paintAdminExtras === 'function') paintAdminExtras();
@@ -1545,13 +1620,17 @@ function bkSlotState(t){
   const busy = appts.some(a => a && !a.rough && (a.status || 'scheduled') !== 'cancelled' && a.status !== 'noshow'
     && bk.doctor && a.doctor === bk.doctor && (() => { const s1 = minsOf(a.time); return Number.isFinite(s1) && t < s1 + (Number(a.mins) || 15) && t + bk.mins > s1; })());
   if(busy) return 'booked';
-  const closed = blocksOn(day).some(b => {
+  return bkBlockAt(t) ? 'closed' : 'free';
+}
+/* WHICH closure covers this slot, so the warning can name it (4.19). A
+   closure never refuses the booking - it only says what else is on. */
+function bkBlockAt(t){
+  return blocksOn(bk.date).filter(b => {
     if(b.kind === 'leave' && (!bk.doctor || b.doctor !== bk.doctor)) return false;
     if(b.allDay) return true;
     const s0 = minsOf(b.start), e0 = minsOf(b.end);
     return Number.isFinite(s0) && Number.isFinite(e0) && t < e0 && t + bk.mins > s0;
-  });
-  return closed ? 'closed' : 'free';
+  })[0] || null;
 }
 function bkRender(){
   if(!bk) return;
@@ -1592,7 +1671,12 @@ function bkRender(){
     + (bk.time && !rough ? (() => {
         const st = bkSlotState(minsOf(bk.time));
         if(st === 'booked') return '<div class="bk-warn">\u26A0 ' + escapeHtml(bk.doctor) + ' already has a booking at this time. It will be double-booked, and Nexus will flag it.</div>';
-        if(st === 'closed') return '<div class="bk-warn">\u26A0 This time is marked closed' + (bk.doctor ? ' or ' + escapeHtml(bk.doctor) + ' is away' : '') + '. It will still be booked.</div>';
+        if(st === 'closed'){
+          const b = bkBlockAt(minsOf(bk.time));
+          const what = (b && b.title) ? escapeHtml(b.title) + ' is at this time'
+            : ((b && b.kind === 'leave') ? 'The doctor is away at this time' : 'The clinic is closed at this time');
+          return '<div class="bk-warn">\u26A0 ' + what + '. It will still be booked.</div>';
+        }
         return '';
       })() : '')
     + '<div class="bk-f">Reason <span>optional</span></div><input class="bk-in" id="bkReason" value="' + escapeHtml(bk.reason) + '" oninput="Cal.bkReason(this.value)" placeholder="e.g. RCT second sitting">'
@@ -1806,7 +1890,7 @@ function forgetForLock(){ unsettledAsked = false; }
 
 return { rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
-  togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear,
+  togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS,
   resetFresh: () => { settingsFreshThisOpen = false; } };
 })();
 
@@ -1836,11 +1920,19 @@ function takeSetupFromLink(){
 function relayUrl(){ try{ return localStorage.getItem(K_RELAY) || ''; }catch(e){ return ''; } }
 function relayKey(){ try{ return localStorage.getItem(K_KEY) || ''; }catch(e){ return ''; } }
 function isSetUp(){ return !!(relayUrl() && relayKey()); }
+const RELAY_TIMEOUT_MS = 25000;
 function RelayError(msg, body){ this.name = 'RelayError'; this.message = msg; this.body = body || {}; }
 RelayError.prototype = Object.create(Error.prototype);
 async function relay(params){
   const url = new URL(relayUrl());
   url.searchParams.set('key', relayKey());
+  /* WHO IS ASKING (4.19). The phone's own tag, the version it is running and
+     whether it is a Home Screen app. These ride on requests already being
+     made, so they cost nothing, and they are what fills the clinic's list of
+     phones - which is how an out-of-date handset gets noticed. */
+  url.searchParams.set('dev', phoneTag());
+  url.searchParams.set('ver', appVersion());
+  url.searchParams.set('inst', appInstalled() ? '1' : '0');
   if(adminSession) url.searchParams.set('session', adminSession);
   Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
   /* ONE RETRY (4.14). Google sometimes answers with an error page instead of
@@ -1850,9 +1942,25 @@ async function relay(params){
   for(let attempt = 0; attempt < 2 && body === null; attempt++){
     if(attempt) await new Promise(r => setTimeout(r, 1500));
     let res;
-    try{ res = await fetch(url.toString(), { redirect: 'follow', cache: 'no-store' }); }
-    catch(e){ lastErr = 'offline'; continue; }
-    try{ body = await res.json(); }catch(e){ lastErr = 'unreadable'; body = null; }
+    /* A HANG MUST END (4.19). Without this a stuck request never returns and
+       the screen waits for ever with nothing on it - which is what "Payment
+       does not load" looked like. Cut it off and say so instead. */
+    const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, RELAY_TIMEOUT_MS) : null;
+    /* THE CLOCK COVERS THE WHOLE ANSWER (4.20). The first version cleared it
+       the moment the headers arrived, and then waited for the body with
+       nothing watching - which is exactly the shape of a wedged relay run:
+       a 200 that never finishes. The screen sat empty for ever, which was
+       the very thing this was added to stop. Reading the body is inside the
+       same clock now. */
+    try{
+      res = await fetch(url.toString(), { redirect: 'follow', cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+      body = await res.json();
+    }catch(e){
+      body = null;
+      lastErr = (ctl && ctl.signal.aborted) ? 'took too long' : (res ? 'unreadable' : 'offline');
+      continue;
+    }finally{ if(timer) clearTimeout(timer); }
   }
   if(body === null) throw new RelayError(lastErr);
   if(!body || !body.ok){
@@ -1899,15 +2007,70 @@ async function driveReadJson(fileId){
     const day = name.slice(0, 10);
     if(day < todayStr() || (held.at && Date.now() - held.at < 45000)) return held.value;
   }
-  const q = folder === 'settings' ? { action: 'settings', name }
+  const item = folder === 'settings' ? { t: 'set', n: name }
     : (['data', 'visits', 'appointments'].indexOf(folder) !== -1 && /^\d{4}-\d{2}-\d{2}\.json$/.test(name))
-      ? { action: 'day', folder, date: name.slice(0, 10) }
-      : { action: 'file', folder, name };
-  if(held && held.modified) q.since = held.modified;
-  const r = await relay(q);
+      ? { t: 'day', f: folder, n: name.slice(0, 10) }
+      : { t: 'file', f: folder, n: name };
+  if(held && held.modified) item.s = held.modified;
+  const r = await batchAsk(item, key);
   if(r.notModified && held){ held.at = Date.now(); return held.value; }
   relayHeld[key] = { modified: r.modified || null, value: r.value, at: Date.now() };
   return r.value;
+}
+
+/* ONE REQUEST, NOT TWELVE (4.19).
+
+   Apps Script runs one request at a time per user. A dozen reads fired off
+   together from the Payment screen do not overlap - they stand in a queue,
+   so twelve reads of a second each take twelve seconds, and the screen sits
+   empty for all of it. That is the slowness, and no amount of care in the
+   screens themselves can fix it: the limit is on the far side.
+
+   Every loader on this phone ends at driveReadJson, so the joining happens
+   here rather than in each screen. A read is parked on a queue, the queue is
+   sent as ONE batch on the next turn of the event loop, and each caller's
+   promise is settled from the single answer. Nothing above this line had to
+   change, and a screen written next year gets it for free. */
+const BATCH_MAX = 12;         // how many files one relay run reads
+let batchQueue = [];
+let batchTimer = null;
+function batchAsk(item, key){
+  return new Promise((resolve, reject) => {
+    batchQueue.push({ item, key, resolve, reject });
+    if(batchTimer === null) batchTimer = setTimeout(batchFlush, 0);
+  });
+}
+async function batchFlush(){
+  batchTimer = null;
+  const wave = batchQueue;
+  batchQueue = [];
+  if(!wave.length) return;
+  /* Two screens wanting the same file ask for it once. */
+  const byKey = {};
+  const order = [];
+  wave.forEach(w => {
+    if(!byKey[w.key]){ byKey[w.key] = []; order.push(w.key); }
+    byKey[w.key].push(w);
+  });
+  for(let i = 0; i < order.length; i += BATCH_MAX){
+    const slice = order.slice(i, i + BATCH_MAX);
+    const items = slice.map(k => byKey[k][0].item);
+    let r = null, err = null;
+    try{
+      r = await relay({ action: 'batch', items: JSON.stringify(items), rxYears: String(Cal.RX_YEARS) });
+    }catch(e){ err = e; }
+    slice.forEach((k, n) => {
+      const waiting = byKey[k];
+      if(err){ waiting.forEach(w => w.reject(err)); return; }
+      const one = (r && r.results) ? r.results[n] : null;
+      if(!one || !one.ok){
+        const e2 = new RelayError((one && one.error) || 'relay', one);
+        waiting.forEach(w => w.reject(e2));
+        return;
+      }
+      waiting.forEach(w => w.resolve(one));
+    });
+  }
 }
 /* A pull-to-refresh or a session change must drop the memo. */
 function relayHeldClear(){ Object.keys(relayHeld).forEach(k => { delete relayHeld[k]; }); }
@@ -2812,7 +2975,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.18';
+const ADMIN_VERSION = '4.20';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -2858,39 +3021,378 @@ function askName(){
 
    It arms only at the very top of the page, so a pull halfway down a long
    list scrolls as normal. */
-let pullStartY = null, pullDist = 0, pullArmed = false, pullBusy = false;
+let pullStartY = null, pullStartX = null, pullDist = 0, pullArmed = false, pullBusy = false, pullDead = false;
 const PULL_TRIGGER = 70;
+/* Below this nothing is decided either way: a few pixels of drift is a tap
+   settling, not a pull and not a swipe. */
+const PULL_SLOP = 8;
+/* Anything that scrolls sideways, and the strips that sit over the page. */
+const PULL_NEVER = '#calStrip, .cal-chips, .bk-slots, .bk-seg, .hs-tl';
 function pullSetText(t){ const el = document.getElementById('pullText'); if(el) el.textContent = t; }
 function pullShow(px){
   const cue = document.getElementById('pullCue');
   if(!cue) return;
   cue.style.height = Math.min(px, 64) + 'px';
-  cue.style.opacity = Math.min(px / PULL_TRIGGER, 1);
+  cue.style.opacity = String(Math.min(px / PULL_TRIGGER, 1));
 }
-function pullReset(){
-  pullStartY = null; pullDist = 0; pullArmed = false; pullBusy = false;
+function pullHide(){
+  pullDist = 0; pullArmed = false;
   const cue = document.getElementById('pullCue');
   if(cue){ cue.style.height = '0px'; cue.style.opacity = '0'; }
   pullSetText('Pull to refresh');
 }
+function pullReset(){ pullHide(); pullStartY = null; pullStartX = null; pullBusy = false; }
+/* The same read the gesture does, for people who would rather tap the
+   "Updated ..." line than pull (4.19). */
+async function tapRefresh(){
+  if(pullBusy) return;
+  pullBusy = true; pullShow(34); pullSetText('Reading…');
+  try{ await doRefresh(); }catch(e){}
+  pullReset();
+}
+/* ======================================================================
+   NOTIFICATIONS ON THIS PHONE (4.19)
+
+   One thing is notified and nothing else: a visit marked at the desk. Nexus
+   on the reception PC sends it the instant the visit is saved, so it arrives
+   in a second or two with the app closed and the phone locked.
+
+   This phone decides for itself whether it wants them. Five handsets can
+   each choose, and the choice lives on the handset:
+     on      - subscribed, with sound and vibration
+     silent  - subscribed, shown on the screen but quiet
+     off     - not subscribed at all; the relay has no way to reach it
+
+   The clinic's private signing key is never here. The phone is given only
+   the public half, which is all a subscription needs.
+
+   What we cannot choose from inside a web app is the SOUND. Notifications
+   have no tone of their own: Android gives this app its own entry in the
+   phone's settings where a tone can be picked, and iPhone plays the standard
+   one. Silent below is the app's own way of being quiet on any phone. */
+const NOTIF_KEY = 'echoPhone_notif';
+const NOTIF_DEV_KEY = 'echoPhone_device';
+const NOTIF_HEALTH_KEY = 'echoPhone_notifHealth';
+
+function phoneTag(){
+  try{
+    let t = localStorage.getItem(NOTIF_DEV_KEY);
+    if(!t){ t = 'ph' + Math.random().toString(36).slice(2, 12); localStorage.setItem(NOTIF_DEV_KEY, t); }
+    return t;
+  }catch(e){ return 'phnostore'; }
+}
+function appVersion(){ return (typeof ADMIN_VERSION !== 'undefined') ? ADMIN_VERSION : LITE_VERSION; }
+/* Whoever this phone greets, so the clinic's list reads "Pooja" rather than
+   "Staff phone". It is the name already set by tapping the greeting. */
+function notifPhoneName(){
+  try{ return String(localStorage.getItem(K_NAME) || '').slice(0, 40); }catch(e){ return ''; }
+}
+function appLetter(){ return (typeof ADMIN_VERSION !== 'undefined') ? 'admin' : 'lite'; }
+/* A Home Screen app, or a browser tab? Worth knowing in the clinic's phone
+   list, because on an iPhone only the Home Screen app can be notified. */
+function appInstalled(){
+  try{
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || window.navigator.standalone === true;
+  }catch(e){ return false; }
+}
+function notifSupported(){
+  return typeof Notification !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
+}
+function notifMode(){ try{ return localStorage.getItem(NOTIF_KEY) || ''; }catch(e){ return ''; } }
+function notifStore(m){ try{ localStorage.setItem(NOTIF_KEY, m); }catch(e){} }
+/* WHAT THE PHONE ASKED FOR AND WHETHER IT IS WORKING ARE TWO FACTS (4.20).
+   Writing the failure into the mode itself lost the choice, so a phone that
+   failed once would never try again. The choice is kept; the health sits
+   beside it and is cleared the moment a subscription succeeds. */
+function notifHealth(){ try{ return localStorage.getItem(NOTIF_HEALTH_KEY) || ''; }catch(e){ return ''; } }
+function notifSetHealth(h){ try{ if(h) localStorage.setItem(NOTIF_HEALTH_KEY, h); else localStorage.removeItem(NOTIF_HEALTH_KEY); }catch(e){} }
+function notifBytes(b64){
+  const s = String(b64 || '').replace(/-/g, '+').replace(/_/g, '/');
+  const pad = s.length % 4 ? '===='.slice(s.length % 4) : '';
+  const raw = atob(s + pad);
+  const out = new Uint8Array(raw.length);
+  for(let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function notifB64(buf){
+  const b = new Uint8Array(buf);
+  let s = '';
+  for(let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function notifApply(mode){
+  if(mode === 'off'){
+    try{
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if(sub) await sub.unsubscribe();
+    }catch(e){}
+    try{ await relay({ action: 'pushOff', dev: phoneTag() }); }
+    catch(e){ notifStore('off'); return { ok: false, error: 'Turned off on this phone, but the clinic could not be told just now. It will stop when this phone next has a signal.' }; }
+    notifStore('off');
+    return { ok: true };
+  }
+  if(!notifSupported()) return { ok: false, error: 'This phone cannot show notifications from a web app.' };
+  /* An iPhone only allows this from a Home Screen app, and says nothing
+     useful when asked from Safari - so say it here instead. */
+  if(!appInstalled() && /iPhone|iPad|iPod/i.test(navigator.userAgent || '')){
+    return { ok: false, error: 'On an iPhone, add this app to the Home Screen first — Share, then Add to Home Screen — then turn notifications on from there.' };
+  }
+  let perm = 'default';
+  try{ perm = await Notification.requestPermission(); }catch(e){ perm = 'denied'; }
+  if(perm !== 'granted') return { ok: false, error: 'This phone is blocking notifications for the app. Turn them on in the phone’s own settings, then try again.' };
+  let key;
+  try{ key = await relay({ action: 'pushKey' }); }
+  catch(e){ return { ok: false, error: 'Could not reach the clinic just now. Try again with a signal.' }; }
+  if(!key.ready) return { ok: false, error: 'The clinic has not switched notifications on yet. Open Nexus on the reception PC once, then try again.' };
+  let reg, sub;
+  try{
+    reg = await navigator.serviceWorker.ready;
+    sub = await reg.pushManager.getSubscription();
+    /* A subscription made against an older key can never be decrypted by the
+       clinic, so it is replaced rather than reused. */
+    if(sub){
+      let had = '';
+      try{ had = notifB64(sub.options.applicationServerKey); }catch(e){ had = ''; }
+      if(had && had !== key.publicKey){ try{ await sub.unsubscribe(); }catch(e){} sub = null; }
+    }
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: notifBytes(key.publicKey) });
+  }catch(e){
+    return { ok: false, error: 'This phone would not create a notification subscription. ' + ((e && e.message) || '') };
+  }
+  const j = sub.toJSON();
+  try{
+    await relay({ action: 'pushSub', dev: phoneTag(), app: appLetter(), ver: appVersion(), mode: mode,
+      name: notifPhoneName(), sub: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }) });
+  }catch(e){ return { ok: false, error: 'Could not tell the clinic where to send them. Try again with a signal.' }; }
+  notifStore(mode);
+  return { ok: true };
+}
+
+let notifBusy = false;
+async function notifPick(mode){
+  if(notifBusy) return;
+  notifBusy = true;
+  notifMsg(mode === 'off' ? 'Turning off…' : 'Setting up…', '');
+  const r = await notifApply(mode);
+  notifBusy = false;
+  notifSetHealth(r.ok ? '' : (mode === 'off' ? '' : 'broken'));
+  notifPaint();
+  if(r.ok) notifMsg(mode === 'off' ? 'Off. Nothing will be sent to this phone.'
+    : (mode === 'silent' ? 'On, quietly. It will show but not sound.' : 'On. A visit marked at the desk will buzz here.'), 'good');
+  else notifMsg(r.error, 'bad');
+}
+function notifMsg(text, kind){
+  const el = document.getElementById('notifMsg');
+  if(!el) return;
+  el.textContent = text || '';
+  el.className = 'nt-msg' + (kind ? ' nt-' + kind : '');
+}
+function notifPaint(){
+  const m = notifMode();
+  const h = notifHealth();
+  const broken = !!h && (m === 'on' || m === 'silent');
+  document.querySelectorAll('.nt-opt').forEach(b => b.classList.toggle('on', b.getAttribute('data-m') === m));
+  const bell = document.getElementById('hdBell');
+  if(bell){
+    bell.classList.toggle('nt-quiet', m === 'silent');
+    bell.classList.toggle('nt-off', broken || (m !== 'on' && m !== 'silent'));
+    bell.classList.toggle('nt-broken', broken);
+    bell.setAttribute('title', broken ? 'Notifications are not working \u2014 tap to set them up again'
+      : (m === 'on' ? 'Notifications on' : (m === 'silent' ? 'Notifications silent' : 'Notifications off')));
+  }
+  const warn = document.getElementById('notifBroken');
+  if(warn){
+    warn.style.display = broken ? '' : 'none';
+    warn.textContent = h === 'needs'
+      ? 'This phone has blocked notifications for the app. Turn them on in the phone\u2019s own settings, then choose On here again.'
+      : 'Notifications have stopped working on this phone. Choose On to set them up again.';
+  }
+  const tip = document.getElementById('notifAndroid');
+  if(tip) tip.style.display = (androidLike() && (m === 'on' || m === 'silent')) ? '' : 'none';
+}
+/* Android's battery manager, not the app, decides whether a sleeping phone
+   is woken - and no web app can grant itself an exception, so the only
+   honest thing is to say which setting to change. Shown once notifications
+   are actually on, where it is useful rather than noise. */
+function androidLike(){
+  const ua = String((navigator && navigator.userAgent) || '');
+  return /Android/i.test(ua);
+}
+function notifOpen(){
+  const w = document.getElementById('notifWrap');
+  if(!w) return;
+  w.classList.remove('hidden');
+  notifPaint();
+  notifMsg(notifSupported() ? '' : 'This phone cannot show notifications from a web app.', notifSupported() ? '' : 'bad');
+}
+function notifClose(e){
+  if(e && e.target && e.target.id !== 'notifWrap' && e.type === 'click' && e.currentTarget !== e.target) return;
+  const w = document.getElementById('notifWrap');
+  if(w) w.classList.add('hidden');
+}
+/* KEEPING THE CLINIC'S COPY RIGHT. A subscription can be retired by the
+   browser itself - after a long silence, or when storage is cleared - and
+   the clinic would go on sending to an address nobody is listening at. Each
+   open re-states it, which costs one small request and keeps the list true. */
+async function notifRefresh(){
+  const m = notifMode();
+  if(m !== 'on' && m !== 'silent') return;
+  if(!notifSupported()) return;
+  try{
+    if(Notification.permission !== 'granted'){ notifSetHealth('needs'); notifPaint(); return; }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    /* THE KEY IS CHECKED ON EVERY OPEN (4.20). A subscription made against
+       an older signing key stays perfectly valid as far as the phone is
+       concerned - the browser has no idea the clinic's key changed - so the
+       phone went on re-stating a subscription the clinic could no longer
+       send to, and the bell went on saying "on". The push service answers
+       403 and nobody hears anything again. Comparing costs one small
+       request on each open and repairs it by itself. */
+    let key = null;
+    try{ key = await relay({ action: 'pushKey' }); }catch(e){ key = null; }
+    if(key && key.ready && sub){
+      let had = '';
+      try{ had = notifB64(sub.options.applicationServerKey); }catch(e){ had = ''; }
+      if(had && had !== key.publicKey){ try{ await sub.unsubscribe(); }catch(e){} sub = null; }
+    }
+    if(!sub){
+      /* THE BELL MUST NOT LIE (4.20). notifApply's failure used to be
+         discarded here, so a phone that could not re-subscribe - no signal,
+         permission withdrawn, the clinic's key not set up - kept a lit bell
+         and never buzzed again. */
+      const r = await notifApply(m);
+      notifSetHealth(r.ok ? '' : 'broken');
+      notifPaint();
+      return;
+    }
+    const j = sub.toJSON();
+    await relay({ action: 'pushSub', dev: phoneTag(), app: appLetter(), ver: appVersion(), mode: m,
+      name: notifPhoneName(), sub: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }) });
+    notifSetHealth('');
+    notifPaint();
+    /* WHAT THE WORKER NEEDS IF THE BROWSER RETIRES THIS SUBSCRIPTION. It
+       cannot read localStorage, so the few things it would need to re-state
+       the subscription by itself are left where it can reach them. The key
+       here is this phone's own relay key, which it already holds. */
+    try{
+      const c = await caches.open('echo-nexus-lastapp');
+      await c.put('/__relay', new Response(JSON.stringify({
+        url: relayUrl(), key: relayKey(), dev: phoneTag(), mode: m, pub: (key && key.publicKey) || ''
+      }), { headers: { 'Content-Type': 'application/json' } }));
+    }catch(e){}
+  }catch(e){}
+}
+/* A tapped notification, with the app already open: go to that day and open
+   that patient. With the app closed the worker opens it at #day=... instead,
+   which boot reads. */
+function notifGoTo(date, pid){
+  try{
+    if(date && /^\d{4}-\d{2}-\d{2}$/.test(date)){
+      if(typeof Cal !== 'undefined' && Cal.goDay) Cal.goDay(date);
+      else if(typeof goDay === 'function') goDay(date);
+    }
+    /* AND OPEN THE PATIENT (4.20). The id travelled the whole way - Nexus,
+       the push, the worker, the hash - and was then dropped on the floor by
+       a parameter this function never used.
+
+       It waits for the row rather than guessing when it will be there. On a
+       cold open the day is still arriving from the relay, so a single look a
+       moment later finds a skeleton and gives up silently - which is what
+       the first attempt at this did. It looks again until the row appears or
+       until it is plainly not coming. */
+    if(!pid) return;
+    const want = String(pid).replace(/"/g, '');
+    let tries = 0;
+    const look = () => {
+      if(++tries > 24) return;                       // six seconds, then let it be
+      try{
+        const list = document.getElementById('calList');
+        const card = list && list.querySelector('.ka-card[data-pid="' + want + '"]');
+        if(card){ card.click(); return; }
+      }catch(e){}
+      setTimeout(look, 250);
+    };
+    setTimeout(look, 200);
+  }catch(e){}
+}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    const d = e && e.data;
+    if(d && d.type === 'openVisit') notifGoTo(d.date, d.pid);
+  });
+}
+/* READ AT LOAD, NOT AT BOOT (4.20). takeSetupFromLink clears the address bar
+   of any fragment - it has to, so a setup link's key does not sit in a
+   screenshot - and it runs first. So by the time boot reached this, the
+   #day=... the service worker had just opened the app with was already
+   gone, and a tapped notification always landed on today's default view.
+   The fragment is taken once, here, while the script is still loading. */
+const NOTIF_OPENED_AT = (function(){
+  const h = String((typeof location !== 'undefined' && location.hash) || '');
+  const m = /[#&]day=(\d{4}-\d{2}-\d{2})/.exec(h);
+  if(!m) return null;
+  let pid = (/[#&]pid=([^&]*)/.exec(h) || [])[1] || '';
+  try{ pid = decodeURIComponent(pid); }catch(e){}
+  return { date: m[1], pid: /^[A-Za-z0-9._\/-]{0,40}$/.test(pid) ? pid : '' };
+})();
+function notifTakeHash(){
+  if(!NOTIF_OPENED_AT) return;
+  setTimeout(() => notifGoTo(NOTIF_OPENED_AT.date, NOTIF_OPENED_AT.pid), 300);
+}
 function wirePull(){
   document.addEventListener('touchstart', e => {
-    if(pullBusy || window.scrollY > 0 || !e.touches || e.touches.length !== 1) return;
+    /* A SECOND FINGER ENDS IT (4.20). Bailing out without marking the
+       gesture dead left an already-armed pull armed, so pinching to zoom the
+       day - two fingers, drifting downward - finished as a full refresh. In
+       admin that dropped every cache the app holds. */
+    if(!e.touches || e.touches.length !== 1){ pullDead = true; pullHide(); return; }
+    if(pullBusy || window.scrollY > 0) return;
+    const wrap = document.getElementById('drawerWrap');
+    if(wrap && !wrap.classList.contains('hidden')) return;
+    if(e.target && e.target.closest && e.target.closest(PULL_NEVER)) return;
+    pullDead = false;
     pullStartY = e.touches[0].clientY;
+    pullStartX = e.touches[0].clientX;
   }, { passive: true });
   document.addEventListener('touchmove', e => {
-    if(pullStartY === null || pullBusy) return;
-    pullDist = e.touches[0].clientY - pullStartY;
-    if(pullDist <= 0){ pullReset(); return; }
-    pullShow(pullDist * 0.5);
-    const armed = pullDist > PULL_TRIGGER;
+    if(pullStartY === null || pullBusy || pullDead) return;
+    const dy = e.touches[0].clientY - pullStartY;
+    const dx = e.touches[0].clientX - pullStartX;
+    /* SIDEWAYS WINS (owner's report, 4.19). Scrolling the date strip always
+       drifts a little vertically, and that drift used to arm the pull. A
+       gesture travelling further across than down is not a pull, and once it
+       has been judged sideways it stays judged until the finger lifts - so a
+       swipe that curves downward at the end cannot turn into a refresh. */
+    if(Math.abs(dx) > Math.abs(dy)){
+      if(Math.abs(dx) > PULL_SLOP){ pullDead = true; pullHide(); }
+      return;
+    }
+    if(dy <= PULL_SLOP){ pullHide(); return; }
+    pullDist = dy;
+    pullShow(dy * 0.5);
+    const armed = dy > PULL_TRIGGER;
     if(armed !== pullArmed){ pullArmed = armed; pullSetText(armed ? 'Release to refresh' : 'Pull to refresh'); }
   }, { passive: true });
   document.addEventListener('touchend', () => {
-    if(pullStartY === null || pullBusy) return;
+    /* A REFRESH IN FLIGHT IS LEFT ALONE (4.20). This used to call pullReset
+       on the way out, which clears pullBusy - so one stray touch while a
+       read was on the wire hid the "Reading..." cue and let a second refresh
+       start on top of the first. A gesture that is not a pull tidies only
+       the cue, never the read. */
+    if(pullBusy){ pullDead = false; pullStartY = null; pullStartX = null; return; }
+    if(pullStartY === null || pullDead){ pullDead = false; pullReset(); return; }
     if(!pullArmed){ pullReset(); return; }
     pullBusy = true; pullSetText('Reading\u2026');
     doRefresh().then(pullReset).catch(pullReset);
+  }, { passive: true });
+  document.addEventListener('touchcancel', () => {
+    pullDead = false;
+    if(pullBusy){ pullStartY = null; pullStartX = null; return; }
+    pullReset();
   }, { passive: true });
 }
 /* Exactly what the button did: drop every layer the device holds, then read. */
@@ -4010,6 +4512,9 @@ async function boot(){
   if(!isSetUp()){ showSetup(); return; }
   showApp();
   if(!booted){ booted = true; Cal.wireStripSwipe(); Cal.wireDrawer(); wirePull(); }
+  notifPaint();
+  notifTakeHash();
+  setTimeout(notifRefresh, 2500);   // after the day is on screen
   Cal.hooks.adminOn = adminOn;
   Cal.hooks.money = async (pid, day) => {
     const [bills, entries] = await Promise.all([loadBills(), loadAllEntries()]);
