@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.21';  // one number across lite, admin and this file
+const CACHE_VERSION = 'echo-nexus-4.22';  // one number across lite, admin and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -47,6 +47,7 @@ const SHELL = [
   './admin.webmanifest',
   './lite.webmanifest',
   './icon-192.png',
+  './icon-badge.png',
   './icon-512.png',
   './icon-maskable-192.png',
   './icon-maskable-512.png'
@@ -169,7 +170,15 @@ self.addEventListener('push', (event) => {
   const opts = {
     body: body,
     icon: './icon-192.png',
-    badge: './icon-192.png',
+    /* A BADGE IS NOT A SMALL ICON (v50). This was icon-192.png - the full
+       colour logo - where Android wants a monochrome silhouette it can tint
+       and draw at about twenty pixels. Phones differ in whether they render
+       the badge at all: the owner's two handsets showed the same
+       notification, one with a single logo and one with the tooth drawn
+       twice, which is what sent us looking. icon-badge.png is the tooth
+       alone, as alpha, so the system colours it and it stays legible on a
+       light status bar and a dark one. */
+    badge: './icon-badge.png',
     /* One tag, so a busy morning replaces rather than stacks. */
     tag: String(d.tag || 'echo-visit'),
     renotify: true,
