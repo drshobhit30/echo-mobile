@@ -109,6 +109,15 @@ body{ padding-bottom:28px; }
 .row{ background:var(--white); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
   margin-bottom:8px; }
 .row.tappable{ cursor:pointer; }
+/* THE LOCKED PATIENTS LIST WAS NEVER STYLED HERE (4.27). It borrows lite's
+   row markup, and these four rules never came with it - so the name sat at
+   body weight and the chevron dropped onto a line of its own. It rarely
+   showed before, because that screen opened on an instruction to type;
+   now that it opens on the patients themselves, it shows every time. */
+.row-name{ font-weight:700; font-size:0.98rem; color:#1A1410; }
+.row-sub{ font-size:0.8rem; color:var(--muted); margin-top:2px; }
+.row-when{ font-size:0.78rem; color:var(--gold-deep); font-weight:600; }
+.row-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
 .row{ transition:transform .09s ease, background .09s ease; }
 .row.tappable:active{ background:var(--gold-pale); transform:translateY(1px); }
 .struck{ opacity:0.55; }
@@ -674,6 +683,7 @@ body{ background:#FAF7F2 !important; }
 #calList{ padding-bottom:72px; }
 
 /* 4.18: the older-prescriptions line on the history screen */
+.pt-az{ font-size:0.72rem; letter-spacing:0.07em; text-transform:uppercase; color:#8A5F26; margin:2px 2px 8px; }
 .hs-more{ display:block; width:100%; margin:6px 0 10px; border:1px dashed #C9A56B; background:#fff; border-radius:12px;
   padding:11px; font:inherit; font-size:0.84rem; color:#8A5F26; cursor:pointer; }
 .hs-more[disabled]{ opacity:0.6; }
@@ -996,6 +1006,51 @@ async function idbDel(key){
   if(!db) return;
   try{ db.transaction('kv', 'readwrite').objectStore('kv').delete(key); }catch(e){}
 }
+/* ONE KEY, NOT THE WHOLE SHELF (4.27). idbAll reads and rebuilds EVERY record
+   in the store - on a working phone about 10 MB of it - and two callers each
+   wanted one small thing. Measured on a mid-range Android: the whole store
+   507 ms, one key 20 ms. These three are the narrow reads. */
+function idbGet(key){
+  return idb().then(db => {
+    if(!db) return undefined;
+    return new Promise(res => {
+      try{
+        const q = db.transaction('kv', 'readonly').objectStore('kv').get(key);
+        q.onsuccess = () => res(q.result);
+        q.onerror = () => res(undefined);
+      }catch(e){ res(undefined); }
+    });
+  }).catch(() => undefined);
+}
+function idbKeys(){
+  return idb().then(db => {
+    if(!db) return [];
+    return new Promise(res => {
+      try{
+        const q = db.transaction('kv', 'readonly').objectStore('kv').getAllKeys();
+        q.onsuccess = () => res(q.result || []);
+        q.onerror = () => res([]);
+      }catch(e){ res([]); }
+    });
+  }).catch(() => []);
+}
+function idbGetMany(keys){
+  return idb().then(db => {
+    if(!db || !keys.length) return {};
+    return new Promise(res => {
+      const out = {};
+      try{
+        const st = db.transaction('kv', 'readonly').objectStore('kv');
+        let left = keys.length;
+        keys.forEach(k => {
+          const q = st.get(k);
+          q.onsuccess = () => { out[k] = q.result; if(!--left) res(out); };
+          q.onerror = () => { if(!--left) res(out); };
+        });
+      }catch(e){ res(out); }
+    });
+  }).catch(() => ({}));
+}
 async function idbClear(){
   const db = await idb();
   if(!db) return;
@@ -1004,26 +1059,182 @@ async function idbClear(){
 
 /* What the page draws from. Filled from IndexedDB at boot, before anything
    is asked of the relay. */
-const mem = { settings: {}, days: {} };
+const mem = { settings: {}, days: {}, rxCounts: null, rxMeta: null, conBrief: null };
 const SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-blocks.json'];
+const RX_INDEX = 'prescriptions-index.json';
 const KEEP_PAST_DAYS = 60, KEEP_FUTURE_DAYS = 30;
+/* THE SAME TRICK FOR CONTACTS (4.27). The file carries every number, every
+   label and every struck-off entry - 200 ms to rebuild at opening - and what
+   the day's cards want from it is an age and an M or an F. That much is kept
+   beside it as its own small record. The full file is read when something
+   actually needs to ring somebody. */
+const CONTACTS = 'patient-contacts.json';
+let conReady = false, conLoading = null;
+function ensureContacts(){
+  if(conReady) return Promise.resolve();
+  if(!conLoading){
+    conLoading = idbGet('set:' + CONTACTS).then(v => {
+      if(v) mem.settings[CONTACTS] = v;
+      conReady = true; conLoading = null;
+    }).catch(() => { conReady = true; conLoading = null; });
+  }
+  return conLoading;
+}
+function withContacts(redraw){
+  if(conReady) return false;
+  ensureContacts().then(() => { try{ redraw(); }catch(e){} });
+  return true;
+}
+function briefOf(pid){
+  const full = mem.settings[CONTACTS];
+  if(full && full.value) return full.value[String(pid)] || null;
+  const b = mem.conBrief && mem.conBrief[String(pid)];
+  return b ? { age: b[0], ageRecordedOn: b[1], sex: b[2] } : null;
+}
+function makeBrief(contacts){
+  const out = {};
+  Object.keys(contacts || {}).forEach(pid => {
+    const r = contacts[pid] || {};
+    if(r.age === undefined && !r.sex) return;
+    out[pid] = [r.age === undefined ? '' : r.age, r.ageRecordedOn || '', r.sex || ''];
+  });
+  return out;
+}
+let rxReady = false, rxLoading = null;
+function ensureRx(){
+  if(rxReady) return Promise.resolve();
+  if(!rxLoading){
+    rxLoading = idbGet('set:' + RX_INDEX).then(v => {
+      if(v) mem.settings[RX_INDEX] = v;
+      rxReady = true; rxLoading = null;
+    }).catch(() => { rxReady = true; rxLoading = null; });
+  }
+  return rxLoading;
+}
+/* Something that needs the list is on screen and it is not here yet: load it,
+   then draw again. Callers pass what to redraw. */
+function withRx(redraw){
+  if(rxReady) return false;
+  ensureRx().then(() => { try{ redraw(); }catch(e){} });
+  return true;
+}
+
 
 async function hydrate(){
-  const all = await idbAll();
+  const keys = await idbKeys();
   const today = todayStr();
-  Object.keys(all).forEach(k => {
-    if(k.indexOf('set:') === 0) mem.settings[k.slice(4)] = all[k];
+  const want = [];
+  const hasBrief = keys.indexOf('con:brief') !== -1;
+  keys.forEach(k => {
+    if(k === 'set:' + RX_INDEX) return;            // deliberately not now
+    if(k === 'set:' + CONTACTS && hasBrief) return;
+    if(k.indexOf('set:') === 0) want.push(k);
     else if(k.indexOf('day:') === 0){
       const d = k.slice(4);
       const age = daysBetween(d, today);
       if(age > KEEP_PAST_DAYS || -age > KEEP_FUTURE_DAYS) idbDel(k);   // pruned, quietly
-      else mem.days[d] = all[k];
+      else want.push(k);
     }
   });
+  want.push('rx:counts', 'rx:meta', 'con:brief');
+  const got = await idbGetMany(want);
+  Object.keys(got).forEach(k => {
+    const v = got[k];
+    if(v === undefined) return;
+    if(k === 'rx:counts') mem.rxCounts = v;
+    else if(k === 'rx:meta') mem.rxMeta = v;
+    else if(k === 'con:brief') mem.conBrief = v;
+    else if(k.indexOf('set:') === 0) mem.settings[k.slice(4)] = v;
+    else if(k.indexOf('day:') === 0) mem.days[k.slice(4)] = v;
+  });
+  if(mem.settings[CONTACTS]) conReady = true;      // no brief on this phone yet: the old way
 }
 function S(name){ const r = mem.settings[name]; return r ? r.value : null; }
 
 let settingsFreshThisOpen = false;
+/* What this phone already holds, without loading it. The big index is kept
+   out of memory now, so its date is kept beside it (rx:meta) - otherwise the
+   phone would say "I have nothing" and be sent all 10 MB on every open. */
+function heldModified(name){
+  if(mem.settings[name] && mem.settings[name].modified) return mem.settings[name].modified;
+  if(name === RX_INDEX && mem.rxMeta && mem.rxMeta.modified) return mem.rxMeta.modified;
+  return '';
+}
+/* One arrived file, put where it belongs. The index is split: the counts go
+   into their own small record the cards read, the list itself is written to
+   the store and left there. */
+function storeSetting(name, v){
+  const rec = { value: v.value, modified: v.modified, at: Date.now() };
+  idbPut('set:' + name, rec);
+  if(name === RX_INDEX){
+    mem.settings[name] = rec; rxReady = true;          // already in hand, no re-read
+    mem.rxCounts = (v.value && v.value.counts) || {};
+    mem.rxMeta = { modified: v.modified, at: rec.at };
+    idbPut('rx:counts', mem.rxCounts);
+    idbPut('rx:meta', mem.rxMeta);
+  }else{
+    mem.settings[name] = rec;
+    if(name === CONTACTS){
+      conReady = true;
+      mem.conBrief = makeBrief(v.value);
+      idbPut('con:brief', mem.conBrief);
+    }
+    if(name === 'patients.json') buildNameIndex();
+  }
+}
+/* ==== THE REFRESH RUNS OFF THE SCREEN'S THREAD (4.27) ====
+   The five files come back as one answer of about 10 MB. Reading that body,
+   parsing it and writing it to the store measured 770 ms on a mid-range
+   Android - 770 ms during which nothing on screen moved, a second or so
+   after opening and again on every pull-to-refresh. A worker has its own
+   thread and its own access to the same store, so it does the fetching, the
+   parsing and the writing, and hands back only the four small files the
+   screen actually draws from. The big index it leaves in the store.
+   A browser that will not give us a worker falls back to the old path. */
+const SETTINGS_WORKER_SRC = "self.onmessage = async (e) => {\n"
+ + " const url = e.data.url, heavy = e.data.heavy, contacts = e.data.contacts, TIMEOUT = 25000;\n"
+ + " let body = null, err = 'offline';\n"
+ + " for(let attempt = 0; attempt < 2 && body === null; attempt++){\n"
+ + "  if(attempt) await new Promise(r => setTimeout(r, 1500));\n"
+ + "  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;\n"
+ + "  const t = ctl ? setTimeout(function(){ try{ ctl.abort(); }catch(e2){} }, TIMEOUT) : null;\n"
+ + "  try{ const res = await fetch(url, { redirect:'follow', cache:'no-store', signal: ctl ? ctl.signal : undefined });\n"
+ + "       body = await res.json();\n"
+ + "  }catch(e2){ body = null; err = (ctl && ctl.signal.aborted) ? 'took too long' : 'unreadable'; }\n"
+ + "  finally{ if(t) clearTimeout(t); }\n"
+ + " }\n"
+ + " if(!body || !body.ok){ self.postMessage({ ok:false, error: (body && body.error) || err }); return; }\n"
+ + " const values = body.values || {};\n"
+ + " const db = await new Promise(function(r){ let q; try{ q = indexedDB.open('echo-admin-cal', 1); }catch(e2){ return r(null); }\n"
+ + "   q.onupgradeneeded = function(){ try{ q.result.createObjectStore('kv'); }catch(e2){} };\n"
+ + "   q.onsuccess = function(){ r(q.result); }; q.onerror = function(){ r(null); }; });\n"
+ + " const put = function(k, v){ if(!db) return; try{ db.transaction('kv','readwrite').objectStore('kv').put(v, k); }catch(e2){} };\n"
+ + " const light = {}; let counts = null, meta = null, brief = null;\n"
+ + " Object.keys(values).forEach(function(name){\n"
+ + "  const v = values[name];\n"
+ + "  if(!v || v.error || v.notModified) return;\n"
+ + "  const rec = { value: v.value, modified: v.modified, at: Date.now() };\n"
+ + "  put('set:' + name, rec);\n"
+ + "  if(name === heavy){ counts = (v.value && v.value.counts) || {}; meta = { modified: v.modified, at: rec.at };\n"
+ + "    put('rx:counts', counts); put('rx:meta', meta); }\n"
+ + "  else if(name === contacts){ const c = v.value || {}; brief = {};\n"
+ + "    Object.keys(c).forEach(function(pid){ const r = c[pid] || {};\n"
+ + "      if(r.age === undefined && !r.sex) return;\n"
+ + "      brief[pid] = [r.age === undefined ? '' : r.age, r.ageRecordedOn || '', r.sex || '']; });\n"
+ + "    put('con:brief', brief); }\n"
+ + "  else light[name] = rec;\n"
+ + " });\n"
+ + " self.postMessage({ ok:true, light: light, counts: counts, meta: meta, brief: brief });\n"
+ + "};";
+let settingsWorker = null, settingsWorkerDead = false;
+function getSettingsWorker(){
+  if(settingsWorker || settingsWorkerDead) return settingsWorker;
+  try{
+    const url = URL.createObjectURL(new Blob([SETTINGS_WORKER_SRC], { type: 'text/javascript' }));
+    settingsWorker = new Worker(url);
+  }catch(e){ settingsWorker = null; settingsWorkerDead = true; }
+  return settingsWorker;
+}
 /* ONE REQUEST FOR ALL FIVE (relay r2.0), told which versions this phone holds
    so unchanged ones are not sent again. A relay from before r2.0 answers
    "unknown action", and the five are asked for one at a time as before. */
@@ -1031,28 +1242,75 @@ async function refreshSettings(force){
   if(settingsFreshThisOpen && !force) return;
   settingsFreshThisOpen = true;
   const sinceMap = {};
-  SETTINGS.forEach(n => { if(!force && mem.settings[n] && mem.settings[n].modified) sinceMap[n] = mem.settings[n].modified; });
-  try{
-    const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap), rxYears: String(RX_YEARS) };
-    if(force) params.fresh = '1';
-    const r = await relay(params);
-    Object.keys(r.values || {}).forEach(name => {
-      const v = r.values[name];
-      if(!v || v.error || v.notModified) return;
-      mem.settings[name] = { value: v.value, modified: v.modified, at: Date.now() };
-      idbPut('set:' + name, mem.settings[name]);
+  SETTINGS.forEach(n => { const m = force ? '' : heldModified(n); if(m) sinceMap[n] = m; });
+  const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap), rxYears: String(RX_YEARS) };
+  if(force) params.fresh = '1';
+  const w = getSettingsWorker();
+  if(w){
+    const done = await new Promise(resolve => {
+      const finish = (v) => { w.onmessage = null; w.onerror = null; resolve(v); };
+      w.onmessage = (ev) => finish(ev.data || { ok: false, error: 'unreadable' });
+      w.onerror = () => finish(null);                       // worker itself failed: fall back
+      try{ w.postMessage({ url: relayRequestUrl(params), heavy: RX_INDEX, contacts: CONTACTS }); }
+      catch(e){ finish(null); }
     });
+    if(done === null){ settingsWorker = null; settingsWorkerDead = true; }
+    else if(done.ok){
+      Object.keys(done.light || {}).forEach(name => {
+        mem.settings[name] = done.light[name];
+        if(name === 'patients.json') buildNameIndex();
+      });
+      if(done.counts){
+        mem.rxCounts = done.counts;
+        mem.rxMeta = done.meta || mem.rxMeta;
+        /* A newer list is in the store; what this page holds is last week's. */
+        rxReady = false; rxLoading = null; delete mem.settings[RX_INDEX];
+      }
+      if(done.brief){
+        mem.conBrief = done.brief;
+        conReady = false; conLoading = null; delete mem.settings[CONTACTS];
+      }
+      idleWork();
+      repaint();
+      return;
+    }else{
+      if(done.error === 'bad key') keyRejected();
+      if(done.error !== 'unknown action'){ repaint(); return; }
+      /* an older relay: fall through to the one-at-a-time path below */
+    }
+  }
+  try{
+    if(!w || settingsWorkerDead){
+      const r = await relay(params);
+      Object.keys(r.values || {}).forEach(name => {
+        const v = r.values[name];
+        if(!v || v.error || v.notModified) return;
+        storeSetting(name, v);
+      });
+      repaint();
+      return;
+    }
+    throw new RelayError('unknown action');
   }catch(e){
     if(!(e && e.message === 'unknown action')){ repaint(); return; }
     await Promise.all(SETTINGS.map(async name => {
       try{
-        const r = await relay(name === 'prescriptions-index.json' ? { action: 'settings', name, rxYears: String(RX_YEARS) } : { action: 'settings', name });
-        mem.settings[name] = { value: r.value, modified: r.modified, at: Date.now() };
-        idbPut('set:' + name, mem.settings[name]);
+        const r = await relay(name === RX_INDEX ? { action: 'settings', name, rxYears: String(RX_YEARS) } : { action: 'settings', name });
+        storeSetting(name, { value: r.value, modified: r.modified });
       }catch(err){}
     }));
   }
   repaint();
+}
+/* WHAT THE OPENING DOES NOT WAIT FOR (4.27). The prescriptions, the full
+   contact file and the prepared name list are all wanted sooner or later -
+   just not before the day is on screen. They are read once it is quiet, so
+   that by the time a card or the Patients tab is tapped they are already
+   there; and if a tap beats them, the screen says Reading and draws again. */
+function idleWork(){
+  const go = () => { ensureRx(); ensureContacts(); if(!nameIdx.length) buildNameIndex(); };
+  if(typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 4000 });
+  else setTimeout(go, 1200);
 }
 
 /* ------------------------------------------------------------- the week -- */
@@ -1102,7 +1360,7 @@ function paintFreshness(){
 /* ------------------------------------------------------------ people -- */
 function nameOf(pid){ const d = S('patients.json') || {}; return d[String(pid)] || ''; }
 function ageSexOf(pid){
-  const rec = (S('patient-contacts.json') || {})[String(pid)];
+  const rec = briefOf(pid);
   if(!rec) return '';
   let age = (rec.age === undefined || rec.age === null || rec.age === '') ? '' : String(rec.age);
   const yr = rec.ageRecordedOn ? String(rec.ageRecordedOn).slice(0, 4) : '';
@@ -1127,14 +1385,22 @@ function doctorLabel(name){ return !name ? '' : (name === 'NEW' ? 'doctor not as
    patient at a time, on a tap, and kept for the session. */
 const RX_YEARS = 2;
 const rxFull = {};                       // pid -> the whole history, once asked for
-function rxAll(){ const idx = S('prescriptions-index.json'); return (idx && Array.isArray(idx.list)) ? idx.list : []; }
-function rxCounts(){ const idx = S('prescriptions-index.json'); return (idx && idx.counts) || null; }
-/* How many that patient HAS, which is not always how many are on the phone. */
+function rxAll(){ const idx = S(RX_INDEX); return (idx && Array.isArray(idx.list)) ? idx.list : []; }
+function rxCounts(){ const idx = S(RX_INDEX); return mem.rxCounts || (idx && idx.counts) || null; }
+/* How many that patient HAS, which is not always how many are on the phone.
+
+   THE MAP IS COMPLETE, SO A MISSING PATIENT HAS NONE (4.27). The relay counts
+   every record in the whole file, not just the two years it sends, so a
+   patient absent from the map has never had a prescription - the answer is
+   zero. Until now the absence was read as "don't know" and the whole index
+   was searched to prove it: every card, every repaint. On a day with 34
+   bookings, 13 of them patients with nothing written, that alone was 26 ms
+   of the 65 ms it took to draw the day, and it grew with the file. */
 function rxCount(pid){
   if(rxFull[pid]) return rxFull[pid].length;
   const c = rxCounts();
-  if(c && c[String(pid)] !== undefined) return c[String(pid)];
-  return rxFor(pid).length;
+  if(c) return c[String(pid)] || 0;
+  return rxReady ? rxFor(pid).length : 0;    // no counts at all (a relay older than r2.0)
 }
 function rxHasOlder(pid){ return rxCount(pid) > rxFor(pid).length; }
 async function rxLoadAll(pid){
@@ -1375,7 +1641,8 @@ function slipHtml(rec, title){
    worse than no button. */
 function waDigits(e164){ return String(e164 || '').replace(/\D/g, ''); }
 function waNumberOf(pid){
-  const rec = (S('patient-contacts.json') || {})[String(pid)];
+  if(!conReady) return '';            // on its way; no button that cannot work
+  const rec = (S(CONTACTS) || {})[String(pid)];
   const list = (rec && Array.isArray(rec.numbers)) ? rec.numbers.filter(n => n && !n.struckAt) : [];
   const pick = list.find(n => n && n.primary) || list[0] || null;
   return pick ? waDigits(pick.e164) : '';
@@ -1444,6 +1711,15 @@ function ageDot(dateStr){
   return days <= 31 ? '#1D9E75' : days <= 92 ? '#378ADD' : days <= 365 ? '#BA7517' : '#B4B2A9';
 }
 function historyHtml(pid, openIdx, toggleCall){
+  /* The list is fetched from the store on first need (4.27); say so rather
+     than claim this patient has nothing written. */
+  if(!rxReady && !rxFull[String(pid)]){
+    ensureRx();
+    return '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
+      + '<span>' + escapeHtml(String(pid)) + '</span></div>'
+      + '<div class="empty-state">Reading\u2026</div>';
+  }
+  withContacts(() => { if(currentTab === 'patients' || prevPid) repaint(); });
   const mine = rxFor(pid).slice().sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')));
   const as = ageSexOf(pid);
   let h = '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
@@ -1509,6 +1785,11 @@ function setStatusFilter(k){ statusFilter = (statusFilter === k) ? '' : k; rende
 /* THE STRIP IS BUILT ONCE and scrolled, not rebuilt on every tap - that is
    what made it jump. Three months back, four ahead; a date picked outside
    that simply rebuilds it around the new day. */
+/* ONE FORMATTER, MADE ONCE (4.27). toLocaleDateString builds a new formatter
+   on every call: 0.1 ms each, 211 buttons, 131 ms of the opening. A kept
+   Intl.DateTimeFormat does the same job in a fortieth of the time. */
+const FMT_WEEKDAY = new Intl.DateTimeFormat('en-IN', { weekday: 'short' });
+const FMT_MONTH_YEAR = new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric' });
 function buildStrip(centerDay){
   const el = document.getElementById('calStrip');
   if(!el) return;
@@ -1518,7 +1799,7 @@ function buildStrip(centerDay){
   for(let d = stripFrom; d <= stripTo; d = addDays(d, 1)){
     const dt = dateOf(d);
     h += '<button type="button" class="kv-d' + (d === today ? ' is-today' : '') + '" data-d="' + d + '" onclick="Cal.goDay(' + jsArg(d) + ')">'
-      + '<span>' + dt.toLocaleDateString('en-IN', { weekday:'short' }) + '</span><b>' + dt.getDate() + '</b></button>';
+      + '<span>' + FMT_WEEKDAY.format(dt) + '</span><b>' + dt.getDate() + '</b></button>';
   }
   el.innerHTML = h;
   markStrip(false);
@@ -1540,13 +1821,19 @@ function paintMonth(){
   let hit = null;
   el.querySelectorAll('.kv-d').forEach(b => { if(!hit && b.offsetLeft + b.offsetWidth >= mid) hit = b; });
   const d = hit ? hit.getAttribute('data-d') : viewDay;
-  label.textContent = dateOf(d).toLocaleDateString('en-IN', { month:'short', year:'numeric' });
+  label.textContent = FMT_MONTH_YEAR.format(dateOf(d));
 }
 function renderCalendar(){
   const today = todayStr();
   const strip = document.getElementById('calStrip');
   if(strip && (!strip.children.length || viewDay < stripFrom || viewDay > stripTo)) buildStrip(viewDay);
-  paintMonth();
+  /* AFTER THE PAINT, NOT INSIDE IT (4.27). paintMonth reads the strip's
+     geometry, and a geometry read straight after writing the day's cards
+     forces the browser to lay all of them out then and there, inside the
+     tap. Measured: 65 ms to change day, 40 ms of it this one line. The work
+     still happens - at the next frame, where it belongs, with the tap
+     already answered. */
+  if(typeof requestAnimationFrame === 'function') requestAnimationFrame(paintMonth); else paintMonth();
   const all = rowsFor(viewDay);
   const people = (all || []).filter(r => r.kind === 'appt' || r.kind === 'walkin');
   document.getElementById('calTotal').textContent = String(people.filter(r => r.kind === 'appt' && !r.rough).length);
@@ -1592,7 +1879,13 @@ function goDay(d){
   const strip = document.getElementById('calStrip');
   const inRange = strip && strip.children.length && d >= stripFrom && d <= stripTo;
   renderCalendar();
-  if(inRange) markStrip(true); else markStrip(false);
+  /* The same rule as paintMonth (4.27): the strip is scrolled to the new day
+     at the next frame, not in the middle of the tap - reading the strip's
+     geometry straight after writing the day's cards forces the browser to lay
+     all of them out inside the handler. Measured: 53 ms to change day, 44 ms
+     of it exactly that. */
+  const mark = () => markStrip(inRange);
+  if(typeof requestAnimationFrame === 'function') requestAnimationFrame(mark); else mark();
   ensureWeek(d, false);
 }
 function openDatePicker(){
@@ -1614,6 +1907,8 @@ function openDrawer(day, kind, id){
   const r = (rowsFor(day) || []).find(x => x.kind === kind && String(x.id) === String(id));
   if(!r) return;
   drawerCtx = { day, kind, id, patientId: r.patientId };
+  /* Call and WhatsApp need the numbers, which are read on demand (4.27). */
+  withContacts(() => { if(drawerCtx && drawerCtx.day === day && String(drawerCtx.id) === String(id)) openDrawer(day, kind, id); });
   lastDrawer = { day, kind, id };
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
   const as = r.patientId ? ageSexOf(r.patientId) : '';
@@ -1625,10 +1920,14 @@ function openDrawer(day, kind, id){
       + '<span class="dr-headr"><span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>'
       + '<button type="button" class="dr-x" onclick="Cal.closeDrawer()" aria-label="Close">\u2715</button></span></div>';
   if(r.visitId){
-    const mine = r.patientId ? rxFor(r.patientId).filter(x => String(x.date || '').slice(0, 10) === day) : [];
+    /* If the list has not been read from the store yet, read it and draw this
+       drawer again - the slip is the one thing here that needs it. */
+    withRx(() => { if(drawerCtx && drawerCtx.day === day && String(drawerCtx.id) === String(id)) openDrawer(day, kind, id); });
+    const mine = (r.patientId && rxReady) ? rxFor(r.patientId).filter(x => String(x.date || '').slice(0, 10) === day) : [];
     const title = '\u211e ' + (day === todayStr() ? 'Today' : 'That day');
     h += mine.length ? mine.map(x => slipHtml(x, title)).join('')
-      : '<div class="sl"><div class="sl-head"><b>' + title + '</b><span>' + escapeHtml(shortDate(day, true)) + '</span></div><div class="sl-body"><div class="muted">None written</div></div></div>';
+      : '<div class="sl"><div class="sl-head"><b>' + title + '</b><span>' + escapeHtml(shortDate(day, true)) + '</span></div><div class="sl-body"><div class="muted">'
+        + (rxReady ? 'None written' : 'Reading\u2026') + '</div></div></div>';
   } else {
     const row = (k, v) => v ? '<div class="dr-kv"><span>' + k + '</span><span>' + escapeHtml(v) + '</span></div>' : '';
     h += '<div class="dr-kvs">'
@@ -1673,6 +1972,7 @@ let prevOpen = 0;
 let prevPid = null;
 function openPrevRx(pid){
   prevPid = String(pid); prevOpen = 0;
+  withRx(() => { if(prevPid === String(pid)) renderPrevRx(pid); });
   renderPrevRx(pid);
   document.getElementById('prevRx').classList.remove('hidden');
   document.getElementById('prevRx').scrollTop = 0;
@@ -1693,7 +1993,10 @@ const BK_SLOT_FROM = 9 * 60, BK_SLOT_TO = 22 * 60;
 let bk = null;          // the open form
 let bkPending = [];     // this phone's bookings not yet seen in a day file
 async function bkLoad(){
-  try{ const all = await idbAll(); bkPending = all['bk:pending'] || []; }catch(e){ bkPending = []; }
+  /* IT READ THE WHOLE STORE FOR THIS ONE LIST (4.27) - every day file and all
+     10 MB of prescriptions, rebuilt in memory, to find a handful of bookings,
+     and the opening waited for it. 500 ms; this key on its own is 20 ms. */
+  try{ bkPending = (await idbGet('bk:pending')) || []; }catch(e){ bkPending = []; }
 }
 function bkSave(){ idbPut('bk:pending', bkPending); }
 function bkPendingFor(day){
@@ -1938,36 +2241,66 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 
 
 /* ------------------------------------------------------------ patients -- */
-let patientQuery = '', selectedPatient = null, searchTimer = null;
-function onSearch(v){ patientQuery = String(v || '').trim(); selectedPatient = null; clearTimeout(searchTimer); searchTimer = setTimeout(renderPatients, 180); }
+/* THE NAMES ARE PREPARED ONCE (4.27). Every keystroke used to walk the whole
+   directory - Object.keys, then toLowerCase on each of twenty thousand names,
+   then a sort: 53 ms a letter on a mid-range phone, on top of the 180 ms the
+   app waited before it even started. The same list, lowercased and sorted
+   once when it arrives, answers in a tenth of a millisecond, so the wait is
+   gone too and the screen keeps up with the typing. */
+let nameIdx = [];                      // [pid, lowercase name, name], A to Z
+function buildNameIndex(){
+  const dir = S('patients.json') || {};
+  const out = [];
+  Object.keys(dir).forEach(pid => { const n = String(dir[pid] || ''); out.push([pid, n.toLowerCase(), n]); });
+  out.sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : (a[0] < b[0] ? -1 : 1)));
+  nameIdx = out;
+}
+const PT_SHOW = 50;
+let patientQuery = '', selectedPatient = null;
+function onSearch(v){ patientQuery = String(v || '').trim(); selectedPatient = null; renderPatients(); }
 function openPatient(pid){ selectedPatient = String(pid); prevOpen = null; renderPatients(); }
 function backToSearch(){ selectedPatient = null; renderPatients(); }
+function togglePatientRx(i){ prevOpen = (prevOpen === i ? -1 : i); renderPatients(); }
+function ptRowHtml(pid, name){
+  const as = ageSexOf(pid);
+  return '<div class="row tappable" onclick="Cal.openPatient(' + jsArg(pid) + ')">'
+    + '<div class="row-head"><div class="row-name">' + escapeHtml(name || 'Unknown patient') + '</div><div class="row-when">&rsaquo;</div></div>'
+    + '<div class="row-sub">' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</div></div>';
+}
 function renderPatients(){
   const list = document.getElementById('patientList');
-  const dir = S('patients.json') || {};
   if(selectedPatient){
     const pid = selectedPatient;
     list.innerHTML = '<button type="button" class="btn ghost" onclick="Cal.backToSearch()" style="margin:4px 0 12px;">&lsaquo; Back</button>'
       + historyHtml(pid, prevOpen === null ? 0 : prevOpen, 'Cal.togglePatientRx');
     return;
   }
+  if(!nameIdx.length) buildNameIndex();
   const q = patientQuery.toLowerCase();
-  if(q.length < 2){ list.innerHTML = '<div class="empty-state">Type a name or an ID</div>'; return; }
-  const hits = Object.keys(dir)
-    .filter(pid => String(dir[pid] || '').toLowerCase().includes(q) || String(pid).includes(q))
-    .sort((a, b) => {
-      const na = String(dir[a] || '').toLowerCase(), nb = String(dir[b] || '').toLowerCase();
-      return (na.startsWith(q) ? 0 : 1) - (nb.startsWith(q) ? 0 : 1) || na.localeCompare(nb);
-    });
+  /* NOTHING TYPED IS NOT NOTHING TO SHOW (owner's call, 4.27). The tab used
+     to open on an instruction; it opens on the patients themselves now, A to
+     Z, with the typing still the way to reach someone far down. */
+  if(!q){
+    if(!nameIdx.length){ list.innerHTML = '<div class="empty-state">No patients on this phone yet</div>'; return; }
+    list.innerHTML = '<div class="pt-az">' + nameIdx.length.toLocaleString('en-IN') + ' patients \u00b7 A to Z</div>'
+      + nameIdx.slice(0, PT_SHOW).map(r => ptRowHtml(r[0], r[2])).join('')
+      + (nameIdx.length > PT_SHOW
+          ? '<div class="empty-state">' + (nameIdx.length - PT_SHOW).toLocaleString('en-IN')
+            + ' more \u2014 type a name or an ID to find one</div>' : '');
+    return;
+  }
+  if(q.length < 2){ list.innerHTML = '<div class="empty-state">One more letter</div>'; return; }
+  const starts = [], holds = [];
+  for(let i = 0; i < nameIdx.length; i++){
+    const r = nameIdx[i];
+    if(r[1].startsWith(q)) starts.push(r);
+    else if(r[1].includes(q) || r[0].toLowerCase().includes(q)) holds.push(r);
+  }
+  const hits = starts.concat(holds);
   if(!hits.length){ list.innerHTML = '<div class="empty-state">No one by that name</div>'; return; }
-  list.innerHTML = hits.slice(0, 30).map(pid => {
-    const as = ageSexOf(pid);
-    return '<div class="row tappable" onclick="Cal.openPatient(' + jsArg(pid) + ')">'
-      + '<div class="row-head"><div class="row-name">' + escapeHtml(dir[pid] || 'Unknown patient') + '</div><div class="row-when">&rsaquo;</div></div>'
-      + '<div class="row-sub">' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</div></div>';
-  }).join('') + (hits.length > 30 ? '<div class="empty-state">' + (hits.length - 30) + ' more \u2014 type a little further</div>' : '');
+  list.innerHTML = hits.slice(0, PT_SHOW).map(r => ptRowHtml(r[0], r[2])).join('')
+    + (hits.length > PT_SHOW ? '<div class="empty-state">' + (hits.length - PT_SHOW) + ' more \u2014 type a little further</div>' : '');
 }
-
 
 /* -------------------------------------------------- admin-only extras -- */
 const hooks = { adminOn: () => false, money: null, fullHistory: null };
@@ -2021,11 +2354,18 @@ function fullHistory(pid){ closeDrawer(); if(hooks.fullHistory) hooks.fullHistor
 let lastDrawer = null;
 function drawerReturn(){ return lastDrawer; }
 function togglePatientRx(i){ prevOpen = (prevOpen === i ? -1 : i); renderPatients(); }
-function forgetForLock(){ unsettledAsked = false; }
+function forgetForLock(){
+  unsettledAsked = false;
+  /* Locking gives up the numbers too (4.27): the ages stay, the phone numbers
+     go - from memory and from the store - and come back on the next unlock. */
+  conReady = false; conLoading = null;
+  delete mem.settings[CONTACTS];
+  idbDel('set:' + CONTACTS);
+}
 
 return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
-  togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS,
+  togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS, idleWork, ptRowHtml,
   resetFresh: () => { settingsFreshThisOpen = false; } };
 })();
 
@@ -2058,7 +2398,9 @@ function isSetUp(){ return !!(relayUrl() && relayKey()); }
 const RELAY_TIMEOUT_MS = 25000;
 function RelayError(msg, body){ this.name = 'RelayError'; this.message = msg; this.body = body || {}; }
 RelayError.prototype = Object.create(Error.prototype);
-async function relay(params){
+/* The address a request goes to - built here so the worker can be handed one
+   without a second copy of these rules. */
+function relayRequestUrl(params){
   const url = new URL(relayUrl());
   url.searchParams.set('key', relayKey());
   /* WHO IS ASKING (4.19). The phone's own tag, the version it is running and
@@ -2070,6 +2412,10 @@ async function relay(params){
   url.searchParams.set('inst', appInstalled() ? '1' : '0');
   if(adminSession) url.searchParams.set('session', adminSession);
   Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+  return url.toString();
+}
+async function relay(params){
+  const url = relayRequestUrl(params);
   /* ONE RETRY (4.14). Google sometimes answers with an error page instead of
      data for a moment (just after a deployment, or when busy): that read as
      "unreadable" and the phone gave up at once. */
@@ -2089,7 +2435,7 @@ async function relay(params){
        the very thing this was added to stop. Reading the body is inside the
        same clock now. */
     try{
-      res = await fetch(url.toString(), { redirect: 'follow', cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+      res = await fetch(url, { redirect: 'follow', cache: 'no-store', signal: ctl ? ctl.signal : undefined });
       body = await res.json();
     }catch(e){
       body = null;
@@ -3155,7 +3501,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.26';
+const ADMIN_VERSION = '4.27';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -4733,6 +5079,7 @@ async function boot(){
   await Cal.hydrate();
   await Cal.bkLoad();
   setTab('calendar');
+  Cal.idleWork();           // prescriptions, contacts, names - once the day is on screen
   Cal.bkSend();
   /* OPENING USES THE READY COPY (4.14); only pull-to-refresh asks fresh. */
   Cal.refreshSettings(false);
