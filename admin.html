@@ -422,7 +422,6 @@ body{ padding-bottom:28px; }
 .dr-amt{ font-size:1rem; font-weight:700; color:var(--ink); margin-top:2px; }
 .dr-panel.dr-owes{ background:#FCEBEB; border-color:#F09595; }
 .dr-btns{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.dr-btns .dr-btn:only-child{ grid-column:1 / -1; }
 /* Chrome's own pull-to-refresh RELOADS the page, which ended the admin session.
    The app's own pull (which never did) is the only one now. */
 html, body{ overscroll-behavior-y: contain; }
@@ -688,10 +687,31 @@ body{ background:#FAF7F2 !important; }
 .wa-chip{ padding:6px 11px; font-size:0.82rem; }
 .wa-btn:active, .wa-chip:active{ transform:translateY(1px); background:#D7EBDF; }
 .wa-i{ width:16px; height:16px; flex:none; }
-/* Its own row under the actions, whether there are one or two of them. */
-.dr-btns .wa-btn{ grid-column:1 / -1; }
-.hs-wa{ margin-top:9px; }
-.ptr-head .wa-chip{ margin:9px 0 0 6px; vertical-align:middle; }
+/* Call and WhatsApp share the row under the actions, one column each (4.26).
+   The action above them spans the full width when it is the only one - and
+   :only-of-type, not :only-child, because the two anchors are siblings now. */
+.dr-btns{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dr-btns .dr-btn:only-of-type{ grid-column:1 / -1; }
+.hs-wa{ margin-top:9px; display:flex; gap:8px; flex-wrap:wrap; }
+/* ==== CALL (4.26) ==== */
+/* Blue, never green: at a glance in a busy corridor the two buttons must not
+   be the same button. Everything else about them matches. */
+.call-btn, .call-chip{ display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  text-decoration:none; font:inherit; font-weight:600; border-radius:11px;
+  border:1px solid #C6DCF3; background:#E8F1FB; color:#1B4E86; }
+.call-btn{ width:100%; box-sizing:border-box; padding:12px 10px; font-size:0.82rem;
+  letter-spacing:0.06em; text-transform:uppercase; }
+.call-chip{ padding:6px 11px; font-size:0.82rem; }
+.call-btn:active, .call-chip:active{ transform:translateY(1px); background:#D8E7F7; }
+/* Two faults the drawing showed, both older than this button (4.26):
+   the history head re-skins every <span> inside it small and muted, which
+   caught the chip LABELS and greyed them out - shipped that way in 4.25 with
+   one chip, obvious with two. And on the patient record the chips sat beside
+   the number pill until the second one wrapped to a line of its own. They get
+   their own row now, and the labels are told to keep their own colour. */
+.hs-head .call-chip span, .hs-head .wa-chip span{ color:inherit !important; font-size:inherit; }
+.ptr-acts{ display:flex; gap:8px; flex-wrap:wrap; margin-top:9px; }
+
 
 </style></head><body>
 <div class="topbar">
@@ -1388,6 +1408,34 @@ function waBtnFor(d, cls){
 }
 function waBtnHtml(pid, cls){ return waBtnFor(waNumberOf(pid), cls); }
 
+/* ==== CALL (4.26) ==== */
+/* tel: needs no trick. Android and iPhone both hand it straight to the dialer,
+   so unlike WhatsApp there is no package to aim at and no fallback to arrange.
+   The one rule that is shared: no number on file, no button. A button that
+   cannot work is worse than no button. */
+function telHref(d){
+  d = waDigits(d);
+  /* Numbers are stored in E.164 (country code included), so the + belongs.
+     A bare 10-digit legacy entry is dialled as-is rather than being given a
+     country code this app cannot know. */
+  return 'tel:' + (d.length > 10 ? '+' + d : d);
+}
+/* A handset, drawn: same stroke weight and box as the speech bubble beside it,
+   so the pair reads as one row and not as two borrowed icons. */
+const CALL_ICON = '<svg class="wa-i" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+  + ' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+  + '<path d="M20.5 16.8v2.6c0 1-.9 1.8-1.9 1.7-3.6-.4-7-2.1-9.6-4.7C6.4 13.8 4.7 10.4 4.3 6.8'
+  + 'c-.1-1 .7-1.9 1.7-1.9h2.6c.9 0 1.6.6 1.7 1.5.1.9.4 1.8.7 2.6.2.6.1 1.3-.4 1.7l-1.1 1.1'
+  + 'c1.2 2.2 3 4 5.2 5.2l1.1-1.1c.4-.4 1.1-.6 1.7-.4.8.3 1.7.6 2.6.7.9.1 1.5.8 1.5 1.7Z"/></svg>';
+function callBtnFor(d, cls){
+  d = waDigits(d);
+  if(!d) return '';
+  return '<a class="' + (cls || 'call-btn') + '" href="' + telHref(d) + '">'
+    + CALL_ICON + '<span>Call</span></a>';
+}
+function callBtnHtml(pid, cls){ return callBtnFor(waNumberOf(pid), cls); }
+
+
 /* HISTORY 1: month headings, a timeline, a dot coloured by how recent. The
    newest opens with its slip; any other opens on a tap. No money here, in
    either app (owner's call) - money is Full history's. */
@@ -1400,7 +1448,8 @@ function historyHtml(pid, openIdx, toggleCall){
   const as = ageSexOf(pid);
   let h = '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
     + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + rxCount(pid) + ' prescription' + (rxCount(pid) === 1 ? '' : 's') + '</span>'
-    + (waNumberOf(pid) ? '<div class="hs-wa">' + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
+    + (waNumberOf(pid) ? '<div class="hs-wa">' + callBtnHtml(pid, 'call-chip')
+        + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
     + '</div>';
   const older = rxCount(pid) - mine.length;
   const moreBtn = older > 0
@@ -1596,6 +1645,7 @@ function openDrawer(day, kind, id){
   if(r.patientId){
     h += '<div class="dr-btns"><button type="button" class="btn ghost dr-btn" onclick="Cal.openPrevRx(' + jsArg(r.patientId) + ')">\uD83D\uDCDC Previous \u211e</button>'
       + (hooks.adminOn() ? '<button type="button" class="btn ghost dr-btn" onclick="Cal.fullHistory(' + jsArg(r.patientId) + ')">\uD83D\uDDC2\uFE0F Full history</button>' : '')
+      + callBtnHtml(r.patientId)
       + waBtnHtml(r.patientId)
       + '</div>';
   }
@@ -1973,7 +2023,7 @@ function drawerReturn(){ return lastDrawer; }
 function togglePatientRx(i){ prevOpen = (prevOpen === i ? -1 : i); renderPatients(); }
 function forgetForLock(){ unsettledAsked = false; }
 
-return { waOpen, waBtnFor, waBtnHtml, waNumberOf, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
+return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS,
   resetFresh: () => { settingsFreshThisOpen = false; } };
@@ -3105,7 +3155,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.25';
+const ADMIN_VERSION = '4.26';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -4554,7 +4604,8 @@ async function renderPtRecord(body, pid){
       + (phone ? '<a class="ptr-tel" href="tel:' + escapeHtml(phone) + '">'
                  + ICON.tel + escapeHtml(fmtPhoneMobile(phone))
                  + (phoneRec.label ? ' <span class="ptr-tellabel">' + escapeHtml(phoneRec.label) + '</span>' : '')
-                 + '</a>' + Cal.waBtnFor(phone, 'wa-chip')
+                 + '</a><div class="ptr-acts">' + Cal.callBtnFor(phone, 'call-chip')
+                 + Cal.waBtnFor(phone, 'wa-chip') + '</div>'
                : '<div class="ptr-nonum">No number on file</div>')
       + (chips.length ? '<div class="ptr-chips">' + chips.map(c =>
             '<span class="ptr-chip ptr-' + c[0] + '">' + escapeHtml(c[1]) + '</span>').join('') + '</div>' : '')
