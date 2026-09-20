@@ -690,6 +690,24 @@ body{ background:#FAF7F2 !important; }
 #calList{ padding-bottom:72px; }
 
 /* 4.18: the older-prescriptions line on the history screen */
+/* ==== THE PATIENT'S OWN PAGE (owner's call, 4.29) ====
+   It used to open with a search box that cannot be used from here, then a
+   button-sized Back, and only then the patient - who is the reason the page
+   was opened at all. The search goes while a patient is open, Back becomes a
+   chevron inside the patient's own bar, and the name leads. */
+.hsh-top{ display:flex; align-items:flex-start; gap:10px; }
+.hsh-back{ flex:none; width:32px; height:32px; border-radius:10px; padding:0;
+  border:1px solid rgba(245,237,225,0.35); background:transparent; color:inherit;
+  font:inherit; font-size:1.15rem; line-height:1; cursor:pointer; }
+.hsh-back:active{ background:rgba(245,237,225,0.12); }
+.hs-sec{ display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  font-size:0.7rem; letter-spacing:0.09em; text-transform:uppercase; font-weight:700;
+  color:#8A5F26; margin:2px 2px 9px; }
+.hs-sec span{ font-size:0.72rem; letter-spacing:0; text-transform:none; color:#8A7B66; font-weight:600; }
+/* An empty page should say what will appear here, not what has not. */
+.hs-none{ border:1px dashed #D8C7A6; background:#FFFDF8; border-radius:14px; padding:18px 16px; text-align:center; }
+.hs-none b{ display:block; font-size:0.92rem; color:#4A3319; margin-bottom:4px; }
+.hs-none span{ font-size:0.8rem; color:#8A7B66; }
 .pt-az{ font-size:0.72rem; letter-spacing:0.07em; text-transform:uppercase; color:#8A5F26; margin:2px 2px 8px; }
 .hs-more{ display:block; width:100%; margin:6px 0 10px; border:1px dashed #C9A56B; background:#fff; border-radius:12px;
   padding:11px; font:inherit; font-size:0.84rem; color:#8A5F26; cursor:pointer; }
@@ -863,8 +881,9 @@ body{ background:#FAF7F2 !important; }
 <button type="button" class="bk-fab" id="bkFab" onclick="Cal.bkOpen()" aria-label="Book">+</button>
 <div id="bkWrap" class="bk-wrap hidden" onclick="if(event.target===this) Cal.bkClose()"><div class="bk-sheet" id="bkSheet"></div></div>
 <div id="drawerWrap" class="drawer-wrap hidden"><div class="drawer" id="drawer"></div></div>
+<!-- The way back lives in the patient's own bar here too (4.29), so the
+     two places that show a history are the same screen. -->
 <div id="prevRx" class="prev-rx hidden"><div class="wrap">
-  <button type="button" class="btn ghost" onclick="Cal.closePrevRx()" style="margin:4px 0 6px;">&lsaquo; Back</button>
   <div id="prevRxBody"></div>
 </div></div>
 <div id="pinWrap" class="drawer-wrap hidden" onclick="if(event.target===this) closePinPad()"><div class="drawer pin-pad">
@@ -1717,29 +1736,47 @@ function ageDot(dateStr){
   const days = daysBetween(String(dateStr || '').slice(0, 10) || todayStr(), todayStr());
   return days <= 31 ? '#1D9E75' : days <= 92 ? '#378ADD' : days <= 365 ? '#BA7517' : '#B4B2A9';
 }
-function historyHtml(pid, openIdx, toggleCall){
+/* The patient's bar: the way back, the name, who they are, and the two ways
+   to reach them. Everything else on the page sits under it. */
+function hsHeadHtml(pid, backCall){
+  const as = ageSexOf(pid);
+  const back = backCall
+    ? '<button type="button" class="hsh-back" onclick="' + backCall + '" aria-label="Back">\u2039</button>' : '';
+  return '<div class="hs-head"><div class="hsh-top">' + back + '<div>'
+    + '<b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
+    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
+    + '</div></div>'
+    + (waNumberOf(pid) ? '<div class="hs-wa">' + callBtnHtml(pid, 'call-chip')
+        + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
+    + '</div>';
+}
+function historyHtml(pid, openIdx, toggleCall, backCall){
   /* The list is fetched from the store on first need (4.27); say so rather
      than claim this patient has nothing written. */
   if(!rxReady && !rxFull[String(pid)]){
     ensureRx();
-    return '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
-      + '<span>' + escapeHtml(String(pid)) + '</span></div>'
-      + '<div class="empty-state">Reading\u2026</div>';
+    return hsHeadHtml(pid, backCall) + '<div class="empty-state">Reading\u2026</div>';
   }
+
   withContacts(() => { if(currentTab === 'patients' || prevPid) repaint(); });
   const mine = rxFor(pid).slice().sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')));
-  const as = ageSexOf(pid);
-  let h = '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
-    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + rxCount(pid) + ' prescription' + (rxCount(pid) === 1 ? '' : 's') + '</span>'
-    + (waNumberOf(pid) ? '<div class="hs-wa">' + callBtnHtml(pid, 'call-chip')
-        + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
-    + '</div>';
-  const older = rxCount(pid) - mine.length;
+  const n = rxCount(pid);
+  /* The count belongs to the list, not to the person: it was said in the bar
+     AND again in the middle of an empty page, and neither said anything
+     else. It is the heading of the list now. */
+  let h = hsHeadHtml(pid, backCall)
+    + '<div class="hs-sec">Prescriptions' + (n ? '<span>' + n + '</span>' : '') + '</div>';
+  const older = n - mine.length;
   const moreBtn = older > 0
     ? '<button type="button" class="hs-more" id="hsMore" onclick="Cal.rxShowOlder(' + jsArg(pid) + ')">'
       + older + ' older prescription' + (older === 1 ? '' : 's') + ' not on this phone \u00b7 tap to load</button>'
     : '';
-  if(!mine.length) return h + moreBtn + '<div class="empty-state">No recent prescriptions on this phone</div>';
+  if(!mine.length){
+    return h + moreBtn + '<div class="hs-none"><b>'
+      + (n ? 'None on this phone' : 'None written yet') + '</b>'
+      + '<span>' + (n ? 'Tap above to load the older ones.'
+                      : 'Anything written at the desk shows here, newest first.') + '</span></div>';
+  }
   let month = '';
   mine.forEach((r, i) => {
     const d = String(r.date || r.createdAt || '').slice(0, 10);
@@ -1986,7 +2023,8 @@ function openPrevRx(pid){
 }
 function togglePrev(i){ prevOpen = (prevOpen === i) ? -1 : i; renderPrevRx(prevPid); }
 function renderPrevRx(pid){
-  document.getElementById('prevRxBody').innerHTML = historyHtml(pid, prevOpen, 'Cal.togglePrev');
+  document.getElementById('prevRxBody').innerHTML =
+    historyHtml(pid, prevOpen, 'Cal.togglePrev', 'Cal.closePrevRx()');
 }
 function closePrevRx(){ document.getElementById('prevRx').classList.add('hidden'); }
 
@@ -2276,10 +2314,13 @@ function ptRowHtml(pid, name){
 }
 function renderPatients(){
   const list = document.getElementById('patientList');
+  /* The search field is for the list, and there is no list while a patient is
+     open - it only pushed the patient down the page (4.29). */
+  const box = document.getElementById('patientSearch');
+  if(box) box.classList.toggle('hidden', !!selectedPatient);
   if(selectedPatient){
     const pid = selectedPatient;
-    list.innerHTML = '<button type="button" class="btn ghost" onclick="Cal.backToSearch()" style="margin:4px 0 12px;">&lsaquo; Back</button>'
-      + historyHtml(pid, prevOpen === null ? 0 : prevOpen, 'Cal.togglePatientRx');
+    list.innerHTML = historyHtml(pid, prevOpen === null ? 0 : prevOpen, 'Cal.togglePatientRx', 'Cal.backToSearch()');
     return;
   }
   if(!nameIdx.length) buildNameIndex();
@@ -3652,7 +3693,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.28';
+const ADMIN_VERSION = '4.29';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
