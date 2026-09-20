@@ -678,6 +678,21 @@ body{ background:#FAF7F2 !important; }
 .hs-more{ display:block; width:100%; margin:6px 0 10px; border:1px dashed #C9A56B; background:#fff; border-radius:12px;
   padding:11px; font:inherit; font-size:0.84rem; color:#8A5F26; cursor:pointer; }
 .hs-more[disabled]{ opacity:0.6; }
+
+/* ==== WHATSAPP (4.25) ==== */
+.wa-btn, .wa-chip{ display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  text-decoration:none; font:inherit; font-weight:600; border-radius:11px;
+  border:1px solid #BFE0CC; background:#E7F4EC; color:#1F5D3A; }
+.wa-btn{ width:100%; box-sizing:border-box; padding:12px 10px; font-size:0.82rem;
+  letter-spacing:0.06em; text-transform:uppercase; }
+.wa-chip{ padding:6px 11px; font-size:0.82rem; }
+.wa-btn:active, .wa-chip:active{ transform:translateY(1px); background:#D7EBDF; }
+.wa-i{ width:16px; height:16px; flex:none; }
+/* Its own row under the actions, whether there are one or two of them. */
+.dr-btns .wa-btn{ grid-column:1 / -1; }
+.hs-wa{ margin-top:9px; }
+.ptr-head .wa-chip{ margin:9px 0 0 6px; vertical-align:middle; }
+
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -1319,6 +1334,60 @@ function slipHtml(rec, title){
     + '</div></div>';
 }
 
+
+/* ===================== WHATSAPP (4.25) ==============================
+   A patient's chat, one tap from wherever their name already is: the day's
+   drawer, and the top of their prescription history.
+
+   WHICH APP OPENS. On Android the link is aimed at WhatsApp BUSINESS by
+   name, with the ordinary wa.me link as the fallback Chrome uses when that
+   app is not installed - so a phone with both opens the business one and a
+   phone with neither is simply taken to the web page. On an iPhone there is
+   no such choice: both apps answer the same link and iOS picks, so the
+   href does the work and this adds nothing.
+
+   NOTHING IS SENT. It opens the chat with the number filled in; whoever is
+   holding the phone types the message. The app never writes a word into
+   somebody's WhatsApp on their behalf.
+
+   ONLY WITH A NUMBER BEHIND IT. No number on file, no button - the same
+   rule the rest of this app keeps, because a button that cannot work is
+   worse than no button. */
+function waDigits(e164){ return String(e164 || '').replace(/\D/g, ''); }
+function waNumberOf(pid){
+  const rec = (S('patient-contacts.json') || {})[String(pid)];
+  const list = (rec && Array.isArray(rec.numbers)) ? rec.numbers.filter(n => n && !n.struckAt) : [];
+  const pick = list.find(n => n && n.primary) || list[0] || null;
+  return pick ? waDigits(pick.e164) : '';
+}
+function waHref(d){ return 'https://wa.me/' + waDigits(d); }
+function waOpen(d, ev){
+  d = waDigits(d);
+  if(!d) return;
+  /* Not Android: let the anchor's own href do exactly what it would have
+     done. Cancelling the click here would only break it. */
+  if(!/Android/i.test(String((navigator && navigator.userAgent) || ''))) return;
+  if(ev && ev.preventDefault) ev.preventDefault();
+  try{
+    location.href = 'intent://send?phone=' + d + '#Intent;scheme=whatsapp;'
+      + 'package=com.whatsapp.w4b;S.browser_fallback_url='
+      + encodeURIComponent(waHref(d)) + ';end';
+  }catch(e){ location.href = waHref(d); }
+}
+/* A plain speech bubble, drawn: no logo, no image to fetch. */
+const WA_ICON = '<svg class="wa-i" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+  + ' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+  + '<path d="M21 11.6a8.4 8.4 0 0 1-12.6 7.3L3 20.5l1.7-5.2A8.4 8.4 0 1 1 21 11.6Z"/>'
+  + '<path d="M8.9 8.4c.3-.7.6-.7.9-.7h.5c.2 0 .4 0 .6.5l.7 1.7c.1.2 0 .4-.1.5l-.4.5c-.1.2-.2.3 0 .6a6 6 0 0 0 2.7 2.3c.3.1.4 0 .6-.1l.6-.7c.2-.2.3-.1.5-.1l1.6.8c.2.1.4.2.4.3v.6c-.1.5-.6 1.1-1.2 1.2-.5.1-1.2.2-3.4-.7a9.3 9.3 0 0 1-4-3.9c-.3-.6-.7-1.5-.7-2.3 0-.7.3-1.1.5-1.3Z"/></svg>';
+function waBtnFor(d, cls){
+  d = waDigits(d);
+  if(!d) return '';
+  return '<a class="' + (cls || 'wa-btn') + '" href="' + waHref(d) + '"'
+    + ' target="_blank" rel="noopener" onclick="Cal.waOpen(' + jsArg(d) + ', event)">'
+    + WA_ICON + '<span>WhatsApp</span></a>';
+}
+function waBtnHtml(pid, cls){ return waBtnFor(waNumberOf(pid), cls); }
+
 /* HISTORY 1: month headings, a timeline, a dot coloured by how recent. The
    newest opens with its slip; any other opens on a tap. No money here, in
    either app (owner's call) - money is Full history's. */
@@ -1330,7 +1399,9 @@ function historyHtml(pid, openIdx, toggleCall){
   const mine = rxFor(pid).slice().sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')));
   const as = ageSexOf(pid);
   let h = '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
-    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + rxCount(pid) + ' prescription' + (rxCount(pid) === 1 ? '' : 's') + '</span></div>';
+    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + rxCount(pid) + ' prescription' + (rxCount(pid) === 1 ? '' : 's') + '</span>'
+    + (waNumberOf(pid) ? '<div class="hs-wa">' + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
+    + '</div>';
   const older = rxCount(pid) - mine.length;
   const moreBtn = older > 0
     ? '<button type="button" class="hs-more" id="hsMore" onclick="Cal.rxShowOlder(' + jsArg(pid) + ')">'
@@ -1525,6 +1596,7 @@ function openDrawer(day, kind, id){
   if(r.patientId){
     h += '<div class="dr-btns"><button type="button" class="btn ghost dr-btn" onclick="Cal.openPrevRx(' + jsArg(r.patientId) + ')">\uD83D\uDCDC Previous \u211e</button>'
       + (hooks.adminOn() ? '<button type="button" class="btn ghost dr-btn" onclick="Cal.fullHistory(' + jsArg(r.patientId) + ')">\uD83D\uDDC2\uFE0F Full history</button>' : '')
+      + waBtnHtml(r.patientId)
       + '</div>';
   }
   const sheet = document.getElementById('drawer');
@@ -1901,7 +1973,7 @@ function drawerReturn(){ return lastDrawer; }
 function togglePatientRx(i){ prevOpen = (prevOpen === i ? -1 : i); renderPatients(); }
 function forgetForLock(){ unsettledAsked = false; }
 
-return { rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
+return { waOpen, waBtnFor, waBtnHtml, waNumberOf, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS,
   resetFresh: () => { settingsFreshThisOpen = false; } };
@@ -2134,9 +2206,27 @@ async function pinKey(k){
     /* 4.18 audit: the settings on this phone were fetched while it was
        locked, so patient-contacts came back with the numbers stripped out -
        and the patient record showed "no number on file" to an admin who had
-       just unlocked. Fetched again now the relay will send them. */
+       just unlocked. Fetched again now the relay will send them.
+
+       4.24: and the admin layer's OWN copy is dropped as well. Clearing the
+       relay memo was never enough - loadPatientContacts answers from
+       contactsCache and echoAdmin_con before the relay is asked at all.
+
+       AWAITED, not fired off (4.24). The read that follows an unlock is
+       usually a patient record, opened seconds later; if the settings are
+       still in flight it is answered from the calendar's stripped copy and
+       shows "No number on file" once more. A second here, once per unlock,
+       buys the right answer on the first try.
+
+       With a fuse on it, because a wedged relay must never leave somebody
+       staring at a PIN pad that has already accepted their PIN. After two
+       and a half seconds the screen goes on without it and the settings
+       land when they land. */
     relayHeldClear();
-    Cal.refreshSettings(true);
+    forgetContacts();
+    try{
+      await Promise.race([Cal.refreshSettings(true), new Promise(r => setTimeout(r, 2500))]);
+    }catch(e){}
     setTab('calendar');
   }catch(e){
     const b = (e && e.body) || {};
@@ -2160,8 +2250,12 @@ function lockAdmin(){
   }
   paintLock(); paintTabs();
   /* And on the way out: the copy kept on this phone is replaced by the one a
-     locked app is allowed to have, rather than left carrying numbers. */
+     locked app is allowed to have, rather than left carrying numbers. That
+     means this layer's copy too (4.24) - it is the one with the numbers in
+     it, and leaving it behind would hand a locked app exactly what locking
+     is supposed to take away. */
   relayHeldClear();
+  forgetContacts();
   try{ Cal.refreshSettings(true); }catch(e){}
   if(ADMIN_ONLY_TABS.indexOf(currentTab) !== -1 || currentTab === 'patients') setTab('calendar');
   else renderCurrent();
@@ -2857,6 +2951,29 @@ async function verifyRxIndexLater(idx){
    screen turns it into something else. */
 let contactsCache = null, contactsTried = false;
 const CACHE_KEY_CON = 'echoAdmin_con';
+/* THE COPY READ WHILE LOCKED IS NOT THE COPY AN ADMIN NEEDS (4.24).
+
+   Locked, the relay strips every phone number out of patient-contacts.json -
+   correctly. That stripped answer was then kept twice: in contactsCache here
+   and in the phone's own storage under echoAdmin_con. Unlocking cleared the
+   relay memo and re-read the CALENDAR's settings, and left both of these
+   exactly as they were - so the patient record went on answering from a copy
+   with no numbers in it, and said "No number on file" about a patient whose
+   number is on file. Every patient, every time, until something else
+   happened to clear it. Pull-to-refresh did, which is why pulling down
+   "fixed" it, and why it came back on the next unlock.
+
+   So the moment the level changes - either way - the copy goes with it. On
+   the way IN because it is missing numbers, and on the way OUT because it
+   has them and a locked app must not be left holding them. */
+function forgetContacts(){
+  contactsCache = null;
+  contactsTried = false;
+  try{ localStorage.removeItem(CACHE_KEY_CON); }catch(e){}
+  /* The catch-up pass writes this key too; let it run again for the new
+     level rather than deciding "no change" against the copy just dropped. */
+  refreshScheduled = false;
+}
 let _loadPatientContacts_inflight = null;
 async function loadPatientContacts(){
   /* ONE READ FOR EVERY CALLER (4.0). The "tried" flag was set before the
@@ -2988,7 +3105,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.23';
+const ADMIN_VERSION = '4.25';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -4437,7 +4554,8 @@ async function renderPtRecord(body, pid){
       + (phone ? '<a class="ptr-tel" href="tel:' + escapeHtml(phone) + '">'
                  + ICON.tel + escapeHtml(fmtPhoneMobile(phone))
                  + (phoneRec.label ? ' <span class="ptr-tellabel">' + escapeHtml(phoneRec.label) + '</span>' : '')
-                 + '</a>' : '<div class="ptr-nonum">No number on file</div>')
+                 + '</a>' + Cal.waBtnFor(phone, 'wa-chip')
+               : '<div class="ptr-nonum">No number on file</div>')
       + (chips.length ? '<div class="ptr-chips">' + chips.map(c =>
             '<span class="ptr-chip ptr-' + c[0] + '">' + escapeHtml(c[1]) + '</span>').join('') + '</div>' : '')
       + '<div class="ptr-money">'

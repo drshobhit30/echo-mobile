@@ -527,6 +527,21 @@ body{ background:#FAF7F2 !important; }
 .hs-more{ display:block; width:100%; margin:6px 0 10px; border:1px dashed #C9A56B; background:#fff; border-radius:12px;
   padding:11px; font:inherit; font-size:0.84rem; color:#8A5F26; cursor:pointer; }
 .hs-more[disabled]{ opacity:0.6; }
+
+/* ==== WHATSAPP (4.25) ==== */
+.wa-btn, .wa-chip{ display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  text-decoration:none; font:inherit; font-weight:600; border-radius:11px;
+  border:1px solid #BFE0CC; background:#E7F4EC; color:#1F5D3A; }
+.wa-btn{ width:100%; box-sizing:border-box; padding:12px 10px; font-size:0.82rem;
+  letter-spacing:0.06em; text-transform:uppercase; }
+.wa-chip{ padding:6px 11px; font-size:0.82rem; }
+.wa-btn:active, .wa-chip:active{ transform:translateY(1px); background:#D7EBDF; }
+.wa-i{ width:16px; height:16px; flex:none; }
+/* Its own row under the actions, whether there are one or two of them. */
+.dr-btns .wa-btn{ grid-column:1 / -1; }
+.hs-wa{ margin-top:9px; }
+.ptr-head .wa-chip{ margin:9px 0 0 6px; vertical-align:middle; }
+
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -631,7 +646,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.23';
+const LITE_VERSION = '4.25';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1125,6 +1140,60 @@ function slipHtml(rec, title){
     + '</div></div>';
 }
 
+
+/* ===================== WHATSAPP (4.25) ==============================
+   A patient's chat, one tap from wherever their name already is: the day's
+   drawer, and the top of their prescription history.
+
+   WHICH APP OPENS. On Android the link is aimed at WhatsApp BUSINESS by
+   name, with the ordinary wa.me link as the fallback Chrome uses when that
+   app is not installed - so a phone with both opens the business one and a
+   phone with neither is simply taken to the web page. On an iPhone there is
+   no such choice: both apps answer the same link and iOS picks, so the
+   href does the work and this adds nothing.
+
+   NOTHING IS SENT. It opens the chat with the number filled in; whoever is
+   holding the phone types the message. The app never writes a word into
+   somebody's WhatsApp on their behalf.
+
+   ONLY WITH A NUMBER BEHIND IT. No number on file, no button - the same
+   rule the rest of this app keeps, because a button that cannot work is
+   worse than no button. */
+function waDigits(e164){ return String(e164 || '').replace(/\D/g, ''); }
+function waNumberOf(pid){
+  const rec = (S('patient-contacts.json') || {})[String(pid)];
+  const list = (rec && Array.isArray(rec.numbers)) ? rec.numbers.filter(n => n && !n.struckAt) : [];
+  const pick = list.find(n => n && n.primary) || list[0] || null;
+  return pick ? waDigits(pick.e164) : '';
+}
+function waHref(d){ return 'https://wa.me/' + waDigits(d); }
+function waOpen(d, ev){
+  d = waDigits(d);
+  if(!d) return;
+  /* Not Android: let the anchor's own href do exactly what it would have
+     done. Cancelling the click here would only break it. */
+  if(!/Android/i.test(String((navigator && navigator.userAgent) || ''))) return;
+  if(ev && ev.preventDefault) ev.preventDefault();
+  try{
+    location.href = 'intent://send?phone=' + d + '#Intent;scheme=whatsapp;'
+      + 'package=com.whatsapp.w4b;S.browser_fallback_url='
+      + encodeURIComponent(waHref(d)) + ';end';
+  }catch(e){ location.href = waHref(d); }
+}
+/* A plain speech bubble, drawn: no logo, no image to fetch. */
+const WA_ICON = '<svg class="wa-i" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+  + ' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+  + '<path d="M21 11.6a8.4 8.4 0 0 1-12.6 7.3L3 20.5l1.7-5.2A8.4 8.4 0 1 1 21 11.6Z"/>'
+  + '<path d="M8.9 8.4c.3-.7.6-.7.9-.7h.5c.2 0 .4 0 .6.5l.7 1.7c.1.2 0 .4-.1.5l-.4.5c-.1.2-.2.3 0 .6a6 6 0 0 0 2.7 2.3c.3.1.4 0 .6-.1l.6-.7c.2-.2.3-.1.5-.1l1.6.8c.2.1.4.2.4.3v.6c-.1.5-.6 1.1-1.2 1.2-.5.1-1.2.2-3.4-.7a9.3 9.3 0 0 1-4-3.9c-.3-.6-.7-1.5-.7-2.3 0-.7.3-1.1.5-1.3Z"/></svg>';
+function waBtnFor(d, cls){
+  d = waDigits(d);
+  if(!d) return '';
+  return '<a class="' + (cls || 'wa-btn') + '" href="' + waHref(d) + '"'
+    + ' target="_blank" rel="noopener" onclick="waOpen(' + jsArg(d) + ', event)">'
+    + WA_ICON + '<span>WhatsApp</span></a>';
+}
+function waBtnHtml(pid, cls){ return waBtnFor(waNumberOf(pid), cls); }
+
 /* HISTORY 1: month headings, a timeline, a dot coloured by how recent. The
    newest opens with its slip; any other opens on a tap. No money here, in
    either app (owner's call) - money is Full history's. */
@@ -1136,7 +1205,9 @@ function historyHtml(pid, openIdx, toggleCall){
   const mine = rxFor(pid).slice().sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')));
   const as = ageSexOf(pid);
   let h = '<div class="hs-head"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
-    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + rxCount(pid) + ' prescription' + (rxCount(pid) === 1 ? '' : 's') + '</span></div>';
+    + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + ' \u00b7 ' + rxCount(pid) + ' prescription' + (rxCount(pid) === 1 ? '' : 's') + '</span>'
+    + (waNumberOf(pid) ? '<div class="hs-wa">' + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
+    + '</div>';
   const older = rxCount(pid) - mine.length;
   const moreBtn = older > 0
     ? '<button type="button" class="hs-more" id="hsMore" onclick="rxShowOlder(' + jsArg(pid) + ')">'
@@ -1327,7 +1398,7 @@ function openDrawer(day, kind, id){
   
   if(r.patientId){
     h += '<div class="dr-btns"><button type="button" class="btn ghost dr-btn" onclick="openPrevRx(' + jsArg(r.patientId) + ')">\uD83D\uDCDC Previous \u211e</button>'
-      + ''
+      + waBtnHtml(r.patientId)
       + '</div>';
   }
   const sheet = document.getElementById('drawer');

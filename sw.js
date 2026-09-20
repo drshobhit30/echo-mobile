@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.23';  // one number across lite, admin and this file
+const CACHE_VERSION = 'echo-nexus-4.25';  // one number across lite, admin and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
