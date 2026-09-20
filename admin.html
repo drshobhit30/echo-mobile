@@ -138,6 +138,13 @@ body{ padding-bottom:28px; }
 .pt-card::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
   background:var(--gold-light); opacity:.55; }
 .pt-card.tappable{ cursor:pointer; }
+/* A LONG LIST COSTS WHAT IS ON SCREEN (4.28). The Lab tab draws every live
+   case - about nine hundred of them in this clinic - and the browser was
+   laying out and painting all nine hundred before the first one appeared:
+   1.6 seconds of work for the dozen a person can actually see. This tells it
+   to skip the work for anything off screen and do it as you scroll; the
+   intrinsic height keeps the scrollbar honest meanwhile. */
+.pt-card{ content-visibility:auto; contain-intrinsic-size:auto 76px; }
 .pt-card.tappable:active{ transform:translateY(1px) scale(0.997); background:var(--cream); }
 .pt-card.pt-open{ border-color:var(--gold-light); box-shadow:0 2px 10px rgba(74,59,40,0.07); }
 .pt-card.pt-open::before{ background:var(--gold); opacity:1; }
@@ -2380,9 +2387,44 @@ let driveFolderId = 'root';
 let currentDate = todayStr();
 /* THE SESSION survives a reload (sessionStorage) but not a closed app, and
    is dropped the moment the phone locks or the app goes to the background. */
+/* ==== ADMIN STAYS OPEN WHILE YOU ARE USING IT (owner's call, 4.28) ====
+
+   It used to end the moment the app went to the background - a glance at
+   WhatsApp, a phone call, the screen timing out - even though the relay
+   honours a session for up to six hours. So the PIN was typed again and
+   again, and each time cost a round trip to Google's script, which is the
+   slow part; saving the PIN on the phone would not have saved a millisecond
+   of it, and would have meant that anyone holding the phone had admin for
+   ever.
+
+   So: leaving the app no longer locks. THIRTY MINUTES UNTOUCHED does, and
+   closing the app does - the session lives in sessionStorage, which the app
+   drops when it is closed. Tapping the lock still locks at once. */
+const ADMIN_IDLE_MS = 30 * 60 * 1000;
+const SESS_AT = 'echoAdmin_sessionAt';
 let adminSession = null;
-try{ adminSession = sessionStorage.getItem('echoAdmin_session') || null; }catch(e){ adminSession = null; }
-function keepSession(v){ try{ if(v) sessionStorage.setItem('echoAdmin_session', v); else sessionStorage.removeItem('echoAdmin_session'); }catch(e){} }
+try{
+  adminSession = sessionStorage.getItem('echoAdmin_session') || null;
+  const at = Number(sessionStorage.getItem(SESS_AT) || 0);
+  if(adminSession && at && Date.now() - at > ADMIN_IDLE_MS) adminSession = null;   // slept too long
+}catch(e){ adminSession = null; }
+function keepSession(v){
+  try{
+    if(v){ sessionStorage.setItem('echoAdmin_session', v); sessionStorage.setItem(SESS_AT, String(Date.now())); }
+    else { sessionStorage.removeItem('echoAdmin_session'); sessionStorage.removeItem(SESS_AT); }
+  }catch(e){}
+}
+let lastTouch = 0;
+function touchSession(){
+  if(!adminSession) return;
+  const now = Date.now();
+  if(now - lastTouch < 20000) return;        // a timestamp, not a heartbeat
+  lastTouch = now;
+  try{ sessionStorage.setItem(SESS_AT, String(now)); }catch(e){}
+}
+function sessionIdleMs(){
+  try{ const at = Number(sessionStorage.getItem(SESS_AT) || 0); return at ? Date.now() - at : 0; }catch(e){ return 0; }
+}
 function adminOn(){ return !!adminSession; }
 function takeSetupFromLink(){
   const h = String(location.hash || '').replace(/^#/, '');
@@ -2470,7 +2512,7 @@ async function driveFindChild(parentId, name, isFolder){
 async function driveFindChildFresh(parentId, name, isFolder){ return driveFindChild(parentId, name, isFolder); }
 let lastFoundModifiedTime = null;
 const CAL_SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-blocks.json'];
-async function driveReadJson(fileId){
+async function driveReadJson(fileId, opts){
   const m = /^file:([a-z-]+)\/(.+)$/.exec(String(fileId || ''));
   if(!m) return null;
   const folder = m[1], name = m[2], key = folder + '/' + name;
@@ -2493,9 +2535,12 @@ async function driveReadJson(fileId){
       ? { t: 'day', f: folder, n: name.slice(0, 10) }
       : { t: 'file', f: folder, n: name };
   if(held && held.modified) item.s = held.modified;
+  /* SLIM (4.28 / relay r4.1): the bills index without each bill's lines. */
+  if(opts && opts.slim) item.slim = 1;
   const r = await batchAsk(item, key);
   if(r.notModified && held){ held.at = Date.now(); return held.value; }
   relayHeld[key] = { modified: r.modified || null, value: r.value, at: Date.now() };
+  if(r.value !== undefined && r.value !== null) adbSet('held:' + key, { modified: r.modified || null, value: r.value });
   return r.value;
 }
 
@@ -2553,7 +2598,108 @@ async function batchFlush(){
     });
   }
 }
-/* A pull-to-refresh or a session change must drop the memo. */
+/* ==== THE COPY ON THE PHONE IS READ, NOT JUST WRITTEN (4.28) ====
+
+   Until now the money screens kept their copies in browser storage and then
+   never read them back: the test was `if(!accessToken)`, from the days when
+   this app talked to Drive with a token that went null when it expired. The
+   relay set accessToken to the string 'relay' and it has been truthy ever
+   since, so the branch could not run. Measured on a clinic-sized folder: the
+   bills index, 3.9 MB, written to the phone on every open and re-downloaded
+   on every open. And writing it filled the 5 MB browser-storage budget, so
+   the payments, lab and notes copies could not be saved at all - which is why
+   every one of those screens read the relay every time it opened.
+
+   So the copies live here instead: IndexedDB, which has no such budget, does
+   not freeze the screen while it reads, and is keyed by the same file key the
+   relay memo uses. A screen paints from the phone's copy at once and the
+   relay is asked behind it; if the file has changed, the screen redraws.
+   Unchanged, the relay answers "not modified" and sends no data at all. */
+const ADMIN_DB = 'echo-admin-data';
+let _adb = null;
+function adb(){
+  if(_adb) return _adb;
+  _adb = new Promise(resolve => {
+    try{
+      const req = indexedDB.open(ADMIN_DB, 1);
+      req.onupgradeneeded = () => { try{ req.result.createObjectStore('kv'); }catch(e){} };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    }catch(e){ resolve(null); }
+  });
+  return _adb;
+}
+function adbGet(key){
+  return adb().then(db => db ? new Promise(res => {
+    try{
+      const q = db.transaction('kv', 'readonly').objectStore('kv').get(key);
+      q.onsuccess = () => res(q.result); q.onerror = () => res(undefined);
+    }catch(e){ res(undefined); }
+  }) : undefined).catch(() => undefined);
+}
+function adbSet(key, value){
+  return adb().then(db => { if(!db) return; try{ db.transaction('kv', 'readwrite').objectStore('kv').put(value, key); }catch(e){} }).catch(() => {});
+}
+/* What to forget when a file turns out to have changed, so the screen does
+   not redraw from a memo made out of the old one. */
+const HELD_RESETS = {
+  'settings/bills-index.json': () => { cachedBills = null; billsRevalidate = false; },
+  'settings/entries-index.json': () => { cachedEntriesIndex = null; entriesIndexTried = false; entriesRevalidate = false; },
+  'settings/labcases-index.json': () => { labCasesCache = null; labCasesTried = false; },
+  'settings/patients.json': () => { directoryCache = null; directoryTried = false; },
+  'settings/patient-contacts.json': () => { contactsCache = null; contactsTried = false; },
+  'settings/patient-crm.json': () => { crmCache = null; crmTried = false; },
+  'settings/patient-created-at.json': () => { createdCache = null; createdTried = false; },
+  'settings/followups.json': () => { followupsCacheD = null; followupsTriedD = false; }
+};
+const HELD_REVALIDATE_MS = 45 * 1000;
+const heldBusy = {};
+const heldInFlight = {};
+function heldKeyOf(fileId){
+  const m = /^file:([a-z-]+)\/(.+)$/.exec(String(fileId || ''));
+  return m ? (m[1] + '/' + m[2]) : '';
+}
+/* Answer from the phone, then check behind. The one read every money screen
+   should be making. */
+async function readJsonHeld(fileId, opts){
+  const key = heldKeyOf(fileId);
+  if(!key) return await driveReadJson(fileId, opts);
+  if(!relayHeld[key]){
+    const saved = await adbGet('held:' + key);
+    if(saved && saved.value !== undefined && saved.value !== null){
+      relayHeld[key] = { modified: saved.modified || null, value: saved.value, at: 0 };
+    }
+  }
+  const held = relayHeld[key];
+  if(held && held.value !== undefined && held.value !== null){
+    if(!held.at || Date.now() - held.at > HELD_REVALIDATE_MS) heldRevalidate(fileId, key, opts);
+    return held.value;
+  }
+  /* ONE READ FOR EVERY CALLER (4.28). Two screens asking for the same file in
+     the same breath - which is what a render and the repaint behind it are -
+     each found nothing held and each sent its own request. */
+  if(!heldInFlight[key]){
+    heldInFlight[key] = driveReadJson(fileId, opts).finally(() => { delete heldInFlight[key]; });
+  }
+  return await heldInFlight[key];
+}
+function heldRevalidate(fileId, key, opts){
+  if(heldBusy[key]) return;
+  heldBusy[key] = true;
+  const before = (relayHeld[key] || {}).modified || '';
+  driveReadJson(fileId, opts).then(() => {
+    heldBusy[key] = false;
+    const after = (relayHeld[key] || {}).modified || '';
+    if(after !== before){
+      const reset = HELD_RESETS[key];
+      if(reset) try{ reset(); }catch(e){}
+      try{ repaint(); }catch(e){}
+    }
+  }).catch(() => { heldBusy[key] = false; });
+}
+/* A pull-to-refresh or a session change must drop the memo. The copies on
+   the phone are kept - they are what the next screen paints from - but every
+   one of them is now due a check. */
 function relayHeldClear(){ Object.keys(relayHeld).forEach(k => { delete relayHeld[k]; }); }
 async function driveListChildren(parentId){
   const folder = String(parentId || '').replace(/^dir:/, '');
@@ -2614,15 +2760,15 @@ async function pinKey(k){
        shows "No number on file" once more. A second here, once per unlock,
        buys the right answer on the first try.
 
-       With a fuse on it, because a wedged relay must never leave somebody
-       staring at a PIN pad that has already accepted their PIN. After two
-       and a half seconds the screen goes on without it and the settings
-       land when they land. */
+       4.28: AND NOW IT WAITS FOR NOTHING. That wait existed because the
+       record was drawn once, from whatever contacts were in hand. Since 4.27
+       the contacts are read on demand and every screen that shows a number
+       redraws itself when they arrive - so the right answer still comes,
+       without anybody watching a PIN pad for two and a half seconds after
+       their PIN was accepted. */
     relayHeldClear();
     forgetContacts();
-    try{
-      await Promise.race([Cal.refreshSettings(true), new Promise(r => setTimeout(r, 2500))]);
-    }catch(e){}
+    Cal.refreshSettings(true);
     setTab('calendar');
   }catch(e){
     const b = (e && e.body) || {};
@@ -2663,9 +2809,23 @@ let pageUnloading = false;
 window.addEventListener('beforeunload', () => { pageUnloading = true; });
 window.addEventListener('pagehide', () => { pageUnloading = true; });
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'hidden'){ if(adminOn() && !pageUnloading) lockAdmin(); }
-  else if(isSetUp()){ Cal.resetFresh(); Cal.refreshSettings(false); Cal.ensureWeek(Cal.getViewDay(), false); }
+  if(document.visibilityState === 'hidden'){
+    /* 4.28: mark when we left, and leave the session alone. */
+    if(adminOn()){ lastTouch = 0; touchSession(); }
+    return;
+  }
+  /* Back from wherever: if it sat untouched longer than the window, it locks
+     now, before anything on screen is drawn from an admin's copy. */
+  if(adminOn() && sessionIdleMs() > ADMIN_IDLE_MS){ lockAdmin(); }
+  else { lastTouch = 0; touchSession(); }
+  if(isSetUp()){ Cal.resetFresh(); Cal.refreshSettings(false); Cal.ensureWeek(Cal.getViewDay(), false); }
 });
+/* And while it is open in front of you, the same window applies. */
+setInterval(() => {
+  if(adminOn() && document.visibilityState === 'visible' && sessionIdleMs() > ADMIN_IDLE_MS) lockAdmin();
+}, 60000);
+['pointerdown', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, touchSession, { passive: true, capture: true }));
 /* (pagehide no longer locks: it also fires on a reload. Going to the
    background - the phone locking, the app closing - still locks, above.) */
 
@@ -2730,12 +2890,10 @@ async function loadEntriesIndex(){
   try{
     const settingsId = await getSettingsFolderId();
     if(!settingsId) return null;
-    const fileId = await driveFindChildFresh(settingsId, 'entries-index.json', false);
-    const seenAt = lastFoundModifiedTime;
+    const fileId = await driveFindChild(settingsId, 'entries-index.json', false);
     if(!fileId) return null;
-    if(cachedEntriesIndex && seenAt && seenAt === entriesSeenModified) return cachedEntriesIndex;
-    const idx = await driveReadJson(fileId);
-    entriesSeenModified = seenAt;
+    /* The phone's own copy answers; the relay is asked behind it (4.28). */
+    const idx = await readJsonHeld(fileId);
     if(!idx || !Array.isArray(idx.entries)) return null;
     const map = {};
     idx.entries.forEach(e => { if(e && e.date) map[e.date] = e; });
@@ -2743,9 +2901,6 @@ async function loadEntriesIndex(){
   }catch(err){
     cachedEntriesIndex = null;      // never fatal: the per-day path still works
   }
-  /* Set only once the attempt has actually FINISHED — the whole point of the
-     fix. A missing index legitimately caches null here, and the per-day
-     fallback covers it. */
   entriesIndexTried = true;
   entriesRevalidate = false;
   return cachedEntriesIndex;
@@ -2765,37 +2920,29 @@ async function loadEntriesIndex(){
    make everything else fast. */
 async function loadBills(){
   if(cachedBills && !billsRevalidate) return cachedBills;
-  if(!cachedBills && !accessToken){
-    const held = cacheRead('echoAdmin_bills');
-    if(Array.isArray(held)) return (cachedBills = held);
-  }
   if(billsInFlight) return await billsInFlight;
   billsInFlight = (async () => {
   try{
     const settingsId = await getSettingsFolderId();
     if(settingsId){
-      const fileId = await driveFindChildFresh(settingsId, 'bills-index.json', false);
-      const seenAt = lastFoundModifiedTime;
+      const fileId = await driveFindChild(settingsId, 'bills-index.json', false);
       if(fileId){
-        /* The whole point: unchanged file, no download. */
-        if(cachedBills && seenAt && seenAt === billsSeenModified){
-          billsRevalidate = false;
-          return cachedBills;
-        }
-        const idx = await driveReadJson(fileId);
+        /* The phone's own copy, then a check behind it (4.28). The index is
+           asked for SLIM: the relay leaves out each bill's lines, which are
+           most of its weight and are wanted only for the one bill somebody
+           taps open - those are fetched for that bill alone. */
+        const idx = await readJsonHeld(fileId, { slim: 1 });
         if(idx && Array.isArray(idx.bills)){
           cachedBills = idx.bills;
-          cacheWrite('echoAdmin_bills', idx.bills);
-          billsSeenModified = seenAt;
           billsRevalidate = false;
           return cachedBills;
         }
       }
     }
     // No index (older desktop build): read the bills folder itself. Slow, but
-    // correct — and it means the phone is never simply blank.
+    // correct - and it means the phone is never simply blank.
     const billsFolderId = await driveFindChild(driveFolderId, 'bills', true);
-    if(!billsFolderId){ cachedBills = []; return cachedBills; }
+    if(!billsFolderId){ cachedBills = cachedBills || []; return cachedBills; }
     const files = (await driveListChildren(billsFolderId)).filter(f => f.name.endsWith('.json'));
     const all = await Promise.all(files.map(f => driveReadJson(f.id).catch(() => null)));
     cachedBills = all.filter(Boolean);
@@ -2809,23 +2956,33 @@ async function loadBills(){
   try{
     return await billsInFlight;
   }finally{
-    /* Cleared either way. A failed fetch must not leave a poisoned promise
-       that every later caller keeps awaiting. */
     billsInFlight = null;
   }
 }
+/* THE INDEX ANSWERS NOW, THE LAST FEW DAYS FOLLOW (4.28)
+
+   The index holds every day the desk has closed; what it does not hold is
+   today, and any day since the desk last wrote the index. Those were read
+   before anything appeared, so opening Payment waited on a round trip to
+   Google even when the phone already had eleven months of the answer.
+
+   Now the figure is drawn from what is held and the recent days are fetched
+   behind it; when they land the screen redraws itself, exactly as the
+   calendar does. The days already fetched are kept for the session, so this
+   happens once, not on every visit to the tab. */
+const dayBooks = {};              // date -> that day's book, once fetched
+let entriesCatchUp = null;
 async function loadAllEntries(){
-  if(!accessToken){
-    const held = cacheRead('echoAdmin_entries');
-    if(Array.isArray(held)) return held;
-  }
+  /* The `if(!accessToken)` copy that used to live here could never be read -
+     accessToken has been the string 'relay' since the relay took over - and
+     the index it stood in for is answered from the phone itself now (4.28). */
   const idx = await loadEntriesIndex();
   const out = idx ? Object.keys(idx).map(d => idx[d]) : [];
   const have = new Set(out.filter(Boolean).map(e => e.date));
   const today = todayStr();
 
-  /* Walk back from today until the index takes over, so the newest days —
-     the ones that matter most — are always fetched first. */
+  /* Walk back from today until the index takes over, so the newest days -
+     the ones that matter most - are always fetched first. */
   const missing = [];
   let cursor = today;
   for(let i = 0; i < CATCHUP_DAY_LIMIT; i++){
@@ -2833,34 +2990,47 @@ async function loadAllEntries(){
     missing.push(cursor);
     cursor = addDays(cursor, -1);
   }
-  /* One listing tells us which of these days exist and where they are, so
-     the seven lookups are gone. The reads that remain run TOGETHER rather
-     than one after another — they are independent, and waiting for each in
-     turn was most of the cold-open delay. */
-  const list = await listRecentDays();
-  /* 4.15: the data folder was never resolved on this path (ensureDataFolder
-     existed but nothing called it), so the direct reads below found nothing. */
-  if(missing.length) await ensureDataFolder();
-  const fetches = missing.map(async (d) => {
-    try{
-      const fileId = list
-        ? (Object.prototype.hasOwnProperty.call(list, d) ? list[d].id : null)
-        : await driveFindChild(cachedDataFolderId, d + '.json', false);
-      if(!fileId) return null;
-      return await driveReadJson(fileId);
-    }catch(err){
-      if(err && err.name === 'TokenExpiredError') throw err;
-      /* A day that cannot be read is left out rather than counted as zero —
-         the same distinction as above. */
-      return null;
-    }
+  const wanted = [];
+  missing.forEach(d => {
+    if(Object.prototype.hasOwnProperty.call(dayBooks, d)){
+      if(dayBooks[d]) out.push(dayBooks[d]);
+    } else wanted.push(d);
   });
-  const fetched = await Promise.all(fetches);
-  fetched.forEach(e => { if(e) out.push(e); });
-  const done = out.filter(Boolean);
-  if(done.length) cacheWrite('echoAdmin_entries', done);
-  return done.filter(Boolean);
+  if(wanted.length) catchUpDays(wanted);
+  return out.filter(Boolean);
 }
+/* Today, and any day the index has not caught up with, read behind the
+   screen. One pass at a time; a repaint when it brings something new. */
+function catchUpDays(days){
+  if(entriesCatchUp) return entriesCatchUp;
+  entriesCatchUp = (async () => {
+    let gained = false;
+    try{
+      await ensureDataFolder();
+      const got = await Promise.all(days.map(async (d) => {
+        try{
+          const fileId = await driveFindChild(cachedDataFolderId, d + '.json', false);
+          if(!fileId) return [d, null];
+          return [d, await driveReadJson(fileId)];
+        }catch(err){
+          /* A day that cannot be read is left out rather than counted as
+             zero - the same distinction the totals make. It is not recorded
+             as "none", so it is tried again next time. */
+          return [d, undefined];
+        }
+      }));
+      got.forEach(([d, v]) => {
+        if(v === undefined) return;
+        dayBooks[d] = v;
+        if(v) gained = true;
+      });
+    }catch(e){}
+    entriesCatchUp = null;
+    if(gained){ try{ repaint(); }catch(e){} }
+  })();
+  return entriesCatchUp;
+}
+
 async function loadLabCases(){
   if(labCasesTried) return labCasesCache;
   labCasesTried = true;
@@ -2869,7 +3039,7 @@ async function loadLabCases(){
     if(!settingsId) return (labCasesCache = null);
     const fileId = await driveFindChild(settingsId, 'labcases-index.json', false);
     if(!fileId) return (labCasesCache = null);
-    const idx = await driveReadJson(fileId);
+    const idx = await readJsonHeld(fileId);
     if(!idx || !Array.isArray(idx.cases) || !Array.isArray(idx.keys)) return (labCasesCache = null);
     /* THE INDEX IS ENOUGH (4.15). It used to list labcases/ to prove the
        index matched the folder - a Drive listing of every case, seconds
@@ -2888,7 +3058,7 @@ async function loadSettingsListD(fileName){
     if(!settingsId) return [];
     const fileId = await driveFindChild(settingsId, fileName, false);
     if(!fileId) return [];
-    const l = await driveReadJson(fileId);
+    const l = await readJsonHeld(fileId);
     return Array.isArray(l) ? l : [];
   }catch(err){
     if(err && err.name === 'TokenExpiredError') throw err;
@@ -2999,31 +3169,12 @@ const PT_CACHE_PREFIX = 'echoAdmin_pt_';
 const PT_STALE_MS = 10 * 60 * 1000;
 const ptRefreshed = {};
 async function deviceCached(name, fetcher){
-  const key = PT_CACHE_PREFIX + name;
-  const held = cacheRead(key);
-  if(held !== null && held !== undefined){
-    const last = Number(localStorage.getItem(key + ':at') || 0);
-    const stale = !last || (Date.now() - last) > PT_STALE_MS;
-    /* Answer now. Catch up behind only if the copy has had time to go out of
-       date, and only once per name per session. */
-    if(stale && !ptRefreshed[name]){
-      ptRefreshed[name] = true;
-      setTimeout(() => {
-        Promise.resolve(fetcher()).then(fresh => {
-          if(fresh === null || fresh === undefined) return;
-          try{ localStorage.setItem(key + ':at', String(Date.now())); }catch(e){}
-          if(JSON.stringify(fresh) !== JSON.stringify(held)){ cacheWrite(key, fresh); repaint(); }
-        }).catch(() => {});
-      }, 0);
-    }
-    return held;
-  }
-  const fresh = await fetcher();
-  if(fresh !== null && fresh !== undefined){
-    cacheWrite(key, fresh);
-    try{ localStorage.setItem(key + ':at', String(Date.now())); }catch(e){}
-  }
-  return fresh;
+  /* WAS: its own copy in browser storage with a stale check on top. That copy
+     stopped being written the moment the bills index filled the 5 MB budget,
+     so it answered nothing and every caller went to the relay. The read
+     underneath is answered from the phone now (readJsonHeld) and checked
+     behind, so this is just the fetcher (4.28). */
+  return await fetcher();
 }
 /* A Set does not survive a round trip through storage, so it is kept as a
    list and rebuilt on the way out. */
@@ -3313,7 +3464,7 @@ async function loadSettingsMap(fileName, state){
     if(!settingsId) return {};
     const fileId = await driveFindChild(settingsId, fileName, false);
     if(!fileId) return {};
-    const m = await driveReadJson(fileId);
+    const m = await readJsonHeld(fileId);
     return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
   }catch(err){
     if(err && err.name === 'TokenExpiredError') throw err;
@@ -3501,7 +3652,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.27';
+const ADMIN_VERSION = '4.28';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -4445,9 +4596,54 @@ async function renderBilling(){
 /* What one bill is made of. The index already carries the lines, so this
    costs no extra read — it was simply never shown. */
 let openBill = null;
+/* THE LINES COME WHEN THE ROW IS OPENED (4.28). The index is fetched slim -
+   without any bill's lines - because on a clinic-sized folder those lines
+   were most of the weight of the single largest thing this phone reads, and
+   they are looked at one bill at a time. Tapping a row asks the relay for
+   that one bill; it is kept for the rest of the session. */
+const billLineStore = {};
+const billLineBusy = {};
+function billNumberOf(b){ return String((b && (b.billNumber || b.billNo || b.id)) || ''); }
+function billLinesOf(b){
+  const own = (b && (b.items || b.lines));
+  if(Array.isArray(own) && own.length) return own;
+  const n = billNumberOf(b);
+  const got = n && billLineStore[n];
+  return (got && (got.items || got.lines)) || null;
+}
+async function fetchBillLines(number){
+  if(!number || billLineStore[number] || billLineBusy[number]) return;
+  billLineBusy[number] = true;
+  try{
+    const r = await batchAsk({ t: 'bill', n: number }, 'bill/' + number);
+    billLineStore[number] = (r && r.value) || { items: [] };
+  }catch(e){
+    /* A RELAY OLDER THAN r4.1 does not know how to hand over one bill - and
+       it also ignores the slim flag, so the index it sent has the lines in
+       it. Read it whole, once, and take every bill's lines from that. The
+       phone then behaves exactly as it did before, only heavier, until the
+       relay is updated. */
+    try{
+      const settingsId = await getSettingsFolderId();
+      const fileId = settingsId ? await driveFindChild(settingsId, 'bills-index.json', false) : null;
+      const idx = fileId ? await driveReadJson(fileId) : null;
+      const bills = (idx && idx.bills) || [];
+      bills.forEach(b => { const n2 = billNumberOf(b); if(n2 && !billLineStore[n2]) billLineStore[n2] = b; });
+      if(!billLineStore[number]) billLineStore[number] = null;
+    }catch(e2){ billLineStore[number] = null; }
+  }
+  billLineBusy[number] = false;
+  renderBilling();
+}
 function toggleBill(k){ openBill = (openBill === k) ? null : k; renderBilling(); }
 function billLinesHtml(b){
-  const items = (b.items || b.lines || []).filter(Boolean);
+  const known = billLinesOf(b);
+  const n = billNumberOf(b);
+  if(!known && n && !(n in billLineStore)){
+    fetchBillLines(n);
+    return '<div class="pt-body bill-body"><div class="muted" style="font-size:0.84rem;">Reading the lines\u2026</div></div>';
+  }
+  const items = (known || []).filter(Boolean);
   const money = n => fmtINR(Number(n) || 0);
   let h = '<div class="pt-body bill-body">';
   if(items.length){
@@ -5076,6 +5272,17 @@ async function boot(){
     openPt(pid);
   };
   paintLock(); paintTabs();
+  /* ONCE, ON THE WAY UP (4.28): the copies that used to live in browser
+     storage are in IndexedDB now, and the old ones were filling the 5 MB
+     budget that everything else needed. */
+  try{
+    const doomed = ['echoAdmin_bills', 'echoAdmin_entries'];
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.indexOf(PT_CACHE_PREFIX) === 0) doomed.push(k);
+    }
+    doomed.forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+  }catch(e){}
   await Cal.hydrate();
   await Cal.bkLoad();
   setTab('calendar');
