@@ -1666,10 +1666,28 @@ function slipHtml(rec, title){
    rule the rest of this app keeps, because a button that cannot work is
    worse than no button. */
 function waDigits(e164){ return String(e164 || '').replace(/\D/g, ''); }
-function waNumberOf(pid){
-  if(!conReady) return '';            // on its way; no button that cannot work
+/* ==== TWO NUMBERS, TWO BUTTONS (owner's call, 4.30) ====
+
+   Some patients give one number to be called on and another that has
+   WhatsApp on it. The desk ticks which is which in Nexus; both apps read
+   that tick rather than guessing, so Call rings the number they answer and
+   WhatsApp opens the chat that exists.
+
+   No tick - which is nearly everybody - and both buttons use the primary,
+   exactly as before. */
+function liveNumbers(pid){
+  if(!conReady) return [];            // on its way; no button that cannot work
   const rec = (S(CONTACTS) || {})[String(pid)];
-  const list = (rec && Array.isArray(rec.numbers)) ? rec.numbers.filter(n => n && !n.struckAt) : [];
+  return (rec && Array.isArray(rec.numbers)) ? rec.numbers.filter(n => n && !n.struckAt) : [];
+}
+function waNumberOf(pid){
+  const list = liveNumbers(pid);
+  const pick = list.find(n => n && n.wa === true) || list.find(n => n && n.primary) || list[0] || null;
+  return pick ? waDigits(pick.e164) : '';
+}
+/* The one to ring is the primary, whatever carries WhatsApp. */
+function callNumberOf(pid){
+  const list = liveNumbers(pid);
   const pick = list.find(n => n && n.primary) || list[0] || null;
   return pick ? waDigits(pick.e164) : '';
 }
@@ -1726,7 +1744,7 @@ function callBtnFor(d, cls){
   return '<a class="' + (cls || 'call-btn') + '" href="' + telHref(d) + '">'
     + CALL_ICON + '<span>Call</span></a>';
 }
-function callBtnHtml(pid, cls){ return callBtnFor(waNumberOf(pid), cls); }
+function callBtnHtml(pid, cls){ return callBtnFor(callNumberOf(pid), cls); }
 
 
 /* HISTORY 1: month headings, a timeline, a dot coloured by how recent. The
@@ -3693,7 +3711,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.29';
+const ADMIN_VERSION = '4.30';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -5187,8 +5205,13 @@ async function renderPtRecord(body, pid){
       + (phone ? '<a class="ptr-tel" href="tel:' + escapeHtml(phone) + '">'
                  + ICON.tel + escapeHtml(fmtPhoneMobile(phone))
                  + (phoneRec.label ? ' <span class="ptr-tellabel">' + escapeHtml(phoneRec.label) + '</span>' : '')
-                 + '</a><div class="ptr-acts">' + Cal.callBtnFor(phone, 'call-chip')
-                 + Cal.waBtnFor(phone, 'wa-chip') + '</div>'
+                 /* BY PATIENT, NOT BY THE NUMBER ON THIS LINE (4.30). The
+                    line shows the primary - the one to ring - and WhatsApp
+                    may be on a different number entirely. Asking by patient
+                    is what reads the desk's tick; passing this number would
+                    have quietly overruled it here and nowhere else. */
+                 + '</a><div class="ptr-acts">' + Cal.callBtnHtml(P, 'call-chip')
+                 + Cal.waBtnHtml(P, 'wa-chip') + '</div>'
                : '<div class="ptr-nonum">No number on file</div>')
       + (chips.length ? '<div class="ptr-chips">' + chips.map(c =>
             '<span class="ptr-chip ptr-' + c[0] + '">' + escapeHtml(c[1]) + '</span>').join('') + '</div>' : '')
