@@ -544,6 +544,22 @@ body{ background:#FDFAF4 !important; }
 .ka-card.is-rough{ opacity:0.6; }
 .ka-card.is-struck{ opacity:0.72; }
 .ka-card.is-struck .ka-name{ text-decoration:line-through; }
+/* THE DESK'S CHIP, ON A PHONE (4.33). The card takes the doctor's pale fill
+   and their darkest shade down the edge, which is exactly how the diary
+   draws them on the clinic screen - so a colour learned on one is the same
+   colour on the other. Status moved to the pill, where it reads as a word
+   rather than as a second colour competing with the doctor's. */
+.ka-card{ background:var(--kbg,#fff); border:1px solid var(--kbd,transparent); }
+.ka-band{ background:var(--kdk,#B4B2A9); }
+.ka-when{ color:var(--kdk,#8A5F26); }
+.ka-doc{ background:rgba(255,255,255,0.72); border:1px solid var(--kbd,#E0D6C2);
+  color:var(--kdk,#6B5A45); border-radius:6px; padding:1px 7px; }
+.ka-new{ font-size:0.58rem; font-weight:800; letter-spacing:0.08em; color:#6B5320;
+  background:#F7E9BF; border:1px solid #E3CE96; border-radius:4px; padding:1px 5px;
+  margin-left:6px; vertical-align:2px; }
+.ka-came{ font-size:0.82rem; font-weight:800; color:#3B6D11; margin-left:5px; }
+.ka-card.is-rough .ka-band{ background:repeating-linear-gradient(180deg,
+  var(--kdk,#B4B2A9) 0 5px, transparent 5px 10px); }
 /* drawer 2: the printed slip */
 .dr-head{ align-items:flex-start !important; }
 .dr-sub{ display:block; font-size:0.76rem; color:var(--muted); margin-top:2px; }
@@ -1415,12 +1431,76 @@ function ageSexOf(pid){
   const sx = rec.sex ? String(rec.sex).trim()[0].toUpperCase() : '';
   return [age, (sx === 'M' || sx === 'F') ? sx : ''].filter(Boolean).join('/');
 }
-const DOC_COLORS = ['#C0533C','#3E7D5A','#3D5FA6','#7B4FA6','#B4802C','#2C8484','#A63D6F','#7A7F2C','#4C57A8','#A64D4D','#2C7BA6','#8A5F2C'];
-function doctorColor(name){
-  if(!name || name === 'NEW') return '#B4B2A9';
+/* ==== THE DESK'S OWN PALETTE, ENTIRE (4.33) ====================
+
+   The phone used to hold twelve flat colours - the first twelve of the
+   desk's list at full strength, and nothing else. Two consequences, both
+   visible: a doctor on the desk's thirteenth colour or later came out GREY
+   here, and a card could only ever be a dot of the right hue beside a white
+   box, while the desk draws the whole chip in that doctor's pale fill with
+   their darkest shade down its edge.
+
+   This is that list, whole - all twenty-three, then slate and charcoal,
+   each with the four shades the desk uses. Indices match the desk's exactly - a stored
+   colorIdx means the same thing on both - and a negative index reads from
+   the extras, as it does there. */
+const DOC_TONES = [
+  { bg:'#FDEDEA', border:'#E8A798', active:'#C0533C', text:'#7A3222' },
+  { bg:'#EAF3EC', border:'#8FBF9F', active:'#3E7D5A', text:'#245C3E' },
+  { bg:'#EAF0FB', border:'#9DB9E8', active:'#3D5FA6', text:'#233F73' },
+  { bg:'#F5EEFB', border:'#C7A8E8', active:'#7B4FA6', text:'#4E2E73' },
+  { bg:'#FDF3E4', border:'#E8C98F', active:'#B4802C', text:'#7A521A' },
+  { bg:'#EAF6F6', border:'#8FCBCB', active:'#2C8484', text:'#1A5252' },
+  { bg:'#FBEAF1', border:'#E89DBE', active:'#A63D6F', text:'#732345' },
+  { bg:'#F0F1E4', border:'#C4C88F', active:'#7A7F2C', text:'#52551A' },
+  { bg:'#EEF0FC', border:'#B0B7EA', active:'#4C57A8', text:'#2C3470' },
+  { bg:'#FBEEEE', border:'#E0A8A8', active:'#A64D4D', text:'#732E2E' },
+  { bg:'#EAF5FB', border:'#8FC4E0', active:'#2C7BA6', text:'#1A4E6A' },
+  { bg:'#F6F0E9', border:'#D0B48F', active:'#8A5F2C', text:'#5A3E17' },
+  { bg:'#F0FBEA', border:'#B0D98F', active:'#5E8A2C', text:'#3D5A1A' },
+  { bg:'#FCEEF7', border:'#E0A8D2', active:'#A64D89', text:'#732E5D' },
+  { bg:'#E9F7F0', border:'#8FD9B4', active:'#2C8A5E', text:'#1A5A3D' },
+  { bg:'#F7F0FC', border:'#D2A8E0', active:'#894DA6', text:'#5D2E73' },
+  { bg:'#EDF1F5', border:'#A3B6C7', active:'#4E6E87', text:'#3A5266' },
+  { bg:'#E8F5F2', border:'#96CFC3', active:'#2E8C7C', text:'#1E6659' },
+  { bg:'#EDF2EB', border:'#A8C2A2', active:'#3F6B3A', text:'#2E5229' },
+  { bg:'#FAEEEB', border:'#DCA89B', active:'#8C3F33', text:'#6B2E22' },
+  { bg:'#F4EEF7', border:'#C2A8CF', active:'#6B3F80', text:'#4F2E61' },
+  { bg:'#F5F1E6', border:'#CFC096', active:'#8A7038', text:'#5E4D1F' },
+  { bg:'#F9EDF2', border:'#D9A8BC', active:'#8C3F5E', text:'#6B2A45' }
+];
+const DOC_EXTRA_TONES = [
+  { bg:'#F2F3F5', border:'#BCC0C7', active:'#6E737C', text:'#4A4E55' },   // slate    (-1),
+  { bg:'#CFCCC5', border:'#6E6C67', active:'#55534E', text:'#2B2A27' }    // charcoal (-2)
+];
+/* Nobody assigned: the desk's mint, which is what an unassigned chip wears
+   there until Settings says otherwise. */
+const DOC_NONE_TONE = { bg:'#E9F7F0', border:'#8FD9B4', active:'#2C8A5E', text:'#1A5A3D' };
+function toneAt(idx){
+  const i = Number(idx);
+  if(!Number.isFinite(i)) return null;
+  if(i < 0) return DOC_EXTRA_TONES[Math.abs(i) - 1] || null;
+  return DOC_TONES[i] || null;
+}
+function doctorTone(name){
+  if(!name || name === 'NEW') return DOC_NONE_TONE;
   const list = S('doctors.json') || [];
   const d = (Array.isArray(list) ? list : []).find(x => x && (x.name === name || x === name));
-  return (d && typeof d.colorIdx === 'number' && DOC_COLORS[d.colorIdx]) || '#B4B2A9';
+  return (d && toneAt(d.colorIdx)) || DOC_NONE_TONE;
+}
+/* The single colour the dots and the booking buttons still want. */
+function doctorColor(name){ return doctorTone(name).active; }
+/* WHO BECAME A PATIENT TODAY (4.33). The desk marks them NEW from its own
+   registration stamps; the relay sends the same answer as a short list of
+   ids (r4.2), so neither phone has to carry the whole file to draw a badge.
+   An older relay simply sends nothing and no badge is drawn. */
+function newTodayIds(){
+  const v = S('newToday');
+  return Array.isArray(v) ? v : [];
+}
+function isNewToday(pid){
+  if(!pid) return false;
+  return newTodayIds().indexOf(String(pid)) !== -1;
 }
 function doctorLabel(name){ return !name ? '' : (name === 'NEW' ? 'doctor not assigned' : name); }
 
@@ -1619,8 +1699,9 @@ function rowHtml(r, day){
   if(r.kind === 'walkin') when = 'walk-in' + (Number.isFinite(r.mins) ? ' \u00b7 ' + clock(r.mins) : '');
   else if(Number.isFinite(r.mins)) when = clock(r.mins) + (r.len && !r.rough ? ' \u2013 ' + clock(r.mins + r.len) : '');
   else when = 'any time';
+  const tone = doctorTone(r.doctor);
   const meta = [
-    '<span><i style="background:' + doctorColor(r.doctor) + ';"></i>' + escapeHtml(doctorLabel(r.doctor) || (r.rough ? 'rough slot' : 'no doctor yet')) + '</span>',
+    '<span class="ka-doc">' + escapeHtml(doctorLabel(r.doctor) || (r.rough ? 'rough slot' : 'no doctor yet')) + '</span>',
     r.reason ? '<span>' + escapeHtml(r.reason) + '</span>' : '',
     rxN ? '<span class="ka-rx">\u211e ' + rxN + '</span>' : ''
   ].filter(Boolean).join('');
@@ -1631,16 +1712,25 @@ function rowHtml(r, day){
        reads the day's own file, and this is not in it yet - tapping would
        open an empty drawer, or worse offer to change something that is not
        there. It appears in its place on the diary and says what it is. */
-    + (r.notFiled ? '' : ' onclick="Cal.openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')"') + '>'
-    + '<div class="ka-band" style="background:' + (BAND[r.status] || BAND.booked) + ';"></div>'
+    + (r.notFiled ? '' : ' onclick="openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')"')
+    /* THE DOCTOR'S COLOURS, carried as variables so one rule draws the fill,
+       the edge and the time in the right shades of the same hue. */
+    + ' style="--kbg:' + tone.bg + '; --kbd:' + tone.border + '; --kdk:' + tone.text + ';">'
+    + '<div class="ka-band"></div>'
     + '<div class="ka-in">'
-      + '<div class="ka-top"><span class="ka-when ' + chip[1] + '-t">' + escapeHtml(when) + '</span><span>'
+      + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span><span>'
         + (r.pending
             ? '<span class="ka-pend">\u23F3 ' + (r.notFiled ? 'Not at the desk yet'
                 : (r.sent ? 'Sent to desk' : 'Waiting for signal')) + '</span>'
             : '<span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>')
       + '</span></div>'
-      + '<div class="ka-name">' + escapeHtml(r.name) + (as ? ' <span>' + escapeHtml(as) + '</span>' : '') + '</div>'
+      /* THE TWO MARKS THE DIARY CARRIES (4.33): new to the clinic, and
+         already came in. A rough slot gets neither - it names nobody who
+         could be registered, and nobody walks into one. */
+      + '<div class="ka-name">' + escapeHtml(r.name) + (as ? ' <span>' + escapeHtml(as) + '</span>' : '')
+        + (!r.rough && isNewToday(r.patientId) ? '<span class="ka-new">NEW</span>' : '')
+        + ((r.status === 'done' || r.status === 'came') ? '<span class="ka-came" title="Came in">\u2713</span>' : '')
+      + '</div>'
       + '<div class="ka-meta">' + meta + '</div>'
     + '</div></div>';
 }
@@ -3805,7 +3895,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.32';
+const ADMIN_VERSION = '4.33';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
