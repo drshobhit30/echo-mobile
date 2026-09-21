@@ -308,6 +308,16 @@ body{ padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
 .kv-d b{ width:32px; height:32px; line-height:32px; border-radius:50%; font-size:0.98rem; font-weight:600; }
 .kv-d.is-today b{ box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.8); }
 .kv-d.sel b{ background:#fff; color:#6E4A1C; box-shadow:none; }
+/* HOW BUSY, AND WHETHER OPEN (4.34). Pale on purpose: these sit on the brown
+   band in lite and on cream in admin, and one set of colours has to read on
+   both. */
+.kv-mk{ height:7px; display:flex; align-items:center; justify-content:center; gap:2px; }
+.kv-n{ display:inline-block; width:4px; height:4px; border-radius:50%; background:#B0D98F; }
+.kv-n2{ background:#E8C98F; box-shadow:6px 0 0 #E8C98F; margin-right:6px; }
+.kv-n3{ background:#E8A798; box-shadow:6px 0 0 #E8A798, 12px 0 0 #E8A798; margin-right:12px; }
+.kv-x{ font-size:0.62rem; font-weight:800; font-style:normal; color:#E8A798; line-height:1; }
+.row-num.is-hit b{ background:#F7E9BF; border-radius:3px; padding:0 1px; color:#4A3B28; }
+.row-num2{ font-size:0.66rem; color:var(--muted); margin-left:6px; }
 .cal-sched-head{ display:flex; justify-content:space-between; align-items:baseline; margin:2px 2px 8px; }
 #calDayWord{ font-size:0.88rem; color:var(--brown); font-weight:600; }
 .kv-today{ font-size:0.8rem; margin-left:6px; }
@@ -691,8 +701,8 @@ body{ background:#FAF7F2 !important; }
       <div id="calList"></div>
     </div>
     <div id="viewPatients" class="hidden">
-      <input type="text" class="search-input" id="patientSearch" placeholder="Search a name or patient ID" oninput="onSearch(this.value)" autocomplete="off" style="margin-top:14px;">
-      <div id="patientList"><div class="empty-state">Type a name or an ID</div></div>
+      <input type="text" class="search-input" id="patientSearch" placeholder="Name, patient ID or phone number" oninput="onSearch(this.value)" autocomplete="off" style="margin-top:14px;">
+      <div id="patientList"><div class="empty-state">Type a name, an ID or a phone number</div></div>
     </div>
   </div>
 </div>
@@ -724,7 +734,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.33';
+const LITE_VERSION = '4.34';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1809,6 +1819,45 @@ function setStatusFilter(k){ statusFilter = (statusFilter === k) ? '' : k; rende
    Intl.DateTimeFormat does the same job in a fortieth of the time. */
 const FMT_WEEKDAY = new Intl.DateTimeFormat('en-IN', { weekday: 'short' });
 const FMT_MONTH_YEAR = new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric' });
+
+/* ==== HOW BUSY A DAY IS, BEFORE YOU TAP IT (owner's call, 4.34) =========
+
+   The strip carried dates and nothing else, so finding the quiet afternoon
+   somebody is asking for meant tapping through days one at a time. The app
+   already holds a fortnight either side; this says what it holds - a dot
+   per few bookings - and nothing at all for a day it has not been given,
+   which is honest and is why there is no guessing here.
+
+   AND A CLOSED DAY IS CROSSED. The closures file is downloaded at opening
+   and was only ever drawn on the day you were already looking at, which is
+   one day too late to stop a booking being made into it. */
+function stripDayMark(d){
+  /* A doctor being away is not the clinic being shut: the diary still takes
+     bookings, so it must not read as closed here. */
+  const shut = blocksOn(d).some(b => b && b.allDay && b.kind !== 'leave');
+  if(shut) return '<i class="kv-x" title="Clinic closed">\u00d7</i>';
+  const held = mem.days[d];
+  if(!held) return '';                       // not on this phone: say nothing
+  const n = (held.appointments || []).filter(a =>
+    a && !a.rough && (a.status || 'scheduled') !== 'cancelled').length;
+  if(!n) return '';
+  return '<i class="kv-n kv-n' + (n <= 4 ? 1 : n <= 8 ? 2 : 3) + '" title="'
+    + n + (n === 1 ? ' booked' : ' booked') + '"></i>';
+}
+/* Written into a holder made once, and only when it has changed - this runs
+   on every repaint and the strip is two hundred buttons wide. */
+function paintStripMarks(){
+  const el = document.getElementById('calStrip');
+  if(!el) return;
+  const list = el.querySelectorAll('.kv-d');
+  for(let i = 0; i < list.length; i++){
+    const b = list[i];
+    const holder = b.lastElementChild;
+    if(!holder || holder.className !== 'kv-mk') continue;
+    const want = stripDayMark(b.getAttribute('data-d'));
+    if(holder.innerHTML !== want) holder.innerHTML = want;
+  }
+}
 function buildStrip(centerDay){
   const el = document.getElementById('calStrip');
   if(!el) return;
@@ -1818,9 +1867,11 @@ function buildStrip(centerDay){
   for(let d = stripFrom; d <= stripTo; d = addDays(d, 1)){
     const dt = dateOf(d);
     h += '<button type="button" class="kv-d' + (d === today ? ' is-today' : '') + '" data-d="' + d + '" onclick="goDay(' + jsArg(d) + ')">'
-      + '<span>' + FMT_WEEKDAY.format(dt) + '</span><b>' + dt.getDate() + '</b></button>';
+      + '<span>' + FMT_WEEKDAY.format(dt) + '</span><b>' + dt.getDate() + '</b>'
+      + '<span class="kv-mk"></span></button>';
   }
   el.innerHTML = h;
+  paintStripMarks();
   markStrip(false);
 }
 function markStrip(smooth){
@@ -1853,6 +1904,7 @@ function renderCalendar(){
      still happens - at the next frame, where it belongs, with the tap
      already answered. */
   if(typeof requestAnimationFrame === 'function') requestAnimationFrame(paintMonth); else paintMonth();
+  paintStripMarks();
   const all = rowsFor(viewDay);
   const people = (all || []).filter(r => r.kind === 'appt' || r.kind === 'walkin');
   document.getElementById('calTotal').textContent = String(people.filter(r => r.kind === 'appt' && !r.rough).length);
@@ -2277,15 +2329,85 @@ function onSearch(v){ patientQuery = String(v || '').trim(); selectedPatient = n
 function openPatient(pid){ selectedPatient = String(pid); prevOpen = null; renderPatients(); }
 function backToSearch(){ selectedPatient = null; renderPatients(); }
 function togglePatientRx(i){ prevOpen = (prevOpen === i ? -1 : i); renderPatients(); }
-function ptRowHtml(pid, name){
+
+/* ==== FINDING SOMEBODY BY THE NUMBER THEY RANG FROM (owner's call, 4.34) ==
+
+   The list searched names and patient IDs. The phone rings, the screen shows
+   ten digits and no name, and the one thing that cannot be typed is the one
+   thing you have.
+
+   The numbers are already on this phone - the full contacts file lands at
+   idle, for the call buttons - so this costs one pass over it, once, the
+   first time digits are typed. Nothing new is downloaded and nothing is
+   built at opening. While the file is still on its way the digits search
+   IDs alone, which is what they did before. */
+let numIdx = null;
+function buildNumberIndex(){
+  const all = S(CONTACTS) || {};
+  const out = [];
+  Object.keys(all).forEach(pid => {
+    const rec = all[pid];
+    const nums = (rec && Array.isArray(rec.numbers)) ? rec.numbers : [];
+    let joined = '';
+    nums.forEach(n => { if(n && !n.struckAt) joined += waDigits(n.e164) + ' '; });
+    if(joined) out.push([String(pid), joined]);
+  });
+  numIdx = out;
+}
+function numberHits(digits){
+  if(!conReady) return [];
+  if(!numIdx) buildNumberIndex();
+  const out = [];
+  for(let i = 0; i < numIdx.length; i++){
+    if(numIdx[i][1].indexOf(digits) !== -1) out.push(numIdx[i][0]);
+  }
+  return out;
+}
+/* Which of this patient's numbers actually matched, so the row can show
+   THAT one rather than the primary - the whole point is to recognise the
+   number on the screen. */
+function matchedNumber(pid, digits){
+  const list = liveNumbers(pid);
+  for(let i = 0; i < list.length; i++){
+    const d = waDigits(list[i].e164);
+    if(d.indexOf(digits) !== -1) return { d: d, primary: !!list[i].primary, label: list[i].label || '' };
+  }
+  return null;
+}
+/* The matched run, in bold, inside the spaced-out number. */
+function markDigits(text, digits){
+  const start = String(text).replace(/\D/g, '').indexOf(digits);
+  if(start < 0) return escapeHtml(text);
+  let out = '', seen = -1, on = false;
+  for(let i = 0; i < text.length; i++){
+    const ch = text.charAt(i);
+    const isD = ch >= '0' && ch <= '9';
+    if(isD) seen++;
+    const want = isD && seen >= start && seen < start + digits.length;
+    if(want && !on){ out += '<b>'; on = true; }
+    else if(!want && on){ out += '</b>'; on = false; }
+    out += escapeHtml(ch);
+  }
+  return out + (on ? '</b>' : '');
+}
+function isDigitQuery(q){ return /^[0-9]{3,}$/.test(q); }
+function ptRowHtml(pid, name, hit){
   const as = ageSexOf(pid);
   /* The number the desk would ring, on the line under the name (4.31): the
      list is how most people are looked up, and it took two taps to see one. */
-  const num = primaryNumText(pid);
+  /* THE NUMBER THAT MATCHED, not the primary (4.34): a search for a number
+     answers with the number searched for, or it has not answered. */
+  const m = hit ? matchedNumber(pid, hit) : null;
+  const num = m ? fmtNum(m.d) : primaryNumText(pid);
+  const shown = num
+    ? '<span class="row-num' + (m ? ' is-hit' : '') + '">'
+      + (m ? markDigits(num, hit) : escapeHtml(num)) + '</span>'
+      + (m && !m.primary ? '<span class="row-num2">' + escapeHtml(m.label || 'second number') + '</span>' : '')
+    : '';
   return '<div class="row tappable" onclick="openPatient(' + jsArg(pid) + ')">'
     + '<div class="row-head"><div class="row-name">' + escapeHtml(name || 'Unknown patient') + '</div><div class="row-when">&rsaquo;</div></div>'
     + '<div class="row-sub">' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '')
-    + (num ? ' \u00b7 <span class="row-num">' + escapeHtml(num) + '</span>' : '') + '</div></div>';
+    + (shown ? ' \u00b7 ' + shown : '') + '</div></div>';
 }
 function renderPatients(){
   const list = document.getElementById('patientList');
@@ -2313,10 +2435,36 @@ function renderPatients(){
       + nameIdx.slice(0, PT_SHOW).map(r => ptRowHtml(r[0], r[2])).join('')
       + (nameIdx.length > PT_SHOW
           ? '<div class="empty-state">' + (nameIdx.length - PT_SHOW).toLocaleString('en-IN')
-            + ' more \u2014 type a name or an ID to find one</div>' : '');
+            + ' more \u2014 type a name, an ID or a phone number</div>' : '');
     return;
   }
   if(q.length < 2){ list.innerHTML = '<div class="empty-state">One more letter</div>'; return; }
+  /* DIGITS ARE A NUMBER OR AN ID, never a name (4.34). Ids first - five
+     digits typed in full is almost always somebody naming a record - then
+     everyone whose phone carries that run of digits. */
+  if(isDigitQuery(q)){
+    const byId = [], seen = {};
+    for(let i = 0; i < nameIdx.length; i++){
+      if(nameIdx[i][0].indexOf(q) !== -1){ byId.push(nameIdx[i]); seen[nameIdx[i][0]] = 1; }
+    }
+    const byNum = [];
+    numberHits(q).forEach(pid => {
+      if(seen[pid]) return;
+      seen[pid] = 1;
+      byNum.push([pid, '', nameOf(pid) || ('ID ' + pid)]);
+    });
+    const digitHits = byId.concat(byNum);
+    if(!digitHits.length){
+      list.innerHTML = '<div class="empty-state">'
+        + (conReady ? 'No patient and no number with those digits'
+                    : 'No patient with that ID \u2014 still reading the numbers\u2026') + '</div>';
+      return;
+    }
+    list.innerHTML = digitHits.slice(0, PT_SHOW).map(r => ptRowHtml(r[0], r[2], q)).join('')
+      + (digitHits.length > PT_SHOW
+          ? '<div class="empty-state">' + (digitHits.length - PT_SHOW) + ' more \u2014 type a little further</div>' : '');
+    return;
+  }
   const starts = [], holds = [];
   for(let i = 0; i < nameIdx.length; i++){
     const r = nameIdx[i];
