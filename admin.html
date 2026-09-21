@@ -587,6 +587,52 @@ body{ background:#FDFAF4 !important; }
 .sl-mr{ background:#fff; border-top:1px solid #E6F1FB; }
 .sl-mr small{ display:block; font-size:0.68rem; color:var(--muted); }
 .sl-advice{ background:#FAEEDA; color:#633806; border-radius:9px; padding:7px 9px; margin-top:8px; }
+/* ---- what was written, 4.36 ---- */
+.rx-fact{ border-left:3px solid var(--f); padding:1px 0 1px 10px; margin-bottom:13px; }
+.rx-fact:last-child{ margin-bottom:0; }
+.rx-k{ font-size:0.62rem; font-weight:800; letter-spacing:0.11em; text-transform:uppercase;
+  color:#9A8C76; margin-bottom:3px; }
+.rx-v{ font-size:0.95rem; line-height:1.5; color:#241A10; }
+.rx-teeth{ background:#F7E9BF; border-radius:4px; padding:0 4px; font-weight:700; }
+.rx-meds{ font-size:0.8rem; color:#5B4A36; margin-top:6px; background:#F4F7FB;
+  border:1px solid #DCE6F3; border-radius:8px; padding:6px 9px; }
+.rx-meds em{ font-style:normal; color:#9A8C76; margin-left:5px; }
+.sl-nomeds{ font-size:0.8rem; color:#9A8C76; margin-top:10px; }
+.sl-body .rx-fact + .sl-meds{ margin-top:12px; }
+/* ---- the drawer, 4.36 ---- */
+.dr-head{ align-items:flex-start; gap:10px; padding-bottom:12px;
+  border-bottom:1px solid var(--line); margin-bottom:12px; }
+.dr-hl{ flex:1; min-width:0; }
+.dr-name{ font-size:1.22rem; font-weight:700; color:#241A10; line-height:1.15; }
+.dr-cs{ display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
+.dr-c{ font-size:0.72rem; color:#5B4A36; background:#fff; border:1px solid #E5DCCB;
+  border-radius:7px; padding:2px 8px; white-space:nowrap; }
+.dr-doc{ font-weight:600; }
+.dr-card{ background:#fff; border:1px solid #E9DCC6; border-radius:14px;
+  overflow:hidden; margin-bottom:12px; }
+.dr-card-h{ background:#3B2A1A; color:#F5EDE1; padding:9px 13px; display:flex;
+  justify-content:space-between; align-items:baseline; font-size:0.86rem; }
+.dr-card-h span{ color:#C9B79C; font-size:0.78rem; }
+.dr-card-b{ padding:4px 13px 11px; }
+.dr-row{ display:grid; grid-template-columns:92px 1fr; gap:10px; align-items:baseline;
+  padding:9px 0; border-bottom:1px solid #F1EAE0; }
+.dr-row:last-child{ border-bottom:0; }
+.dr-row span{ font-size:0.62rem; font-weight:800; letter-spacing:0.09em;
+  text-transform:uppercase; color:#9A8C76; }
+.dr-row b{ font-size:0.95rem; font-weight:600; color:#241A10; line-height:1.45; }
+.dr-row b i{ font-style:normal; font-weight:400; color:#9A8C76; }
+.dr-act{ background:#fff; border:1px solid #E9DCC6; border-radius:14px;
+  padding:4px 10px 10px; margin-bottom:10px; }
+.dr-act .num-list{ margin:0 0 8px; }
+.dr-two{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+.dr-two .dr-btn, .dr-two .btn{ width:100%; margin-top:0 !important; }
+/* ---- the record's rows, 4.36 ---- */
+.hs-date{ align-items:baseline; }
+.hs-date b{ font-size:0.9rem; }
+.hs-ago{ font-size:0.74rem; color:#9A8C76; }
+.hs-doc{ margin-left:auto; font-size:0.72rem; color:#5B4A36; text-decoration:none;
+  background:#FAF7F0; border:1px solid #EDE5D6; border-radius:6px; padding:1px 7px; }
+.hs-what{ font-size:1rem; line-height:1.4; }
 .sl-struck{ font-size:0.76rem; color:#A32D2D; margin-bottom:6px; }
 .sl.is-struck .sl-body{ opacity:0.7; }
 .dr-btns .dr-btn{ margin-top:0 !important; }
@@ -1577,7 +1623,9 @@ function agoWords(dateStr){
   if(days === 1) return 'yesterday';
   if(days < 7) return days + ' days ago';
   if(days < 14) return 'last week';
-  if(days < 31) return Math.floor(days / 7) + ' weeks ago';
+  /* ROUNDED, NOT FLOORED (4.36). Twenty days read as "2 weeks ago" beside a
+     fourteen-day visit saying the same thing. */
+  if(days < 31) return Math.round(days / 7) + ' weeks ago';
   const months = Math.round(days / 30.4);
   if(months < 12) return months + (months === 1 ? ' month ago' : ' months ago');
   const years = Math.floor(days / 365), rem = Math.round((days - years * 365) / 30.4);
@@ -1753,23 +1801,66 @@ function rowHtml(r, day){
 
 /* THE PRINTED SLIP (drawer option 2). Coloured dots for what was found and
    done, the medicines as a table, advice in its own box. */
+
+/* ==== WHAT WAS WRITTEN, MADE READABLE (owner's call, 4.36) =============
+
+   The slip put the label, a dot and the whole of what was done on one line
+   beside a coloured bullet, at 0.86rem. On a phone that wrapped into a
+   paragraph with a bullet stuck to its first line, and the one thing a
+   dentist actually looks for - which tooth - read as an ordinary word in
+   the middle of it.
+
+   A label above its value, the value given the full width and 1.5 line
+   height, and the tooth marked. */
+function rxTrim(v){ return String(v == null ? '' : v).trim(); }
+/* wrt 36, irt 17, w.r.t 26 27 - the notation the clinic actually writes.
+   Only a run of one and two digit numbers is taken, so "wrt the crown" is
+   left alone rather than bolding a word that is not a tooth. */
+function markTeeth(text){
+  const safe = escapeHtml(String(text || ''));
+  /* (?!\d) so "wrt 3600" is not read as tooth 36 with a stray 00 after it. */
+  return safe.replace(/\b((?:w|i)\.?\s?r\.?\s?t\.?)(\s+\d{1,2}(?!\d)(?:\s*(?:,|and|&|\/)?\s*\d{1,2}(?!\d))*)/gi,
+    function(_, tag, nums){ return '<b class="rx-teeth">' + tag + nums + '</b>'; });
+}
+function rxFactHtml(label, value, tone){
+  const v = rxTrim(value);
+  if(!v) return '';                                  // an empty field is not a line
+  return '<div class="rx-fact" style="--f:' + tone + ';">'
+    + '<div class="rx-k">' + escapeHtml(label) + '</div>'
+    + '<div class="rx-v">' + markTeeth(v) + '</div></div>';
+}
+/* The medicines by name, on the card, instead of a count nobody can act on. */
+function rxMedNames(rec, max){
+  const meds = ((rec && rec.medicines) || []).map(m => m && rxTrim(m.name)).filter(Boolean);
+  if(!meds.length) return '';
+  const keep = meds.slice(0, max || 3);
+  return '<div class="rx-meds">' + escapeHtml(keep.join(', '))
+    + (meds.length > keep.length ? '<em>+' + (meds.length - keep.length) + ' more</em>' : '')
+    + '</div>';
+}
+
 function slipHtml(rec, title){
-  const line = (color, label, v) => v ? '<div class="sl-line"><i style="background:' + color + ';"></i><span><b>' + label + '</b> \u00b7 ' + escapeHtml(v) + '</span></div>' : '';
-  const meds = ((rec && rec.medicines) || []).filter(m => m && m.name);
-  const empty = !meds.length && !rec.treatment && !rec.advice && !rec.complaints && !rec.investigations;
+  const meds = ((rec && rec.medicines) || []).filter(m => m && rxTrim(m.name));
+  const facts = rxFactHtml('Complaint', rec.complaints, '#C0533C')
+    + rxFactHtml('Test', rec.investigations, '#7F77DD')
+    + rxFactHtml('Treatment', rec.treatment, '#1D9E75')
+    + rxFactHtml('Advice', rec.advice, '#B4802C');
   return '<div class="sl' + (rxIsStruck(rec) ? ' is-struck' : '') + '">'
-    + (title ? '<div class="sl-head"><b>' + escapeHtml(title) + '</b><span>' + escapeHtml(rxDayLabel(rec)) + '</span></div>' : '')
+    + (title ? '<div class="sl-head"><b>' + escapeHtml(title) + '</b><span>'
+        + escapeHtml(rxDayLabel(rec)) + '</span></div>' : '')
     + '<div class="sl-body">'
-      + (rxIsStruck(rec) ? '<div class="sl-struck">Struck' + (rec.struckReason ? ' \u00b7 ' + escapeHtml(rec.struckReason) : '') + '</div>' : '')
-      + line('#E24B4A', 'Complaint', rec.complaints)
-      + line('#7F77DD', 'Test', rec.investigations)
-      + line('#1D9E75', 'Treatment', rec.treatment)
+      + (rxIsStruck(rec) ? '<div class="sl-struck">Struck'
+          + (rec.struckReason ? ' \u00b7 ' + escapeHtml(rxTrim(rec.struckReason)) : '') + '</div>' : '')
+      + facts
       + (meds.length ? '<div class="sl-meds"><div class="sl-mh"><span>Medicine</span><span>Dose</span><span>Days</span></div>'
-          + meds.map(m => '<div class="sl-mr"><span>' + escapeHtml(m.name) + (m.food ? '<small>' + escapeHtml(m.food) + ' food</small>' : '') + '</span>'
-            + '<span>' + escapeHtml(m.dose || '\u2014') + '</span><span>' + escapeHtml(String(m.duration || '\u2014').replace(/\s*days?$/i, '')) + '</span></div>').join('')
-          + '</div>' : '')
-      + (rec.advice ? '<div class="sl-advice">\uD83D\uDCA1 ' + escapeHtml(rec.advice) + '</div>' : '')
-      + (empty ? '<div class="muted" style="font-size:0.84rem;">Nothing was written on this one.</div>' : '')
+          + meds.map(m => '<div class="sl-mr"><span>' + escapeHtml(rxTrim(m.name))
+            + (m.food ? '<small>' + escapeHtml(m.food) + ' food</small>' : '') + '</span>'
+            + '<span>' + escapeHtml(rxTrim(m.dose) || '\u2014') + '</span><span>'
+            + escapeHtml(String(rxTrim(m.duration) || '\u2014').replace(/\s*days?$/i, '')) + '</span></div>').join('')
+          + '</div>'
+        : '<div class="sl-nomeds">No medicines written</div>')
+      + (!facts && !meds.length
+          ? '<div class="sl-nomeds">Nothing was written on this one.</div>' : '')
     + '</div></div>';
 }
 
@@ -1976,11 +2067,19 @@ function historyHtml(pid, openIdx, toggleCall, backCall){
     h += '<div class="hs-item' + (open ? ' open' : '') + (rxIsStruck(r) ? ' is-struck' : '') + '">'
       + '<i class="hs-dot" style="background:' + dot + ';"></i>'
       + '<div class="hs-top" onclick="' + toggleCall + '(' + i + ')">'
-        + '<div class="hs-date"><b style="color:' + dot + ';">' + (d ? escapeHtml(shortDate(d)) : '\u2014') + '</b> \u00b7 ' + escapeHtml(agoWords(d))
-          + (r.doctor ? ' \u00b7 ' + escapeHtml(r.doctor) : '') + '<span>' + escapeHtml(rxMedCount(r)) + '</span></div>'
-        + '<div class="hs-what">' + escapeHtml(rxWhat(r)) + '</div>'
+        + '<div class="hs-date"><b style="color:' + dot + ';">' + (d ? escapeHtml(shortDate(d)) : '\u2014') + '</b>'
+          + '<span class="hs-ago">' + escapeHtml(agoWords(d)) + '</span>'
+          + (r.doctor ? '<u class="hs-doc">' + escapeHtml(r.doctor) + '</u>' : '') + '</div>'
+        /* THE TOOTH IS MARKED HERE TOO (4.36) - this line is the one read
+           first, and "irt 17" is the half of it that matters. */
+        + '<div class="hs-what">' + markTeeth(rxWhat(r)) + '</div>'
+        + (open ? '' : rxMedNames(r, 3))
       + '</div>'
-      + (open ? slipHtml(r, '') : '')
+      /* NOT THE TITLE TWICE (4.36). rxWhat is the treatment when there is
+         one, so an open card used to say it again as its first fact. */
+      + (open ? slipHtml(Object.assign({}, r, {
+            treatment: (rxTrim(r.treatment) === rxTrim(rxWhat(r)) ? '' : r.treatment)
+          }), '') : '')
       + '</div>';
   });
   return h + '</div>' + moreBtn;
@@ -2188,12 +2287,23 @@ function openDrawer(day, kind, id){
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
   const as = r.patientId ? ageSexOf(r.patientId) : '';
   const when = r.kind === 'walkin' ? 'walk-in ' + clock(r.mins) : clock(r.mins);
+  /* FACTS AS CHIPS, NOT A RUN OF DOTS (4.36). Id, age, doctor and time were
+     one grey line with four separators in it; each is its own thing to find,
+     and the doctor keeps the colour the diary gave them. */
+  const tone = doctorTone(r.doctor);
+  const bit = (t, cls, style) => t ? '<span class="dr-c' + (cls ? ' ' + cls : '') + '"'
+    + (style ? ' style="' + style + '"' : '') + '>' + escapeHtml(t) + '</span>' : '';
   let h = '<div class="dr-grip"></div>'
-    + '<div class="dr-head"><div><b>' + escapeHtml(r.name) + '</b>'
-      + '<span class="dr-sub">' + escapeHtml([r.patientId ? String(r.patientId) : '', as].filter(Boolean).join(' \u00b7 ')) + (r.patientId ? ' \u00b7 ' : '')
-      + '<i style="background:' + doctorColor(r.doctor) + ';"></i>' + escapeHtml([doctorLabel(r.doctor), when].filter(Boolean).join(' \u00b7 ')) + '</span></div>'
-      + '<span class="dr-headr"><span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>'
-      + '<button type="button" class="dr-x" onclick="Cal.closeDrawer()" aria-label="Close">\u2715</button></span></div>';
+    + '<div class="dr-head"><div class="dr-hl"><div class="dr-name">' + escapeHtml(r.name) + '</div>'
+      + '<div class="dr-cs">'
+      +   bit(r.patientId ? String(r.patientId) : '')
+      +   bit(as)
+      +   bit(doctorLabel(r.doctor), 'dr-doc', 'color:' + tone.text + '; background:' + tone.bg
+            + '; border-color:' + tone.border + ';')
+      +   bit(when)
+      + '</div></div>'
+      + '<div class="dr-headr"><span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>'
+      + '<button type="button" class="dr-x" onclick="Cal.closeDrawer()" aria-label="Close">\u2715</button></div></div>';
   if(r.visitId){
     /* If the list has not been read from the store yet, read it and draw this
        drawer again - the slip is the one thing here that needs it. */
@@ -2204,24 +2314,34 @@ function openDrawer(day, kind, id){
       : '<div class="sl"><div class="sl-head"><b>' + title + '</b><span>' + escapeHtml(shortDate(day, true)) + '</span></div><div class="sl-body"><div class="muted">'
         + (rxReady ? 'None written' : 'Reading\u2026') + '</div></div></div>';
   } else {
-    const row = (k, v) => v ? '<div class="dr-kv"><span>' + k + '</span><span>' + escapeHtml(v) + '</span></div>' : '';
-    h += '<div class="dr-kvs">'
-      + row('When', [dayTitle(day), Number.isFinite(r.mins) ? clock(r.mins) : '', r.len ? r.len + ' min' : ''].filter(Boolean).join(' \u00b7 '))
-      + row('Doctor', doctorLabel(r.doctor))
-      + row('For', r.reason)
-      + row('Booked', r.bookedAt ? shortDate(String(r.bookedAt).slice(0, 10)) : '')
-      + '</div>';
+    /* ONLY WHAT THE HEADER DOES NOT SAY (4.36). Doctor and the start time
+       are chips two lines above; repeating them here was half the table. */
+    const row = (k, v) => v ? '<div class="dr-row"><span>' + escapeHtml(k) + '</span><b>' + v + '</b></div>' : '';
+    const ends = (Number.isFinite(r.mins) && r.len) ? clock(r.mins + r.len) : '';
+    const bookedOn = r.bookedAt ? String(r.bookedAt).slice(0, 10) : '';
+    h += '<div class="dr-card"><div class="dr-card-h"><b>This appointment</b>'
+      + '<span>' + escapeHtml(r.len ? r.len + ' min' : '') + '</span></div>'
+      + '<div class="dr-card-b">'
+      + row('When', escapeHtml(dayTitle(day))
+          + (Number.isFinite(r.mins) ? '<br>' + escapeHtml(clock(r.mins) + (ends ? ' \u2013 ' + ends : '')) : ''))
+      + row('For', r.reason ? markTeeth(r.reason) : '')
+      + row('Booked on', bookedOn ? escapeHtml(shortDate(bookedOn))
+          + (agoWords(bookedOn) ? ' <i>\u00b7 ' + escapeHtml(agoWords(bookedOn)) + '</i>' : '') : '')
+      + '</div></div>';
   }
   if(r.patientId && hooks.adminOn() && r.visitId){
     h += '<div class="dr-pair"><div class="dr-panel" id="drBill"><div class="rxs-k">Bill ' + (day === todayStr() ? 'today' : 'that day') + '</div><div class="muted">Reading\u2026</div></div>'
       + '<div class="dr-panel" id="drPending"><div class="rxs-k">Pending</div><div class="muted">Reading\u2026</div></div></div>';
   }
   if(r.patientId){
-    h += '<div class="dr-btns"><button type="button" class="btn ghost dr-btn" onclick="Cal.openPrevRx(' + jsArg(r.patientId) + ')">\uD83D\uDCDC Previous \u211e</button>'
+    /* THE NUMBER SITS WITH THE BUTTONS THAT USE IT (4.36) - it was a box of
+       its own under them, which read as a third thing rather than as what
+       Call and WhatsApp are about to dial. */
+    h += '<div class="dr-act">' + numListHtml(r.patientId)
+      + '<div class="dr-two">' + callBtnHtml(r.patientId) + waBtnHtml(r.patientId) + '</div></div>'
+      + '<div class="dr-two"><button type="button" class="btn ghost dr-btn" onclick="Cal.openPrevRx(' + jsArg(r.patientId) + ')">\uD83D\uDCDC Previous \u211e</button>'
       + (hooks.adminOn() ? '<button type="button" class="btn ghost dr-btn" onclick="Cal.fullHistory(' + jsArg(r.patientId) + ')">\uD83D\uDDC2\uFE0F Full history</button>' : '')
-      + callBtnHtml(r.patientId)
-      + waBtnHtml(r.patientId)
-      + '</div>' + numListHtml(r.patientId);
+      + '</div>';
   }
   const sheet = document.getElementById('drawer');
   sheet.innerHTML = h;
@@ -4049,7 +4169,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.35';
+const ADMIN_VERSION = '4.36';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -4601,7 +4721,9 @@ function agoWords(dateStr){
   if(days === 1) return 'yesterday';
   if(days < 7) return days + ' days ago';
   if(days < 14) return 'last week';
-  if(days < 31) return Math.floor(days / 7) + ' weeks ago';
+  /* ROUNDED, NOT FLOORED (4.36). Twenty days read as "2 weeks ago" beside a
+     fourteen-day visit saying the same thing. */
+  if(days < 31) return Math.round(days / 7) + ' weeks ago';
   const months = Math.round(days / 30.4);
   if(months < 12) return months + (months === 1 ? ' month ago' : ' months ago');
   const years = Math.floor(days / 365);
