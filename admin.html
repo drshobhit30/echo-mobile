@@ -1722,7 +1722,13 @@ function rowHtml(r, day){
        reads the day's own file, and this is not in it yet - tapping would
        open an empty drawer, or worse offer to change something that is not
        there. It appears in its place on the diary and says what it is. */
-    + (r.notFiled ? '' : ' onclick="openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')"')
+    /* Cal.openDrawer, NOT openDrawer (4.35). This file keeps the calendar in
+       a module of its own; an inline onclick is read in the page's global
+       scope, where the bare name is nothing at all. 4.33 rewrote this line
+       from lite's copy and took the prefix off with it - every card in the
+       admin diary stopped opening, silently, because a handler that does not
+       exist raises nothing a person can see. */
+    + (r.notFiled ? '' : ' onclick="Cal.openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')"')
     /* THE DOCTOR'S COLOURS, carried as variables so one rule draws the fill,
        the edge and the time in the right shades of the same hue. */
     + ' style="--kbg:' + tone.bg + '; --kbd:' + tone.border + '; --kdk:' + tone.text + ';">'
@@ -4043,7 +4049,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.34';
+const ADMIN_VERSION = '4.35';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
