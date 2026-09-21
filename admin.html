@@ -3234,7 +3234,20 @@ function computeItemTotals(items){
   const t = { cash:0, upi:0, card:0, bank:0 };
   (items||[]).forEach(it=>{
     if(isVoidedItem(it)) return;                       // cancelled — counts as nothing
-    if(it.method === 'refund'){ t.cash -= (Number(it.amount)||0); return; }  // money leaving the drawer
+    /* WHICH BUCKET THE MONEY LEFT FROM (4.32). This said cash, always -
+       the rule the desk itself dropped in v7.96, when a refund could first
+       be paid back by bank transfer. A bank refund taken out of cash leaves
+       the phone's cash figure short by exactly the amount that never left
+       the drawer, and its bank figure high by the same, while the day's
+       total stays right: 07 Sep read -19,480 cash on the phone and 11,850
+       on the desk, both under the same -15,814. An older refund carries no
+       mode at all, and every one of those WAS cash, so a missing mode reads
+       as cash and history stays correct. */
+    if(it.method === 'refund'){
+      const bucket = (it.refundMode === 'bank') ? 'bank' : 'cash';
+      t[bucket] -= (Number(it.amount)||0);
+      return;
+    }
     if(it.method === 'writeoff') return;               // no money changed hands
     if(reversalExcludesFromDayTotals(it)) return;      // reversed same day
     if(Object.prototype.hasOwnProperty.call(t, it.method)) t[it.method] += (Number(it.amount)||0);
@@ -3792,7 +3805,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.31';
+const ADMIN_VERSION = '4.32';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
