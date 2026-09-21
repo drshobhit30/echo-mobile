@@ -572,6 +572,27 @@ body{ background:#FAF7F2 !important; }
   letter-spacing:0.06em; text-transform:uppercase; }
 .call-chip{ padding:6px 11px; font-size:0.82rem; }
 .call-btn:active, .call-chip:active{ transform:translateY(1px); background:#D8E7F7; }
+/* ---- every number on the record (4.31) ----
+   Quieter than the buttons above them: these are for reading and for the
+   second number, not the thing to tap first. */
+.num-list{ margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+.num-line{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; text-decoration:none;
+  background:var(--white); border:1px solid var(--line); border-radius:10px; padding:6px 10px; }
+.num-line:active{ background:#F3EADA; }
+.num-d{ font-size:0.88rem; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:0.01em; }
+.num-tag{ font-size:0.54rem; font-weight:700; letter-spacing:0.09em; padding:2px 6px; border-radius:99px;
+  background:var(--gold-pale); color:var(--gold-deep); }
+.num-tag.num-wa{ background:#1F5D3A; color:#fff; }
+.num-lbl{ font-size:0.72rem; color:var(--muted); }
+.ptr-head .num-line{ background:var(--cream); }
+.row-num{ font-variant-numeric:tabular-nums; }
+/* The history head re-skins every span inside it small and muted - the same
+   trap the chip labels fell into in 4.25. These rules are more specific than
+   that one, so the numbers keep their own size and colour on the band. */
+.hs-head .num-line .num-d{ color:var(--ink) !important; font-size:0.88rem !important; }
+.hs-head .num-line .num-tag{ color:var(--gold-deep) !important; font-size:0.54rem !important; }
+.hs-head .num-line .num-tag.num-wa{ color:#fff !important; }
+.hs-head .num-line .num-lbl{ color:var(--muted) !important; font-size:0.72rem !important; }
 /* Two faults the drawing showed, both older than this button (4.26):
    the history head re-skins every <span> inside it small and muted, which
    caught the chip LABELS and greyed them out - shipped that way in 4.25 with
@@ -687,7 +708,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.30';
+const LITE_VERSION = '4.31';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1549,6 +1570,49 @@ function callBtnFor(d, cls){
 }
 function callBtnHtml(pid, cls){ return callBtnFor(callNumberOf(pid), cls); }
 
+/* ==== EVERY NUMBER ON THE RECORD (owner's call, 4.31) ====
+
+   The two buttons pick one number each and say nothing about the rest. A
+   patient with a second number - the husband's phone, the one that carries
+   WhatsApp, the son's - had it nowhere on these screens, so whoever holds
+   the phone could not read it out or ring the other one. Under the buttons
+   is every live number on the record, each one tappable to dial, marked the
+   way Nexus marks them.
+
+   STRUCK-OFF NUMBERS STAY OUT. They were taken off the record on purpose;
+   the desk's Nexus is where a struck number is read or restored. */
+function fmtNum(e164){
+  const d = waDigits(e164);
+  if(!d) return '';
+  /* Indian bar a handful, and an Indian mobile reads 5 + 5. A foreign number
+     is shown whole rather than split in a place this app cannot know. */
+  if(d.length === 12 && d.slice(0, 2) === '91') return '+91 ' + d.slice(2, 7) + ' ' + d.slice(7);
+  if(d.length === 10) return d.slice(0, 5) + ' ' + d.slice(5);
+  return '+' + d;
+}
+function numListHtml(pid, nums){
+  /* The caller may hand in the numbers it already has - admin's record page
+     reads contacts of its own, and asking this module for a second copy is
+     how the two screens would come to disagree. */
+  const list = Array.isArray(nums) ? nums.filter(n => n && !n.struckAt) : liveNumbers(pid);
+  const rows = list.map(n => {
+    const d = waDigits(n && n.e164);
+    if(!d) return '';
+    return '<a class="num-line" href="' + telHref(d) + '">'
+      + '<span class="num-d">' + escapeHtml(fmtNum(d)) + '</span>'
+      + (n.primary ? '<span class="num-tag">PRIMARY</span>' : '')
+      + (n.wa === true ? '<span class="num-tag num-wa">WHATSAPP</span>' : '')
+      + (n.label ? '<span class="num-lbl">' + escapeHtml(String(n.label)) + '</span>' : '')
+      + '</a>';
+  }).join('');
+  return rows ? '<div class="num-list">' + rows + '</div>' : '';
+}
+/* The one to ring, for the line under a name in the list. */
+function primaryNumText(pid){
+  const d = callNumberOf(pid);
+  return d ? fmtNum(d) : '';
+}
+
 
 /* HISTORY 1: month headings, a timeline, a dot coloured by how recent. The
    newest opens with its slip; any other opens on a tap. No money here, in
@@ -1569,6 +1633,7 @@ function hsHeadHtml(pid, backCall){
     + '</div></div>'
     + (waNumberOf(pid) ? '<div class="hs-wa">' + callBtnHtml(pid, 'call-chip')
         + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
+    + numListHtml(pid)
     + '</div>';
 }
 function historyHtml(pid, openIdx, toggleCall, backCall){
@@ -1806,7 +1871,7 @@ function openDrawer(day, kind, id){
     h += '<div class="dr-btns"><button type="button" class="btn ghost dr-btn" onclick="openPrevRx(' + jsArg(r.patientId) + ')">\uD83D\uDCDC Previous \u211e</button>'
       + callBtnHtml(r.patientId)
       + waBtnHtml(r.patientId)
-      + '</div>';
+      + '</div>' + numListHtml(r.patientId);
   }
   const sheet = document.getElementById('drawer');
   sheet.innerHTML = h;
@@ -2124,9 +2189,13 @@ function backToSearch(){ selectedPatient = null; renderPatients(); }
 function togglePatientRx(i){ prevOpen = (prevOpen === i ? -1 : i); renderPatients(); }
 function ptRowHtml(pid, name){
   const as = ageSexOf(pid);
+  /* The number the desk would ring, on the line under the name (4.31): the
+     list is how most people are looked up, and it took two taps to see one. */
+  const num = primaryNumText(pid);
   return '<div class="row tappable" onclick="openPatient(' + jsArg(pid) + ')">'
     + '<div class="row-head"><div class="row-name">' + escapeHtml(name || 'Unknown patient') + '</div><div class="row-when">&rsaquo;</div></div>'
-    + '<div class="row-sub">' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</div></div>';
+    + '<div class="row-sub">' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '')
+    + (num ? ' \u00b7 <span class="row-num">' + escapeHtml(num) + '</span>' : '') + '</div></div>';
 }
 function renderPatients(){
   const list = document.getElementById('patientList');
@@ -2140,6 +2209,10 @@ function renderPatients(){
     return;
   }
   if(!nameIdx.length) buildNameIndex();
+  /* The rows carry the primary number now (4.31), and a number lives in the
+     full contacts rather than the brief. Draw the list at once either way and
+     let it fill in when contacts land - a moment, and never a blank list. */
+  withContacts(renderPatients);
   const q = patientQuery.toLowerCase();
   /* NOTHING TYPED IS NOT NOTHING TO SHOW (owner's call, 4.27). The tab used
      to open on an instruction; it opens on the patients themselves now, A to
