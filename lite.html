@@ -826,7 +826,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.60';
+const LITE_VERSION = '4.62';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -950,7 +950,14 @@ async function relayViaGoogle(params){
    unlocked, it reads through the relay as before. Bookings and photos
    still go through the relay. */
 const LAN_INFO_KEY = 'echoPhone_lan';
-const LAN_ACTIONS = { week: 1, photoIndex: 1, faceThumbs: 1 };
+const LAN_ACTIONS = { week: 1, photoIndex: 1, faceThumbs: 1, bookingStatus: 1, lookup: 1 };
+/* WRITES (4.62): a booking, a rough slot changed or removed, go to the PC's
+   own inbox - Nexus files them in seconds instead of after Drive. The PC
+   applies the relay's rules exactly. If the PC does not answer, the same
+   thing goes through the relay at once; Nexus files by id, so a booking can
+   never be filed twice whichever way it arrived. */
+const LAN_WRITES = { book: 1, amend: 1, unbook: 1 };
+const LAN_POSTS = { photo: 1, photoDecline: 1 };
 let LAN_WAIT_MS = 700;                 // how long a request waits for the first look
 let LAN_PROBE_MS = 1500;               // how long a look waits for the PC
 let LAN_REQ_MS = 5000;                 // how long a real request waits for the PC
@@ -974,16 +981,20 @@ function lanUrl(base, action, params){
   Object.keys(params || {}).forEach(k => { if(k !== 'action') u.searchParams.set(k, params[k]); });
   return u.toString();
 }
-async function lanFetch(url, ms){
+async function lanFetch(url, ms, opts){
   const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
   const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms) : null;
   try{
-    const res = await fetch(url, { mode: 'cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' });
+    const res = await fetch(url, Object.assign({ mode: 'cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' }, (opts && opts.init) || {}));
     const j = await res.json();
+    if(opts && opts.answers && j && !j.ok && !lanFault(j)) return j;     // a refusal by rule, said as the relay would say it
     if(!j || !j.ok) throw new Error((j && j.error) || 'the PC said no');
     return j;
   }finally{ if(tm) clearTimeout(tm); }
 }
+/* The PC's own trouble (a file it could not read, a missing folder) is not
+   a refusal: the relay is asked instead. A refusal by rule is the answer. */
+function lanFault(j){ return !j || /^(desk:|relay error)/i.test(String(j.error || '')) || j.error === 'bad key' || j.error === 'unknown action'; }
 function lanFirst(promises){
   return new Promise((resolve, reject) => {
     let left = promises.length;
@@ -1042,6 +1053,14 @@ try{
     if(document.visibilityState === 'visible' && lanInfo && lanState !== 'up' && Date.now() - lanCheckedAt > 30000){ lanState = 'unknown'; lanEnsure(); }
   });
 }catch(e){}
+/* Is the PC answering right now? Waits for the first look at most
+   LAN_WAIT_MS, never longer. */
+async function lanReadyNow(){
+  if(!lanInfo || lanOnCellular()) return false;
+  let up = false;
+  try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), LAN_WAIT_MS))]); }catch(e){ up = false; }
+  return !!(up && lanBase);
+}
 function lanPaint(){
   try{
     const el = document.getElementById('lanMark');
@@ -1052,7 +1071,19 @@ function lanPaint(){
   }catch(e){}
 }
 async function relay(params){
-  if(lanInfo && LAN_ACTIONS[params && params.action] && !lanAdminLevel()){
+  const act = params && params.action;
+  if(lanInfo && LAN_WRITES[act] && await lanReadyNow()){
+    try{
+      const j = await lanFetch(lanUrl(lanBase, act, params), LAN_REQ_MS, { answers: true });
+      lanServed++;
+      if(!j.ok) throw new RelayError(j.error || 'refused', j);
+      return j;
+    }catch(e){
+      if(e instanceof RelayError) throw e;
+      lanMarkDown();                      // the PC did not answer: the relay, now
+    }
+  }
+  if(lanInfo && LAN_ACTIONS[act] && (act === 'bookingStatus' || act === 'lookup' || !lanAdminLevel())){
     let up = false;
     try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), LAN_WAIT_MS))]); }catch(e){ up = false; }
     if(up && lanBase){
@@ -1277,13 +1308,24 @@ function heldModified(name){
 /* One arrived file, put where it belongs. The index is split: the counts go
    into their own small record the cards read, the list itself is written to
    the store and left there. */
-function storeSetting(name, v){
-  const rec = { value: v.value, modified: v.modified, at: Date.now() };
+/* WHAT THIS PHONE HOLDS, BY THE PC'S CLOCK (4.61). The PC and the relay each
+   date a file by their own clock, so each is asked with its own date: the
+   relay's is kept when the PC hands a file over, and the other way round -
+   otherwise walking out of the clinic would re-download everything. */
+function heldLanModified(name){
+  if(mem.settings[name] && mem.settings[name].lanModified) return mem.settings[name].lanModified;
+  if(name === RX_INDEX && mem.rxMeta && mem.rxMeta.lanModified) return mem.rxMeta.lanModified;
+  return '';
+}
+function storeSetting(name, v, fromLan){
+  const rec = fromLan
+    ? { value: v.value, modified: heldModified(name), lanModified: v.modified, at: Date.now() }
+    : { value: v.value, modified: v.modified, at: Date.now() };
   idbPut('set:' + name, rec);
   if(name === RX_INDEX){
     mem.settings[name] = rec; rxReady = true;          // already in hand, no re-read
     mem.rxCounts = (v.value && v.value.counts) || {};
-    mem.rxMeta = { modified: v.modified, at: rec.at };
+    mem.rxMeta = fromLan ? { modified: rec.modified, lanModified: v.modified, at: rec.at } : { modified: v.modified, at: rec.at };
     idbPut('rx:counts', mem.rxCounts);
     idbPut('rx:meta', mem.rxMeta);
   }else{
@@ -1306,13 +1348,13 @@ function storeSetting(name, v){
    screen actually draws from. The big index it leaves in the store.
    A browser that will not give us a worker falls back to the old path. */
 const SETTINGS_WORKER_SRC = "self.onmessage = async (e) => {\n"
- + " const url = e.data.url, heavy = e.data.heavy, contacts = e.data.contacts, TIMEOUT = 25000;\n"
+ + " const url = e.data.url, heavy = e.data.heavy, contacts = e.data.contacts, lan = !!e.data.lan, keep = e.data.keep || {}, TIMEOUT = lan ? 15000 : 25000;\n"
  + " let body = null, err = 'offline';\n"
- + " for(let attempt = 0; attempt < 2 && body === null; attempt++){\n"
+ + " for(let attempt = 0; attempt < (lan ? 1 : 2) && body === null; attempt++){\n"
  + "  if(attempt) await new Promise(r => setTimeout(r, 1500));\n"
  + "  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;\n"
  + "  const t = ctl ? setTimeout(function(){ try{ ctl.abort(); }catch(e2){} }, TIMEOUT) : null;\n"
- + "  try{ const res = await fetch(url, { redirect:'follow', cache:'no-store', signal: ctl ? ctl.signal : undefined });\n"
+ + "  try{ const res = await fetch(url, lan ? { mode:'cors', cache:'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace:'local' } : { redirect:'follow', cache:'no-store', signal: ctl ? ctl.signal : undefined });\n"
  + "       body = await res.json();\n"
  + "  }catch(e2){ body = null; err = (ctl && ctl.signal.aborted) ? 'took too long' : 'unreadable'; }\n"
  + "  finally{ if(t) clearTimeout(t); }\n"
@@ -1327,9 +1369,9 @@ const SETTINGS_WORKER_SRC = "self.onmessage = async (e) => {\n"
  + " Object.keys(values).forEach(function(name){\n"
  + "  const v = values[name];\n"
  + "  if(!v || v.error || v.notModified) return;\n"
- + "  const rec = { value: v.value, modified: v.modified, at: Date.now() };\n"
+ + "  const rec = lan ? { value: v.value, modified: keep[name] || '', lanModified: v.modified, at: Date.now() } : { value: v.value, modified: v.modified, at: Date.now() };\n"
  + "  put('set:' + name, rec);\n"
- + "  if(name === heavy){ counts = (v.value && v.value.counts) || {}; meta = { modified: v.modified, at: rec.at };\n"
+ + "  if(name === heavy){ counts = (v.value && v.value.counts) || {}; meta = lan ? { modified: keep[name] || '', lanModified: v.modified, at: rec.at } : { modified: v.modified, at: rec.at };\n"
  + "    put('rx:counts', counts); put('rx:meta', meta); }\n"
  + "  else if(name === contacts){ const c = v.value || {}; brief = {};\n"
  + "    Object.keys(c).forEach(function(pid){ const r = c[pid] || {};\n"
@@ -1361,6 +1403,20 @@ async function refreshSettings(force){
   if(RECEPTION){
     /* ONE CALL, NOT FOUR (4.51): the relay's batch answers all four from its
        ready copy. Pull-to-refresh still asks each one fresh from Drive. */
+    /* ON THE CLINIC WI-FI, THE PC (4.61) - its own clock for "since". */
+    if(await lanReadyNow()){
+      try{
+        const sm = {};
+        if(!force) SETTINGS.forEach(n => { const m = heldLanModified(n); if(m) sm[n] = m; });
+        const r = await lanFetch(lanUrl(lanBase, 'settingsAll', { sinceMap: JSON.stringify(sm), names: SETTINGS.join(',') }), LAN_REQ_MS * 3);
+        Object.keys(r.values || {}).forEach(name => {
+          const x = r.values[name];
+          if(x && !x.notModified && !x.error) storeSetting(name, { value: x.value, modified: x.modified }, true);
+        });
+        repaint();
+        return;
+      }catch(e){ lanMarkDown(); /* the relay, below */ }
+    }
     if(!force){
       try{
         const items = SETTINGS.map(name => ({ t: 'set', n: name, s: heldModified(name) }));
@@ -1389,19 +1445,31 @@ async function refreshSettings(force){
     repaint();
     return;
   }
+  /* THE PC FIRST, ON THE CLINIC WI-FI (4.61): the same five files, read
+     off its disk in about a second instead of many through Google. If it
+     does not answer, the relay, exactly as before - in the same refresh. */
+  const viaLan = getSettingsWorker() ? await lanReadyNow() : false;
   const sinceMap = {};
-  SETTINGS.forEach(n => { const m = force ? '' : heldModified(n); if(m) sinceMap[n] = m; });
+  SETTINGS.forEach(n => { const m = force ? '' : (viaLan ? heldLanModified(n) : heldModified(n)); if(m) sinceMap[n] = m; });
   const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap), rxYears: String(RX_YEARS) };
-  if(force) params.fresh = '1';
+  if(force && !viaLan) params.fresh = '1';
+  const keep = {};
+  if(viaLan) SETTINGS.concat(['newToday']).forEach(n => { keep[n] = heldModified(n); });
   const w = getSettingsWorker();
   if(w){
     const done = await new Promise(resolve => {
       const finish = (v) => { w.onmessage = null; w.onerror = null; resolve(v); };
       w.onmessage = (ev) => finish(ev.data || { ok: false, error: 'unreadable' });
       w.onerror = () => finish(null);                       // worker itself failed: fall back
-      try{ w.postMessage({ url: relayRequestUrl(params), heavy: RX_INDEX, contacts: CONTACTS }); }
+      try{ w.postMessage({ url: viaLan ? lanUrl(lanBase, 'settingsAll', params) : relayRequestUrl(params), heavy: RX_INDEX, contacts: CONTACTS, lan: viaLan, keep: keep }); }
       catch(e){ finish(null); }
     });
+    if(viaLan && (!done || !done.ok)){
+      /* The PC did not answer this time: the relay, now, as it always was. */
+      lanMarkDown();
+      settingsFreshThisOpen = false;
+      return refreshSettings(force);
+    }
     if(done === null){ settingsWorker = null; settingsWorkerDead = true; }
     else if(done.ok){
       Object.keys(done.light || {}).forEach(name => {
@@ -3074,6 +3142,23 @@ function appVersionName(){ return (typeof ADMIN_VERSION !== 'undefined') ? 'admi
    goes as the body; the key and the tag still ride on the address, checked
    by the relay the same way. text/plain, so the browser asks nothing first. */
 async function relayPost(params, body){
+  if(lanInfo && params && LAN_POSTS[params.action] && await lanReadyNow()){
+    try{
+      const u = new URL(lanUrl(lanBase, params.action, {}));
+      u.searchParams.set('dev', phoneTag());
+      const j = await lanFetch(u.toString(), 30000, { answers: true,
+        init: { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) } });
+      lanServed++;
+      if(!j.ok) throw new RelayError(j.error || 'refused', j);
+      return j;
+    }catch(e){
+      if(e instanceof RelayError) throw e;
+      lanMarkDown();                      // the PC did not answer: the relay, now
+    }
+  }
+  return relayPostViaGoogle(params, body);
+}
+async function relayPostViaGoogle(params, body){
   const url = relayRequestUrl(params);
   const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, 45000) : null;

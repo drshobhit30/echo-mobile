@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.60';  // one number across lite, admin and this file
+const CACHE_VERSION = 'echo-nexus-4.62';  // one number across lite, admin and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -117,12 +117,12 @@ self.addEventListener('fetch', (event) => {
         const res = await fresh;
         return res || new Response('', { status: 504 });
       }
-      /* THE RECEPTION APP OPENS FROM ITS SAVED COPY AT ONCE (4.51, owner's
-         call). No 2.5-second wait on GitHub first; the newest page is still
+      /* EVERY APP OPENS FROM ITS SAVED COPY AT ONCE (reception 4.51, lite and
+         admin 4.61, owner's call). No 2.5-second wait on GitHub first; the newest page is still
          fetched behind it and saved, and the app's own version check a few
          seconds later offers the bar - so an update arrives one open later,
          or at a tap. */
-      if(/reception\.html$/.test(url.pathname)){
+      if(/(reception|lite|admin)\.html$/.test(url.pathname)){
         const saved = await cache.match(pageKey);
         if(saved){ event.waitUntil(fresh); return saved; }
       }
