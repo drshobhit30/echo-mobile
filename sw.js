@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.42';  // one number across lite, admin and this file
+const CACHE_VERSION = 'echo-nexus-4.50';  // one number across lite, admin and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -44,6 +44,8 @@ const LAST_APP_CACHE = 'echo-nexus-lastapp';
 const SHELL = [
   './lite.html',
   './admin.html',
+  './reception.html',
+  './reception.webmanifest',
   './admin.webmanifest',
   './lite.webmanifest',
   './icon-192.png',
@@ -92,7 +94,7 @@ self.addEventListener('fetch', (event) => {
 
   if(isPage){
     const pageKey = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
-    if(/admin\.html$|lite\.html$/.test(url.pathname)){
+    if(/admin\.html$|lite\.html$|reception\.html$/.test(url.pathname)){
       event.waitUntil(caches.open(LAST_APP_CACHE).then(c =>
         c.put(LAST_APP, new Response(url.pathname.split('/').pop()))).catch(() => {}));
     }
@@ -230,19 +232,24 @@ self.addEventListener('notificationclick', (event) => {
     : (d.date ? '#day=' + d.date + (d.pid ? '&pid=' + d.pid : '') : '');
   event.waitUntil((async () => {
     const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    /* A "Photo needed" belongs to the reception app (4.50): its window if one
+       is open, else the reception app itself - never lite's calendar. */
+    const mine = photo ? /reception\.html/ : /admin\.html|lite\.html|reception\.html/;
     for(const c of open){
-      if(/admin\.html|lite\.html/.test(c.url)){
+      if(mine.test(c.url)){
         try{ await c.focus(); }catch(e){}
         try{ c.postMessage(photo ? { type: 'openPhoto', pid: d.pid || '' } : { type: 'openVisit', date: d.date || '', pid: d.pid || '' }); }catch(e){}
         return;
       }
     }
-    let page = 'lite.html';
-    try{
-      const cache = await caches.open(LAST_APP_CACHE);
-      const hit = await cache.match(LAST_APP);
-      if(hit) page = (await hit.text()) || page;
-    }catch(e){}
+    let page = photo ? 'reception.html' : 'lite.html';
+    if(!photo){
+      try{
+        const cache = await caches.open(LAST_APP_CACHE);
+        const hit = await cache.match(LAST_APP);
+        if(hit) page = (await hit.text()) || page;
+      }catch(e){}
+    }
     await self.clients.openWindow('./' + page + tail);
   })());
 });

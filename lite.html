@@ -758,9 +758,6 @@ body{ background:#FAF7F2 !important; }
     <button type="button" class="nt-opt" data-m="on" onclick="notifPick('on')"><b>On</b><span>Sound and vibration, as this phone is set</span></button>
     <button type="button" class="nt-opt" data-m="silent" onclick="notifPick('silent')"><b>Silent</b><span>Shows on the screen, makes no sound</span></button>
     <button type="button" class="nt-opt" data-m="off" onclick="notifPick('off')"><b>Off</b><span>Nothing is sent to this phone at all</span></button>
-    <div class="nt-h2">What this phone is told about</div>
-    <button type="button" class="nt-want" data-w="visits" onclick="notifPickWant('visits')"><b>Every visit marked</b><span>A buzz when anybody is marked in at the desk</span></button>
-    <button type="button" class="nt-want" data-w="photos" onclick="notifPickWant('photos')"><b>Photos needed &mdash; the reception phone</b><span>A buzz only when somebody marked in has no photo yet</span></button>
     <div class="nt-warn" id="notifBroken" style="display:none;"></div>
     <div class="nt-tip" id="notifAndroid" style="display:none;">
       <b>Android puts apps to sleep.</b> If a notification ever arrives late or not at all, open the phone&rsquo;s
@@ -829,7 +826,14 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.42';
+const LITE_VERSION = '4.50';
+/* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
+   from it with this one line set to true - so there is no second copy to
+   drift. It is lite for the reception phone: the day and booking exactly as
+   here; a patient opens on their photo, numbers, Call and WhatsApp with no
+   prescriptions; nothing heavy is downloaded; and its only notification is
+   "Photo needed". lite itself is told about visits only. */
+const RECEPTION = false;
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1025,7 +1029,9 @@ async function idbClear(){
 /* What the page draws from. Filled from IndexedDB at boot, before anything
    is asked of the relay. */
 const mem = { settings: {}, days: {}, rxCounts: null, rxMeta: null, conBrief: null };
-const SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-blocks.json'];
+const SETTINGS = RECEPTION
+  ? ['patients.json', 'patient-contacts.json', 'doctors.json', 'calendar-blocks.json']      // no prescriptions: the heavy one
+  : ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-blocks.json'];
 const RX_INDEX = 'prescriptions-index.json';
 const KEEP_PAST_DAYS = 60, KEEP_FUTURE_DAYS = 30;
 
@@ -1212,6 +1218,24 @@ function getSettingsWorker(){
 async function refreshSettings(force){
   if(settingsFreshThisOpen && !force) return;
   settingsFreshThisOpen = true;
+  /* RECEPTION: the four light files one by one, in parallel. The combined
+     request always carries the prescriptions index, which is most of what
+     lite downloads and nothing this phone shows. */
+  if(RECEPTION){
+    await Promise.all(SETTINGS.map(async name => {
+      try{
+        const q = { action: 'settings', name };
+        const m = force ? '' : heldModified(name);
+        if(m) q.since = m;
+        if(force) q.fresh = '1';
+        const r = await relay(q);
+        if(r && !r.notModified) storeSetting(name, { value: r.value, modified: r.modified });
+      }catch(e){ if(e && e.message === 'bad key') keyRejected(); }
+    }));
+    buildNameIndex();
+    repaint();
+    return;
+  }
   const sinceMap = {};
   SETTINGS.forEach(n => { const m = force ? '' : heldModified(n); if(m) sinceMap[n] = m; });
   const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap), rxYears: String(RX_YEARS) };
@@ -1279,7 +1303,7 @@ async function refreshSettings(force){
    that by the time a card or the Patients tab is tapped they are already
    there; and if a tap beats them, the screen says Reading and draws again. */
 function idleWork(){
-  const go = () => { ensureRx(); ensureContacts(); if(!nameIdx.length) buildNameIndex(); };
+  const go = () => { if(!RECEPTION) ensureRx(); ensureContacts(); if(!nameIdx.length) buildNameIndex(); };
   if(typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 4000 });
   else setTimeout(go, 1200);
 }
@@ -1883,6 +1907,11 @@ function hsHeadHtml(pid, backCall){
     + '</div>';
 }
 function historyHtml(pid, openIdx, toggleCall, backCall){
+  /* RECEPTION: the person and the ways to reach them - no prescriptions. */
+  if(RECEPTION){
+    withContacts(() => { if(currentTab === 'patients') repaint(); });
+    return hsHeadHtml(pid, backCall);
+  }
   /* The list is fetched from the store on first need (4.27); say so rather
      than claim this patient has nothing written. */
   if(!rxReady && !rxFull[String(pid)]){
@@ -2619,6 +2648,7 @@ let photoIdx = {};             // pid -> { id, at } from the desk's index
 let photoDeclined = {};        // pid -> { at }: said no to a photo, as the desk holds it (4.40)
 let photoDeclinedOwn = {};     // pid -> at: this phone's own, until the desk has filed it
 let photoArrivals = [];        // today's "Photo needed" buzzes, as the worker kept them (4.42)
+let photoLit = { pid: '', until: 0 };   // the row a tapped notification opened on (4.50) - kept lit through redraws
 let photoIdxAt = 0;
 let photoPending = [];         // this phone's photos the desk has not filed yet
 const faceMem = {};            // photo id -> data URL of its thumbnail
@@ -2759,7 +2789,7 @@ function faceHtml(pid, cls){
     img = '<img data-face="' + escapeHtml(ph.id) + '" alt=""' + (url ? ' src="' + url + '"' : '') + '>';
   }
   const unsent = !!(ph && ph.own && photoUnsent(pid));
-  return '<span class="face' + (cls ? ' ' + cls : '') + (unsent ? ' face-unsent' : '') + '"' + (unsent ? ' title="Not sent to the desk yet"' : '') + '><i>' + escapeHtml(faceInitials(nameOf(pid))) + '</i>' + img + '</span>';
+  return '<span class="face' + (cls ? ' ' + cls : '') + (unsent ? ' face-unsent' : '') + '"' + (unsent ? ' title="Not sent to the desk yet"' : '') + '><i>' + escapeHtml(faceInitials(photoNameOf(pid))) + '</i>' + img + '</span>';
 }
 function facePaint(id, url){
   try{ document.querySelectorAll('img[data-face="' + id + '"]').forEach(el => { el.src = url; }); }catch(e){}
@@ -3009,7 +3039,8 @@ function photoNeedsHtml(){
   if(!list.length) return '';
   const tag = { ongoing: 'In chair', waiting: 'Waiting', done: 'Done' };
   return '<div class="ph-needs"><div class="ph-needs-h">Needs a photo <span>' + list.length + '</span></div>'
-    + list.map(n => '<div class="ph-need' + (n.status === 'done' ? ' ph-need-done' : '') + '" data-pid="' + escapeHtml(n.pid) + '">' + faceHtml(n.pid, 'face-sm')
+    + list.map(n => '<div class="ph-need' + (n.status === 'done' ? ' ph-need-done' : '')
+        + (n.pid === photoLit.pid && Date.now() < photoLit.until ? ' ph-need-lit' : '') + '" data-pid="' + escapeHtml(n.pid) + '">' + faceHtml(n.pid, 'face-sm')
         + '<div class="ph-need-who"><b>' + escapeHtml(n.name) + '</b><span>' + escapeHtml(tag[n.status] || '') + ' \u00b7 ' + escapeHtml(n.pid)
         + (n.ageSex ? ' \u00b7 ' + escapeHtml(n.ageSex) : '') + '</span></div>'
         + '<div class="ph-need-btns">'
@@ -3294,13 +3325,11 @@ async function tapRefresh(){
 const NOTIF_KEY = 'echoPhone_notif';
 const NOTIF_DEV_KEY = 'echoPhone_device';
 const NOTIF_HEALTH_KEY = 'echoPhone_notifHealth';
-/* WHAT THIS PHONE IS TOLD ABOUT (4.41, owner's call). One app for every
-   staff phone; the reception phone is the same lite with this one switch
-   set, so there is never a second copy to keep in step:
-     visits  - "Visit marked", for everybody (as always)
-     photos  - "Photo needed", only for somebody marked in with no photo */
-const NOTIF_WANT_KEY = 'echoPhone_notifWant';
-function notifWant(){ try{ return localStorage.getItem(NOTIF_WANT_KEY) === 'photos' ? 'photos' : 'visits'; }catch(e){ return 'visits'; } }
+/* WHAT THIS PHONE IS TOLD ABOUT (4.50, owner's call). Decided by the app,
+   not by a switch: lite is told about every visit marked; the reception app
+   only about somebody marked in with no photo. Each open re-states it, so
+   the app last opened on a phone is the one whose notifications it gets. */
+function notifWant(){ return RECEPTION ? 'photos' : 'visits'; }
 
 function phoneTag(){
   try{
@@ -3431,23 +3460,6 @@ async function notifPick(mode){
       : (notifWant() === 'photos' ? 'On. Somebody marked in with no photo will buzz here.' : 'On. A visit marked at the desk will buzz here.')), 'good');
   else notifMsg(r.error, 'bad');
 }
-/* The switch is told to the clinic at once when notifications are on; when
-   they are off it is simply kept, and goes with the next On. */
-async function notifPickWant(w){
-  if(notifBusy) return;
-  try{ localStorage.setItem(NOTIF_WANT_KEY, w === 'photos' ? 'photos' : 'visits'); }catch(e){}
-  notifPaint();
-  const m = notifMode();
-  const said = w === 'photos' ? 'This is the reception phone: it buzzes only when a photo is needed.' : 'This phone buzzes for every visit marked.';
-  if(m !== 'on' && m !== 'silent'){ notifMsg(said + ' Choose On for it to start.', ''); return; }
-  notifBusy = true;
-  notifMsg('Telling the clinic\u2026', '');
-  const r = await notifApply(m);
-  notifBusy = false;
-  notifSetHealth(r.ok ? '' : 'broken');
-  notifPaint();
-  if(r.ok) notifMsg(said, 'good'); else notifMsg(r.error, 'bad');
-}
 function notifMsg(text, kind){
   const el = document.getElementById('notifMsg');
   if(!el) return;
@@ -3460,7 +3472,6 @@ function notifPaint(){
   const broken = !!h && (m === 'on' || m === 'silent');
   document.querySelectorAll('.nt-opt').forEach(b => b.classList.toggle('on', b.getAttribute('data-m') === m));
   const w = notifWant();
-  document.querySelectorAll('.nt-want').forEach(b => b.classList.toggle('on', b.getAttribute('data-w') === w));
   const sub = document.getElementById('notifSub');
   if(sub) sub.textContent = w === 'photos'
     ? 'A buzz when somebody is marked in at the desk with no photo yet. Nothing else is sent.'
@@ -3599,6 +3610,14 @@ async function notifGoPhoto(pid){
     patientQuery = ''; selectedPatient = null;
     const box = document.getElementById('patientSearch');
     if(box) box.value = '';
+    /* LIT THROUGH REDRAWS (4.50): the list is drawn again as the contacts
+       and the day arrive, so the mark lives in the drawing, not on one copy
+       of the row. Six seconds, then the list goes back to plain. */
+    const lit = String(pid || '').replace(/"/g, '');
+    if(lit){
+      photoLit = { pid: lit, until: Date.now() + 6000 };
+      setTimeout(() => { if(photoLit.pid === lit){ photoLit = { pid: '', until: 0 }; try{ if(currentTab === 'patients' && !selectedPatient) renderPatients(); }catch(e){} } }, 6100);
+    }
     setTab('patients');
     /* And the day's own copy, fetched fresh behind it. */
     try{ ensureWeek(todayStr(), true).then(() => { if(currentTab === 'patients') renderPatients(); }, () => {}); }catch(e){}
@@ -3610,9 +3629,7 @@ async function notifGoPhoto(pid){
       try{
         const row = document.querySelector('.ph-need[data-pid="' + want + '"]');
         if(row){
-          row.classList.add('ph-need-lit');
           try{ row.scrollIntoView({ block: 'center' }); }catch(e){}
-          setTimeout(() => { try{ row.classList.remove('ph-need-lit'); }catch(e){} }, 4000);
           return;
         }
       }catch(e){}
