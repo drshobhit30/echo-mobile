@@ -586,6 +586,38 @@ body{ background:#FAF7F2 !important; }
 .bk-slot.bk-booked.sel, .bk-slot.bk-closed.sel{ background:#BA7517 !important; border-color:#BA7517 !important; }
 .bk-msg{ min-height:18px; font-size:0.82rem; color:#A32D2D; margin-top:10px; }
 .bk-go{ width:100%; border:0; background:#3B2A1A; color:#F5EDE1; border-radius:13px; padding:13px; font:inherit; font-weight:700; font-size:0.95rem; margin-top:4px; }
+/* PATIENT PHOTOS (4.38) */
+.face{ position:relative; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;
+  width:38px; height:38px; border-radius:50%; overflow:hidden; background:#F1E6D2; color:#8A5F26;
+  font-weight:600; font-size:13px; }
+.face > i{ font-style:normal; }
+.face > img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.face > img:not([src]){ display:none; }
+.face-sm{ width:34px; height:34px; font-size:12px; }
+.face-lg{ width:60px; height:60px; font-size:19px; }
+.row-face{ display:flex; align-items:center; gap:11px; }
+.row-face .row-body{ flex:1; min-width:0; }
+.hsh-top .face{ margin-top:2px; }
+.hsh-cam, .ph-cam{ margin-left:auto; flex:0 0 auto; background:#fff; border:1px solid var(--line); border-radius:999px;
+  padding:6px 12px; font-size:13px; color:var(--brown); }
+.dr-face{ margin-right:2px; }
+.ph-needs{ background:#FFF8EA; border:1px solid #EBD9B4; border-radius:12px; padding:10px 12px; margin:0 0 12px; }
+.ph-needs-h{ font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#8A5F26; font-weight:700; margin-bottom:6px; }
+.ph-needs-h span{ background:#8A5F26; color:#fff; border-radius:999px; padding:1px 7px; margin-left:4px; letter-spacing:0; }
+.ph-need{ display:flex; align-items:center; gap:10px; padding:7px 0; border-top:1px solid #F0E4CB; }
+.ph-need:first-of-type{ border-top:0; }
+.ph-need-who{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.ph-need-who span{ font-size:12px; color:var(--muted); }
+.ph-take{ padding:7px 12px; font-size:13px; }
+.photo-wrap{ position:fixed; inset:0; z-index:90; background:rgba(30,22,14,.55); display:flex; align-items:flex-end; justify-content:center; }
+.photo-wrap.hidden{ display:none; }
+.photo-sheet{ background:var(--cream); width:100%; max-width:520px; border-radius:18px 18px 0 0; padding:16px 16px calc(18px + env(safe-area-inset-bottom)); }
+.photo-who{ display:flex; flex-direction:column; margin-bottom:10px; }
+.photo-who span{ font-size:12px; color:var(--muted); }
+.photo-big{ display:block; width:100%; aspect-ratio:1; object-fit:cover; border-radius:14px; background:#EFE4D0; }
+.photo-btns{ display:flex; gap:10px; margin-top:12px; }
+.photo-btns .btn{ flex:1; }
+.photo-cancel{ display:block; width:100%; margin-top:8px; background:none; border:0; color:var(--muted); padding:10px; font-size:14px; }
 .bk-remove{ display:block; width:100%; margin-top:10px; background:none; border:0; color:var(--danger); font-size:14px; padding:10px; }
 .bk-go.rough{ background:#fff; color:#3B2A1A; border:1.5px dashed #3B2A1A; }
 .bk-toast{ position:fixed; left:12px; right:12px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:95; background:#1D9E75; color:#fff; border-radius:12px; padding:11px 13px; font-size:0.88rem; opacity:0; transform:translateY(10px); transition:all .2s ease; pointer-events:none; }
@@ -781,7 +813,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.37';
+const LITE_VERSION = '4.38';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1822,10 +1854,13 @@ function hsHeadHtml(pid, backCall){
   const as = ageSexOf(pid);
   const back = backCall
     ? '<button type="button" class="hsh-back" onclick="' + backCall + '" aria-label="Back">\u2039</button>' : '';
-  return '<div class="hs-head"><div class="hsh-top">' + back + '<div>'
+  /* THE FACE, AND THE CAMERA (4.38). */
+  const cam = '<button type="button" class="hsh-cam" onclick="photoTake(' + jsArg(pid) + ')">\uD83D\uDCF7 '
+    + (photoOf(pid) ? 'Retake' : 'Photo') + '</button>';
+  return '<div class="hs-head"><div class="hsh-top">' + back + faceHtml(pid, 'face-lg') + '<div>'
     + '<b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
     + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
-    + '</div></div>'
+    + '</div>' + cam + '</div>'
     + (waNumberOf(pid) ? '<div class="hs-wa">' + callBtnHtml(pid, 'call-chip')
         + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
     + numListHtml(pid)
@@ -2094,7 +2129,7 @@ function openDrawer(day, kind, id){
   const bit = (t, cls, style) => t ? '<span class="dr-c' + (cls ? ' ' + cls : '') + '"'
     + (style ? ' style="' + style + '"' : '') + '>' + escapeHtml(t) + '</span>' : '';
   let h = '<div class="dr-grip"></div>'
-    + '<div class="dr-head"><div class="dr-hl"><div class="dr-name">' + escapeHtml(r.name) + '</div>'
+    + '<div class="dr-head">' + (r.patientId ? faceHtml(r.patientId, 'dr-face') : '') + '<div class="dr-hl"><div class="dr-name">' + escapeHtml(r.name) + '</div>'
       + '<div class="dr-cs">'
       +   bit(r.patientId ? String(r.patientId) : '')
       +   bit(as)
@@ -2552,6 +2587,266 @@ setInterval(bkWatch, 20000);
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ if(bkPending.some(p => !p.sent)) bkSend(); bkWatch(); } });
 
 
+/* ==== PATIENT PHOTOS (4.38, owner's call) ====================================
+   One face per patient, taken here, shown here, on the desk and in every
+   patient search. The camera is the phone's own (a file input with capture),
+   the picture is cut square and shrunk on the phone - 480px for the record,
+   160px for every list - and POSTed to the relay (r4.5), which drops it in
+   photo-inbox/ for Nexus to file. It shows on this phone at once, and on the
+   others once the desk has filed it.
+
+   Nothing waits on a face. A list is drawn with initials in the circle and
+   the thumbnail is fetched afterwards and put into every copy of that circle
+   already on screen - no repaint. An older relay that does not know the new
+   actions simply leaves everybody on initials. */
+let photoIdx = {};             // pid -> { id, at } from the desk's index
+let photoNeeds = [];           // registered today, no photo yet
+let photoIdxAt = 0;
+let photoPending = [];         // this phone's photos the desk has not filed yet
+const faceMem = {};            // photo id -> data URL of its thumbnail
+let faceWant = {}, faceTimer = null;
+let photoShot = null;          // { pid, img, thumb, url } while the preview is up
+const PHOTO_REFRESH_MS = 5 * 60 * 1000;
+let photoSig = '';
+
+async function photoLoad(){
+  try{ photoPending = (await idbGet('ph:pending')) || []; }catch(e){ photoPending = []; }
+  try{
+    const c = await idbGet('ph:index');
+    if(c){ photoIdx = c.idx || {}; photoNeeds = c.needs || []; photoIdxAt = c.at || 0; }
+  }catch(e){}
+  photoPending.forEach(p => { if(p.thumbUrl) faceMem[p.id] = p.thumbUrl; });
+}
+function photoSave(){ idbPut('ph:pending', photoPending); }
+function photoOf(pid){
+  const own = photoPending.filter(p => p.pid === String(pid)).sort((a, b) => String(a.at).localeCompare(String(b.at))).pop();
+  const desk = photoIdx[String(pid)];
+  if(own && (!desk || String(own.at) >= String(desk.at || ''))) return { id: own.id, own: true };
+  return desk || null;
+}
+function photoNeedsList(){
+  return photoNeeds.filter(pid => !photoOf(pid) && nameOf(pid));
+}
+async function photoRefresh(force){
+  if(!force && Date.now() - photoIdxAt < PHOTO_REFRESH_MS) return;
+  try{
+    const r = await relay({ action: 'photoIndex' });
+    photoIdx = r.index || {};
+    photoNeeds = (r.needs || []).map(String);
+    photoIdxAt = Date.now();
+    idbPut('ph:index', { idx: photoIdx, needs: photoNeeds, at: photoIdxAt });
+    /* Filed at the desk: this phone's own copy is no longer needed. */
+    const before = photoPending.length;
+    photoPending = photoPending.filter(p => {
+      const d = photoIdx[p.pid];
+      if(p.sent && d && (d.id === p.id || String(d.at || '') > String(p.at))) return false;
+      if(p.sent && Date.now() - (p.sentAt || 0) > 3 * 24 * 3600 * 1000) return false;
+      return true;
+    });
+    if(photoPending.length !== before) photoSave();
+    /* Redrawn only when something a screen shows has changed - the clock
+       ticks this every few minutes and must not flicker an open drawer. */
+    const sig = JSON.stringify([photoIdx, photoNeeds]);
+    if(sig !== photoSig){ photoSig = sig; try{ repaint(); }catch(e){} }
+  }catch(e){ /* an older relay, or no signal: initials for now */ }
+}
+function faceInitials(name){
+  const w = String(name || '').replace(/^(dr|mr|mrs|ms|miss)\.?\s+/i, '').trim().split(/\s+/).filter(Boolean);
+  if(!w.length) return '?';
+  return ((w[0][0] || '') + (w.length > 1 ? (w[w.length - 1][0] || '') : '')).toUpperCase();
+}
+function faceHtml(pid, cls){
+  const ph = photoOf(pid);
+  let img = '';
+  if(ph && ph.id){
+    const url = faceMem[ph.id];
+    if(!url && !ph.own) faceAsk(pid, ph.id);
+    img = '<img data-face="' + escapeHtml(ph.id) + '" alt=""' + (url ? ' src="' + url + '"' : '') + '>';
+  }
+  return '<span class="face' + (cls ? ' ' + cls : '') + '"><i>' + escapeHtml(faceInitials(nameOf(pid))) + '</i>' + img + '</span>';
+}
+function facePaint(id, url){
+  try{ document.querySelectorAll('img[data-face="' + id + '"]').forEach(el => { el.src = url; }); }catch(e){}
+}
+function faceAsk(pid, id){
+  if(faceWant[id] !== undefined) return;
+  faceWant[id] = String(pid);
+  clearTimeout(faceTimer);
+  faceTimer = setTimeout(faceFetch, 60);
+}
+async function faceFetch(){
+  const want = faceWant; faceWant = {};
+  const ids = Object.keys(want).filter(id => want[id] !== null);
+  if(!ids.length) return;
+  let held = {};
+  try{ held = await idbGetMany(ids.map(id => 'face:' + id)); }catch(e){ held = {}; }
+  const missing = [];
+  ids.forEach(id => {
+    const url = held['face:' + id];
+    if(url){ faceMem[id] = url; facePaint(id, url); }
+    else missing.push(id);
+  });
+  for(let i = 0; i < missing.length; i += 30){
+    const chunk = missing.slice(i, i + 30);
+    try{
+      const r = await relay({ action: 'faceThumbs', items: chunk.map(id => want[id] + ':' + id).join(',') });
+      const got = r.thumbs || {};
+      Object.keys(got).forEach(id => {
+        const url = 'data:image/jpeg;base64,' + got[id];
+        faceMem[id] = url; idbPut('face:' + id, url); facePaint(id, url);
+      });
+    }catch(e){ /* tried again the next time it is drawn */ }
+  }
+}
+
+/* ---- taking one ---------------------------------------------------------- */
+function photoTake(pid){
+  photoShot = { pid: String(pid) };
+  let inp = document.getElementById('photoInput');
+  if(!inp){
+    inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    /* The back camera: somebody at the desk photographing the patient. The
+       phone's own camera screen can still switch round. */
+    inp.setAttribute('capture', 'environment');
+    inp.id = 'photoInput'; inp.style.display = 'none';
+    inp.addEventListener('change', () => { photoPicked(inp.files && inp.files[0]); });
+    document.body.appendChild(inp);
+  }
+  inp.value = '';
+  inp.click();
+}
+/* Cut to a square from the middle - a face, head and shoulders - and
+   shrunk twice. The browser applies the camera's own rotation when it
+   draws the picture, so a portrait shot stays upright. */
+function photoSquare(img, size, q){
+  const s = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
+  const sx = ((img.naturalWidth || img.width) - s) / 2, sy = ((img.naturalHeight || img.height) - s) / 2;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  c.getContext('2d').drawImage(img, sx, sy, s, s, 0, 0, size, size);
+  return c.toDataURL('image/jpeg', q);
+}
+function photoPicked(file){
+  if(!file || !photoShot) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    try{
+      const big = photoSquare(img, 480, 0.82);
+      const small = photoSquare(img, 160, 0.8);
+      photoShot.img = big; photoShot.thumb = small;
+      photoPreview();
+    }catch(e){ toast('That picture could not be used — try again'); photoShot = null; }
+    URL.revokeObjectURL(url);
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('That picture could not be read — try again'); photoShot = null; };
+  img.src = url;
+}
+function photoPreview(){
+  let wrap = document.getElementById('photoWrap');
+  if(!wrap){
+    wrap = document.createElement('div');
+    wrap.id = 'photoWrap'; wrap.className = 'photo-wrap';
+    document.body.appendChild(wrap);
+  }
+  const pid = photoShot.pid;
+  wrap.innerHTML = '<div class="photo-sheet">'
+    + '<div class="photo-who"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b><span>' + escapeHtml(pid) + '</span></div>'
+    + '<img class="photo-big" src="' + photoShot.img + '" alt="">'
+    + '<div class="photo-btns">'
+      + '<button type="button" class="btn ghost" onclick="photoRetake()">Retake</button>'
+      + '<button type="button" class="btn" onclick="photoUse()">Use this</button>'
+    + '</div>'
+    + '<button type="button" class="photo-cancel" onclick="photoCancel()">Cancel</button>'
+    + '</div>';
+  wrap.classList.remove('hidden');
+}
+function photoCancel(){
+  photoShot = null;
+  const wrap = document.getElementById('photoWrap');
+  if(wrap) wrap.classList.add('hidden');
+}
+function photoRetake(){
+  const pid = photoShot && photoShot.pid;
+  photoCancel();
+  if(pid) photoTake(pid);
+}
+async function photoUse(){
+  if(!photoShot || !photoShot.img) return;
+  const rec = {
+    id: 'pp-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+    pid: photoShot.pid, at: new Date().toISOString(),
+    by: (typeof bkWho === 'function' ? bkWho() : '') || appVersionName(),
+    img: photoShot.img.replace(/^data:image\/jpeg;base64,/, ''),
+    thumb: photoShot.thumb.replace(/^data:image\/jpeg;base64,/, ''),
+    thumbUrl: photoShot.thumb, sent: false
+  };
+  photoPending.push(rec); photoSave();
+  faceMem[rec.id] = rec.thumbUrl;
+  photoCancel();
+  toast('Photo saved · sending to the desk');
+  repaint();
+  await photoSend();
+}
+function appVersionName(){ return (typeof ADMIN_VERSION !== 'undefined') ? 'admin phone' : 'lite phone'; }
+/* THE FIRST POST THIS APP MAKES. A photo does not fit in an address, so it
+   goes as the body; the key and the tag still ride on the address, checked
+   by the relay the same way. text/plain, so the browser asks nothing first. */
+async function relayPost(params, body){
+  const url = relayRequestUrl(params);
+  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, 45000) : null;
+  let res, j;
+  try{
+    res = await fetch(url, { method: 'POST', redirect: 'follow', cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body),
+      signal: ctl ? ctl.signal : undefined });
+    j = await res.json();
+  }catch(e){ throw new RelayError(res ? 'unreadable' : 'offline'); }
+  finally{ if(timer) clearTimeout(timer); }
+  if(!j || !j.ok) throw new RelayError((j && j.error) || 'relay', j);
+  return j;
+}
+let photoSending = false;
+async function photoSend(){
+  if(photoSending) return;
+  photoSending = true;
+  try{
+    for(const p of photoPending.filter(x => !x.sent)){
+      try{
+        await relayPost({ action: 'photo' }, { id: p.id, pid: p.pid, at: p.at, by: p.by, img: p.img, thumb: p.thumb });
+        p.sent = true; p.sentAt = Date.now();
+        delete p.img;                       // the desk has it; the thumbnail stays for this phone
+        photoSave();
+      }catch(e){
+        /* A refusal by rule (not a fault) drops it, said out loud. */
+        const why = e && e.body && e.body.error;
+        if(why && !/^relay error/i.test(why) && e.message !== 'offline' && e.message !== 'unreadable'){
+          photoPending = photoPending.filter(x => x.id !== p.id); photoSave();
+          toast('Photo not saved: ' + why);
+        }
+      }
+    }
+  }finally{ photoSending = false; }
+}
+setInterval(() => { if(photoPending.some(p => !p.sent)) photoSend(); }, 30000);
+setInterval(() => { photoRefresh(false); }, 60000);
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible'){ if(photoPending.some(p => !p.sent)) photoSend(); photoRefresh(false); }
+});
+/* The list at the top of Patients: today's registrations with no face. */
+function photoNeedsHtml(){
+  const list = photoNeedsList();
+  if(!list.length) return '';
+  return '<div class="ph-needs"><div class="ph-needs-h">Needs a photo <span>' + list.length + '</span></div>'
+    + list.map(pid => '<div class="ph-need">' + faceHtml(pid, 'face-sm')
+        + '<div class="ph-need-who"><b>' + escapeHtml(nameOf(pid)) + '</b><span>' + escapeHtml(pid)
+        + (ageSexOf(pid) ? ' · ' + escapeHtml(ageSexOf(pid)) : '') + '</span></div>'
+        + '<button type="button" class="btn ph-take" onclick="photoTake(' + jsArg(pid) + ')">📷 Take photo</button></div>').join('')
+    + '</div>';
+}
+
 /* ------------------------------------------------------------ patients -- */
 /* THE NAMES ARE PREPARED ONCE (4.27). Every keystroke used to walk the whole
    directory - Object.keys, then toLowerCase on each of twenty thousand names,
@@ -2648,10 +2943,11 @@ function ptRowHtml(pid, name, hit){
       + (m ? markDigits(num, hit) : escapeHtml(num)) + '</span>'
       + (m && !m.primary ? '<span class="row-num2">' + escapeHtml(m.label || 'second number') + '</span>' : '')
     : '';
-  return '<div class="row tappable" onclick="openPatient(' + jsArg(pid) + ')">'
+  return '<div class="row tappable row-face" onclick="openPatient(' + jsArg(pid) + ')">'
+    + faceHtml(pid, 'face-sm') + '<div class="row-body">'
     + '<div class="row-head"><div class="row-name">' + escapeHtml(name || 'Unknown patient') + '</div><div class="row-when">&rsaquo;</div></div>'
     + '<div class="row-sub">' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '')
-    + (shown ? ' \u00b7 ' + shown : '') + '</div></div>';
+    + (shown ? ' \u00b7 ' + shown : '') + '</div></div></div>';
 }
 function renderPatients(){
   const list = document.getElementById('patientList');
@@ -2675,7 +2971,7 @@ function renderPatients(){
      Z, with the typing still the way to reach someone far down. */
   if(!q){
     if(!nameIdx.length){ list.innerHTML = '<div class="empty-state">No patients on this phone yet</div>'; return; }
-    list.innerHTML = '<div class="pt-az">' + nameIdx.length.toLocaleString('en-IN') + ' patients \u00b7 A to Z</div>'
+    list.innerHTML = photoNeedsHtml() + '<div class="pt-az">' + nameIdx.length.toLocaleString('en-IN') + ' patients \u00b7 A to Z</div>'
       + nameIdx.slice(0, PT_SHOW).map(r => ptRowHtml(r[0], r[2])).join('')
       + (nameIdx.length > PT_SHOW
           ? '<div class="empty-state">' + (nameIdx.length - PT_SHOW).toLocaleString('en-IN')
@@ -3162,6 +3458,8 @@ async function boot(){
   setTimeout(notifRefresh, 2500);   // after the day is on screen
   await hydrate();          // the phone's own copy - no network
   await bkLoad();
+  try{ await photoLoad(); }catch(e){}
+  photoRefresh(true);
   setTab('calendar');       // painted from it
   /* OPENING USES THE READY COPY (4.14). It asked Drive fresh on every open,
      so the relay's 5-minute copy was never used and each open read ~30
