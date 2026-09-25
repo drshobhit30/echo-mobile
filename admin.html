@@ -902,7 +902,7 @@ body{ background:#FAF7F2 !important; }
          why it read as empty. -->
     <div class="hd-mark">
       <button type="button" class="hd-bell" id="hdBell" onclick="notifOpen()" aria-label="Notifications">🔔</button>
-      <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version">Nexus <b>A</b> &middot; <span id="appVer"></span></div>
+      <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version">Nexus <b>A</b> &middot; <span id="appVer"></span><span id="lanMark" class="lan-mark"></span></div>
     </div>
   </div>
   <div class="tabbar">
@@ -3561,7 +3561,7 @@ function relayRequestUrl(params){
   Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
   return url.toString();
 }
-async function relay(params){
+async function relayViaGoogle(params){
   const url = relayRequestUrl(params);
   /* ONE RETRY (4.14). Google sometimes answers with an error page instead of
      data for a moment (just after a deployment, or when busy): that read as
@@ -3601,6 +3601,143 @@ async function relay(params){
   }
   return body;
 }
+/* ==== THE RECEPTION PC, DIRECTLY, ON THE CLINIC WI-FI (4.60, owner's call) ====
+   On the clinic Wi-Fi the reception PC answers the calendar and the photos
+   itself - about 20 ms, and exactly what is on its disk - where the relay
+   takes one to three seconds and trails the desk. Everywhere else (mobile
+   data, somebody else's Wi-Fi, the PC off or asleep) everything goes to the
+   relay exactly as before.
+
+   Nothing waits on the PC. On mobile data it is not tried at all. On a
+   Wi-Fi the first look gets 0.7 s; away from the clinic the address simply
+   does not answer (measured: the full timeout, never a quick refusal), so
+   the answer - here or not - is remembered until the network changes, and
+   looked for again quietly every two minutes at most. An answer counts only
+   if it proves it is THIS clinic's PC (its id, with the key); any other
+   device at the same address is ignored. A PC request that fails is asked
+   of the relay at once - the screen never sees the difference.
+
+   Only reading, and only what a staff key may read: the week, the photo
+   list and the thumbnails. The admin app uses the PC only while locked -
+   unlocked, it reads through the relay as before. Bookings and photos
+   still go through the relay. */
+const LAN_INFO_KEY = 'echoPhone_lan';
+const LAN_ACTIONS = { week: 1, photoIndex: 1, faceThumbs: 1 };
+let LAN_WAIT_MS = 700;                 // how long a request waits for the first look
+let LAN_PROBE_MS = 1500;               // how long a look waits for the PC
+let LAN_REQ_MS = 5000;                 // how long a real request waits for the PC
+let LAN_RECHECK_MS = 2 * 60 * 1000;    // how soon to look again after "not here"
+const LAN_INFO_MS = 6 * 3600 * 1000;   // how old the PC's card may get before asking the relay again
+let lanInfo = null;                    // { id, key, port, ips, beatAt, gotAt } from the relay
+let lanBase = '';                      // 'http://ip:port' while the PC is answering
+let lanState = 'unknown';              // unknown | up | down
+let lanCheckedAt = 0;
+let lanProbing = null;
+let lanInfoAsking = null;
+let lanServed = 0;
+try{ lanInfo = JSON.parse(localStorage.getItem(LAN_INFO_KEY) || 'null'); }catch(e){ lanInfo = null; }
+
+function lanOnCellular(){
+  try{ const c = navigator.connection; return !!(c && c.type === 'cellular'); }catch(e){ return false; }
+}
+function lanUrl(base, action, params){
+  const u = new URL(base + '/' + action);
+  u.searchParams.set('key', lanInfo.key);
+  Object.keys(params || {}).forEach(k => { if(k !== 'action') u.searchParams.set(k, params[k]); });
+  return u.toString();
+}
+async function lanFetch(url, ms){
+  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+  const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms) : null;
+  try{
+    const res = await fetch(url, { mode: 'cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' });
+    const j = await res.json();
+    if(!j || !j.ok) throw new Error((j && j.error) || 'the PC said no');
+    return j;
+  }finally{ if(tm) clearTimeout(tm); }
+}
+function lanFirst(promises){
+  return new Promise((resolve, reject) => {
+    let left = promises.length;
+    if(!left){ reject(new Error('none')); return; }
+    promises.forEach(p => p.then(resolve, () => { if(--left === 0) reject(new Error('none')); }));
+  });
+}
+function lanMarkDown(){ lanState = 'down'; lanBase = ''; lanCheckedAt = Date.now(); lanPaint(); }
+async function lanProbeNow(){
+  if(!lanInfo || !lanInfo.key || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
+  const bases = lanInfo.ips.slice(0, 4).map(ip => 'http://' + ip + ':' + (lanInfo.port || 8765));
+  const one = (b) => lanFetch(lanUrl(b, 'ping'), LAN_PROBE_MS).then(j => {
+    if(j.echo === 'echo-nexus-desk' && j.id === lanInfo.id) return b;
+    throw new Error('not this clinic');
+  });
+  let got = '';
+  try{ got = await lanFirst(bases.map(one)); }catch(e){ got = ''; }
+  if(got){ lanBase = got; lanState = 'up'; lanCheckedAt = Date.now(); lanPaint(); return true; }
+  lanMarkDown();
+  /* The PC may have a new address, or a new card: ask the relay, behind. */
+  lanInfoRefresh(false);
+  return false;
+}
+function lanEnsure(){
+  if(lanState === 'up' && lanBase) return Promise.resolve(true);
+  if(lanState === 'down' && Date.now() - lanCheckedAt < LAN_RECHECK_MS) return Promise.resolve(false);
+  if(!lanProbing) lanProbing = lanProbeNow().then(v => { lanProbing = null; return v; }, () => { lanProbing = null; return false; });
+  return lanProbing;
+}
+/* The PC's card, from the relay: where it is and its key. Asked at opening
+   when there is none or it is old, and when the PC has stopped answering. */
+function lanInfoRefresh(force){
+  if(lanInfoAsking) return lanInfoAsking;
+  if(!force && lanInfo && Date.now() - Number(lanInfo.gotAt || 0) < 10 * 60 * 1000) return Promise.resolve(false);
+  lanInfoAsking = relayViaGoogle({ action: 'lan' }).then(r => {
+    lanInfoAsking = null;
+    const next = (r && r.lan && r.lan.key) ? Object.assign({}, r.lan, { gotAt: Date.now() }) : null;
+    const changed = JSON.stringify(next && Object.assign({}, next, { gotAt: 0 })) !== JSON.stringify(lanInfo && Object.assign({}, lanInfo, { gotAt: 0 }));
+    lanInfo = next;
+    try{ if(next) localStorage.setItem(LAN_INFO_KEY, JSON.stringify(next)); else localStorage.removeItem(LAN_INFO_KEY); }catch(e){}
+    if(changed){ lanState = 'unknown'; lanBase = ''; lanCheckedAt = 0; if(next) lanEnsure(); else lanPaint(); }
+    return changed;
+  }, () => { lanInfoAsking = null; return false; });
+  return lanInfoAsking;
+}
+function lanStart(){
+  if(!lanInfo || Date.now() - Number(lanInfo.gotAt || 0) > LAN_INFO_MS) lanInfoRefresh(true);
+  if(lanInfo) lanEnsure();
+}
+/* A new network is a new question. */
+function lanNetworkChanged(){ lanState = 'unknown'; lanBase = ''; lanCheckedAt = 0; lanPaint(); if(lanInfo) lanEnsure(); }
+try{ if(navigator.connection && navigator.connection.addEventListener) navigator.connection.addEventListener('change', lanNetworkChanged); }catch(e){}
+try{ window.addEventListener('online', lanNetworkChanged); }catch(e){}
+try{
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible' && lanInfo && lanState !== 'up' && Date.now() - lanCheckedAt > 30000){ lanState = 'unknown'; lanEnsure(); }
+  });
+}catch(e){}
+function lanPaint(){
+  try{
+    const el = document.getElementById('lanMark');
+    if(!el) return;
+    const up = lanState === 'up';
+    el.textContent = up ? ' ⚡' : '';
+    el.title = up ? 'On the clinic Wi-Fi: reading straight from the reception PC' : '';
+  }catch(e){}
+}
+async function relay(params){
+  if(lanInfo && LAN_ACTIONS[params && params.action] && !lanAdminLevel()){
+    let up = false;
+    try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), LAN_WAIT_MS))]); }catch(e){ up = false; }
+    if(up && lanBase){
+      try{
+        const j = await lanFetch(lanUrl(lanBase, params.action, params), LAN_REQ_MS);
+        lanServed++;
+        return j;
+      }catch(e){ lanMarkDown(); }
+    }
+  }
+  return relayViaGoogle(params);
+}
+function lanAdminLevel(){ return !!adminSession; }
 
 /* ---- Drive, as the lifted loaders know it, answered by the relay ----
    A folder is 'dir:<name>'; a file is 'file:<folder>/<name>'. The relay is
@@ -4778,7 +4915,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.51';
+const ADMIN_VERSION = '4.60';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -6410,6 +6547,7 @@ async function boot(){
   takeSetupFromLink();
   if(!isSetUp()){ showSetup(); return; }
   showApp();
+  try{ lanStart(); }catch(e){}
   if(!booted){ booted = true; Cal.wireStripSwipe(); Cal.wireDrawer(); wirePull(); }
   notifPaint();
   notifTakeHash();
