@@ -774,6 +774,9 @@ body{ background:#FAF7F2 !important; }
 .ph-need:first-of-type{ border-top:0; }
 .ph-need-who{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .ph-need-who span{ font-size:12px; color:var(--muted); }
+.ph-need-btns{ display:flex; flex-direction:column; align-items:stretch; gap:4px; }
+.ph-decline{ background:none; border:0; padding:4px 2px; font:inherit; font-size:12px; color:var(--muted); text-decoration:underline; cursor:pointer; }
+.ph-need-done{ opacity:.55; }
 .ph-take{ padding:7px 12px; font-size:13px; }
 .photo-wrap{ position:fixed; inset:0; z-index:90; background:rgba(30,22,14,.55); display:flex; align-items:flex-end; justify-content:center; }
 .photo-wrap.hidden{ display:none; }
@@ -2812,7 +2815,8 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
    already on screen - no repaint. An older relay that does not know the new
    actions simply leaves everybody on initials. */
 let photoIdx = {};             // pid -> { id, at } from the desk's index
-let photoNeeds = [];           // registered today, no photo yet
+let photoDeclined = {};        // pid -> { at }: said no to a photo, as the desk holds it (4.40)
+let photoDeclinedOwn = {};     // pid -> at: this phone's own, until the desk has filed it
 let photoIdxAt = 0;
 let photoPending = [];         // this phone's photos the desk has not filed yet
 const faceMem = {};            // photo id -> data URL of its thumbnail
@@ -2825,8 +2829,9 @@ async function photoLoad(){
   try{ photoPending = (await idbGet('ph:pending')) || []; }catch(e){ photoPending = []; }
   try{
     const c = await idbGet('ph:index');
-    if(c){ photoIdx = c.idx || {}; photoNeeds = c.needs || []; photoIdxAt = c.at || 0; }
+    if(c){ photoIdx = c.idx || {}; photoDeclined = c.declined || {}; photoIdxAt = c.at || 0; }
   }catch(e){}
+  try{ photoDeclinedOwn = (await idbGet('ph:declined-own')) || {}; }catch(e){ photoDeclinedOwn = {}; }
   photoPending.forEach(p => { if(p.thumbUrl) faceMem[p.id] = p.thumbUrl; });
 }
 function photoSave(){ idbPut('ph:pending', photoPending); }
@@ -2836,17 +2841,50 @@ function photoOf(pid){
   if(own && (!desk || String(own.at) >= String(desk.at || ''))) return { id: own.id, own: true };
   return desk || null;
 }
+function photoIsDeclined(pid){
+  pid = String(pid);
+  return !!(photoDeclined[pid] || photoDeclinedOwn[pid]);
+}
+/* WHO NEEDS A PHOTO (4.40): everybody marked in today - new or old - with no
+   face on file and no "declined". Nothing to clear: tomorrow it is a new day.
+   In the chair first, then waiting, then those already done (greyed - catch
+   them at the counter). */
 function photoNeedsList(){
-  return photoNeeds.filter(pid => !photoOf(pid) && nameOf(pid));
+  const today = todayStr();
+  const held = mem.days[today];
+  if(!held) return [];
+  const rank = { ongoing: 0, waiting: 1 };
+  const at = {}, out = [];
+  (held.visits || []).forEach(v => {
+    if(!v || v.removedAt || v.mergedInto) return;
+    const pid = String(v.patientId || '');
+    if(!pid || !nameOf(pid) || photoOf(pid) || photoIsDeclined(pid)) return;
+    const st = effectiveStatus(v, today);
+    const r = Object.prototype.hasOwnProperty.call(rank, st) ? rank[st] : 2;
+    const row = { pid, status: r === 2 ? 'done' : st, rank: r, at: String(v.arrivedAt || '') };
+    if(at[pid] === undefined){ at[pid] = out.length; out.push(row); }
+    else if(r < out[at[pid]].rank) out[at[pid]] = row;
+  });
+  return out.sort((a, b) => a.rank - b.rank || a.at.localeCompare(b.at));
 }
 async function photoRefresh(force){
   if(!force && Date.now() - photoIdxAt < PHOTO_REFRESH_MS) return;
   try{
     const r = await relay({ action: 'photoIndex' });
     photoIdx = r.index || {};
-    photoNeeds = (r.needs || []).map(String);
+    photoDeclined = (r.declined && typeof r.declined === 'object' && !Array.isArray(r.declined)) ? r.declined : {};
     photoIdxAt = Date.now();
-    idbPut('ph:index', { idx: photoIdx, needs: photoNeeds, at: photoIdxAt });
+    idbPut('ph:index', { idx: photoIdx, declined: photoDeclined, at: photoIdxAt });
+    /* This phone's own "declined" stands until the desk has filed it, or for
+       half an hour at most - after that the desk's word is the word (an undo
+       at the desk must reach this phone too). */
+    let ownChanged = false;
+    Object.keys(photoDeclinedOwn).forEach(pid => {
+      if(photoDeclined[pid] || Date.now() - Date.parse(photoDeclinedOwn[pid] || 0) > 30 * 60 * 1000){ delete photoDeclinedOwn[pid]; ownChanged = true; }
+    });
+    if(ownChanged) idbPut('ph:declined-own', photoDeclinedOwn);
+    /* Today's visits are what the list is made from: keep them fresh too. */
+    try{ await ensureWeek(todayStr(), false); }catch(e){}
     /* Filed at the desk: this phone's own copy is no longer needed. */
     const before = photoPending.length;
     photoPending = photoPending.filter(p => {
@@ -2858,7 +2896,7 @@ async function photoRefresh(force){
     if(photoPending.length !== before) photoSave();
     /* Redrawn only when something a screen shows has changed - the clock
        ticks this every few minutes and must not flicker an open drawer. */
-    const sig = JSON.stringify([photoIdx, photoNeeds]);
+    const sig = JSON.stringify([photoIdx, photoDeclined, photoDeclinedOwn, photoNeedsList().map(n => n.pid + n.status)]);
     if(sig !== photoSig){ photoSig = sig; try{ repaint(); }catch(e){} }
   }catch(e){ /* an older relay, or no signal: initials for now */ }
 }
@@ -3088,16 +3126,62 @@ async function photoRetry(){
   toast(left.length ? ('Still not sent \u2014 ' + (left[0].lastError || 'try again in a moment')) : 'Photo sent to the desk');
   try{ repaint(); }catch(e){}
 }
-/* The list at the top of Patients: today's registrations with no face. */
+/* The list at the top of Patients (4.40): everybody marked in today with no
+   face. Two buttons each: take it, or the patient said no. */
+/* Somebody marked in a minute ago should be on the list when Patients is
+   opened, not five minutes later: today's day is fetched if it is stale,
+   and the list redrawn only if that changed who is on it. */
+let photoTodayBusy = false;
+function photoTodayCheck(){
+  if(photoTodayBusy) return;
+  const held = mem.days[todayStr()];
+  if(held && Date.now() - (held.at || 0) < 60000) return;
+  photoTodayBusy = true;
+  const sigOf = () => photoNeedsList().map(n => n.pid + n.status).join();
+  const before = sigOf();
+  Promise.resolve().then(() => ensureWeek(todayStr(), false)).then(() => {
+    photoTodayBusy = false;
+    if(sigOf() !== before){ try{ repaint(); }catch(e){} }
+  }, () => { photoTodayBusy = false; });
+}
 function photoNeedsHtml(){
+  photoTodayCheck();
   const list = photoNeedsList();
   if(!list.length) return '';
+  const tag = { ongoing: 'In chair', waiting: 'Waiting', done: 'Done' };
   return '<div class="ph-needs"><div class="ph-needs-h">Needs a photo <span>' + list.length + '</span></div>'
-    + list.map(pid => '<div class="ph-need">' + faceHtml(pid, 'face-sm')
-        + '<div class="ph-need-who"><b>' + escapeHtml(nameOf(pid)) + '</b><span>' + escapeHtml(pid)
-        + (ageSexOf(pid) ? ' · ' + escapeHtml(ageSexOf(pid)) : '') + '</span></div>'
-        + '<button type="button" class="btn ph-take" onclick="Cal.photoTake(' + jsArg(pid) + ')">📷 Take photo</button></div>').join('')
+    + list.map(n => '<div class="ph-need' + (n.status === 'done' ? ' ph-need-done' : '') + '" data-pid="' + escapeHtml(n.pid) + '">' + faceHtml(n.pid, 'face-sm')
+        + '<div class="ph-need-who"><b>' + escapeHtml(nameOf(n.pid)) + '</b><span>' + escapeHtml(tag[n.status] || '') + ' \u00b7 ' + escapeHtml(n.pid)
+        + (ageSexOf(n.pid) ? ' \u00b7 ' + escapeHtml(ageSexOf(n.pid)) : '') + '</span></div>'
+        + '<div class="ph-need-btns">'
+        + '<button type="button" class="btn ph-take" onclick="Cal.photoTake(' + jsArg(n.pid) + ')">\uD83D\uDCF7 Take photo</button>'
+        + '<button type="button" class="ph-decline" onclick="Cal.photoDecline(' + jsArg(n.pid) + ')">Patient declined</button>'
+        + '</div></div>').join('')
     + '</div>';
+}
+/* THE PATIENT SAID NO (4.40). Asked once more, then told to the desk through
+   the relay, so every phone stops asking. The desk can undo it from the
+   record. Needs a signal, and says so when there is none. */
+async function photoDecline(pid){
+  pid = String(pid);
+  const name = nameOf(pid) || ('ID ' + pid);
+  if(!confirm(name + ' does not want a photo taken?\n\nEvery phone will stop asking for one. The desk can undo this from the patient record.')) return false;
+  const at = new Date().toISOString();
+  const id = 'pd-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  try{
+    await relayPost({ action: 'photoDecline' }, { id, pid, at, by: bkWho() || appVersionName() });
+  }catch(e){
+    const err = String((e && e.body && e.body.error) || '');
+    toast('Not saved \u2014 ' + (e && e.message === 'offline' ? 'no signal. Try again when the phone is back online.'
+      : (/unknown action/i.test(err) || (e && e.message === 'no-post')) ? 'the relay needs updating to r4.6.'
+      : photoWhy(e)));
+    return false;
+  }
+  photoDeclinedOwn[pid] = at;
+  idbPut('ph:declined-own', photoDeclinedOwn);
+  toast(name + ' \u2014 marked as declined');
+  try{ repaint(); }catch(e){}
+  return true;
 }
 
 /* ------------------------------------------------------------ patients -- */
@@ -3331,7 +3415,7 @@ function forgetForLock(){
   idbDel('set:' + CONTACTS);
 }
 
-return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, bkEditOpen, bkRemove, photoLoad, photoRefresh, photoTake, photoUse, photoRetake, photoCancel, faceHtml, photoOf, photoRetry, photoUnsentHtml, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
+return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, bkEditOpen, bkRemove, photoLoad, photoRefresh, photoTake, photoUse, photoRetake, photoCancel, faceHtml, photoOf, photoRetry, photoUnsentHtml, photoDecline, photoNeedsList, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS, idleWork, ptRowHtml,
   resetFresh: () => { settingsFreshThisOpen = false; } };
@@ -4634,7 +4718,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.39';
+const ADMIN_VERSION = '4.41';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */

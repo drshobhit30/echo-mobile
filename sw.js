@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.39';  // one number across lite, admin and this file
+const CACHE_VERSION = 'echo-nexus-4.41';  // one number across lite, admin and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -184,7 +184,9 @@ self.addEventListener('push', (event) => {
     renotify: true,
     silent: !!d.silent,
     timestamp: Date.now(),
-    data: { date: String(d.date || ''), pid: String(d.pid || '') }
+    /* kind 'photo' (4.41): a "Photo needed" for the reception phone, which
+       opens the photo list rather than the day. */
+    data: { date: String(d.date || ''), pid: String(d.pid || ''), kind: d.kind === 'photo' ? 'photo' : 'visit' }
   };
   if(!d.silent) opts.vibrate = [40, 60, 40];
   event.waitUntil(self.registration.showNotification(title, opts));
@@ -193,13 +195,15 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const d = event.notification.data || {};
-  const tail = d.date ? '#day=' + d.date + (d.pid ? '&pid=' + d.pid : '') : '';
+  const photo = d.kind === 'photo';
+  const tail = photo ? (d.pid ? '#photo=' + d.pid : '')
+    : (d.date ? '#day=' + d.date + (d.pid ? '&pid=' + d.pid : '') : '');
   event.waitUntil((async () => {
     const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for(const c of open){
       if(/admin\.html|lite\.html/.test(c.url)){
         try{ await c.focus(); }catch(e){}
-        try{ c.postMessage({ type: 'openVisit', date: d.date || '', pid: d.pid || '' }); }catch(e){}
+        try{ c.postMessage(photo ? { type: 'openPhoto', pid: d.pid || '' } : { type: 'openVisit', date: d.date || '', pid: d.pid || '' }); }catch(e){}
         return;
       }
     }
@@ -250,6 +254,7 @@ self.addEventListener('pushsubscriptionchange', (event) => {
       u.searchParams.set('action', 'pushSub');
       u.searchParams.set('dev', setup.dev || '');
       u.searchParams.set('mode', setup.mode || 'on');
+      if(setup.want) u.searchParams.set('want', setup.want === 'photos' ? 'photos' : 'visits');
       u.searchParams.set('sub', JSON.stringify({ endpoint: j.endpoint, keys: j.keys }));
       await fetch(u.toString(), { cache: 'no-store' });
     }catch(e){}

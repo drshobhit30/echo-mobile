@@ -1,5 +1,5 @@
 /* ======================================================================
-   ECHO NEXUS — PHONE RELAY  (r3.9, 17 Sep 2026)
+   ECHO NEXUS — PHONE RELAY  (r4.7, 25 Sep 2026)
 
    The phone apps (lite.html, admin.html) never sign in to Google. They ask
    this script instead, and this script reads the clinic folder as the
@@ -8,11 +8,26 @@
    list of phones - and never a clinic file.
 
    WHO MAY READ WHAT
-     lite key                 calendar, visits, patient names and age/sex,
-                              prescriptions, doctors, closures.
-                              NEVER phone numbers, NEVER money.
+     lite key                 calendar, visits, patient names, age/sex and
+                              MOBILE NUMBERS, prescriptions, doctors,
+                              closures.  NEVER money.
      admin key, locked        exactly what lite gets.
      admin key + right PIN    everything the admin app shows.
+
+   THE NUMBERS CHANGED HANDS AT r4.0 (owner's call). Until then a lite key
+   never saw one: the relay deleted them on the way out, so no staff phone
+   could fetch a number by any route. The phones now message patients on
+   WhatsApp, and a number the app cannot see is a number it cannot open a
+   chat with - so they are sent, through the ordinary settings read the
+   phone already makes on every open rather than as a second request per
+   patient, which is what would have made it slow.
+
+   What that means, plainly: EVERY PHONE HOLDING THE LITE LINK CAN READ
+   EVERY PATIENT'S MOBILE NUMBER - in the app, and by asking this script
+   directly with that key. Money is still refused, and a locked admin phone
+   is still exactly a lite phone. If a handset is lost or a link reaches
+   somebody it should not, changeLiteKey() is what shuts it off: every lite
+   phone then stops until it opens the new link.
 
    THE PIN is set in Nexus (Settings → Clinic setup → Phone app PIN). Nexus
    saves only a salted SHA-256 of it, in settings/phone-admin-pin.json; this
@@ -20,6 +35,46 @@
    PINs lock admin for 15 minutes. A right PIN returns a session that lasts
    until the phone drops it (app closed, phone locked) - or six hours at the
    very most, which is as long as Google keeps a cache entry.
+
+   THE RECEPTION PHONE (r4.7, owner's call). A phone's subscription now
+   carries what it wants to be told about - 'visits' (every visit marked, as
+   always) or 'photos' (only somebody marked in with no photo). Nexus reads
+   it and sends each phone its own kind. A request that does not say keeps
+   what the phone chose before, so an older app or the worker re-stating a
+   retired subscription can never quietly switch the reception phone back.
+
+   PATIENT DECLINED A PHOTO (r4.6, owner's call). A phone can mark a patient
+   as not wanting a photo; the mark is POSTed here like a photo and written
+   into the same photo-inbox/ as a small pd-*.json, and Nexus files it into
+   settings/photo-declined.json. photoIndex hands that list back so every
+   phone stops asking. The registered-today list went at the same time: the
+   phones now ask about whoever is marked in today, which they already hold.
+
+   PATIENT PHOTOS (r4.5, owner's call). A phone takes a patient's photo and
+   POSTs it here - the first thing a phone sends that will not fit in an
+   address, so this relay now answers doPost as well as doGet, with the same
+   key check. The photo is written into photo-inbox/, a folder of this
+   relay's own like booking-inbox/, and Nexus files it into the clinic's
+   patient-photos/ folder. Nothing here writes a clinic file. Phones read the
+   faces back as small thumbnails (faceThumbs), and ask photoIndex who has
+   one and who was registered today without one.
+
+   A ROUGH SLOT CAN BE CHANGED UNTIL THE DESK HAS IT (r4.4, owner's call:
+   "rough booking until its sent to the desk, stays editable"). Two new
+   actions, amend and unbook, act ONLY on a file still waiting at the top
+   of booking-inbox/ - never on one Nexus has filed into done/, and never
+   on a clinic file. Only a rough slot may be changed, and only into
+   another rough slot; a real booking is still changed at the desk. Both
+   run under the script lock so a phone's change and a phone's booking
+   cannot interleave on the same file.
+
+   THE TIMER SLEEPS WHEN THE CLINIC DOES (r4.3). See warmDue_ below: the
+   five-minute beat is kept while the desk is awake or a phone has asked
+   recently, and stretched to half-hourly when neither is true. Measured on
+   22 Sep: the sweep was costing six to seventeen seconds EVERY five minutes
+   round the clock - about three quarters of an hour of Apps Script runtime
+   a day, most of it at two in the morning re-reading files nobody had
+   touched since nine the previous evening.
 
    THE TIMER (r2.0). Every 5 minutes warmCache reads what changed in the
    clinic folder - appointments and visits from 7 days back to 14 ahead, and
@@ -119,9 +174,38 @@ function doGet(e){
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+/* POST (r4.5): only the photo upload comes this way. The key and the
+   phone's tag ride on the address exactly as they do on a GET; the photo is
+   the body. */
+function doPost(e){
+  let out;
+  try{
+    const p = Object.assign({}, (e && e.parameter) || {});
+    let body = {};
+    try{ body = JSON.parse((e && e.postData && e.postData.contents) || '{}') || {}; }catch(err){ body = {}; }
+    const role = roleForKey_(String(p.key || ''));
+    if(!role) out = { ok: false, error: 'bad key' };
+    else {
+      noteDevice_(p, role);
+      const action = String(p.action || '');
+      out = action === 'photo' ? photo_(body, p)
+          : action === 'photoDecline' ? photoDecline_(body, p)
+          : { ok: false, error: 'unknown action' };
+    }
+  }catch(err){
+    out = { ok: false, error: 'relay error: ' + (err && err.message ? err.message : String(err)) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(out))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 function handle_(p){
   const role = roleForKey_(String(p.key || ''));
   if(!role) return { ok: false, error: 'bad key' };
+  /* WHEN A PHONE LAST ASKED (r4.3), so the sweep knows whether anybody is
+     here. Written after the key is checked, so a stranger knocking on the
+     door cannot keep the clinic's warm-up running all night. */
+  try{ CacheService.getScriptCache().put('c:lastask', String(Date.now()), CACHE_SECONDS); }catch(e){}
   const action = String(p.action || 'ping');
   noteDevice_(p, role);
 
@@ -159,7 +243,11 @@ function handle_(p){
   if(action === 'list')     return listFolder_(String(p.folder || ''), level);
   if(action === 'file')     return readRecord_(String(p.folder || ''), String(p.name || ''), level, since);
   if(action === 'book')   return book_(String(p.booking || ''));
+  if(action === 'amend')  return amend_(String(p.booking || ''));
+  if(action === 'unbook') return unbook_(String(p.id || ''));
   if(action === 'lookup') return lookupPhone_(String(p.q || ''));
+  if(action === 'photoIndex') return photoIndex_();
+  if(action === 'faceThumbs') return faceThumbs_(String(p.items || ''));
   if(action === 'bookingStatus') return bookingStatus_(String(p.ids || ''));
   if(action === 'lock'){
     if(p.session) CacheService.getScriptCache().remove('sess:' + p.session);
@@ -293,17 +381,15 @@ function parseOrNull_(file){
   try{ return JSON.parse(file.getBlob().getDataAsString()); }catch(e){ return null; }
 }
 
-/* Lite never sees a phone number: stripped here, not merely hidden on the
-   phone, so a lite key cannot fetch them by any route. */
-function stripContacts_(map){
-  const out = {};
-  Object.keys(map || {}).forEach(pid => {
-    const r = Object.assign({}, map[pid] || {});
-    delete r.numbers;
-    out[pid] = r;
-  });
-  return out;
-}
+/* stripContacts_ WAS HERE, and it is gone rather than left unused (r4.0).
+   It deleted every number from patient-contacts.json for anything but an
+   unlocked admin key. Putting the numbers back is now one thing - not
+   calling it - and a function nothing calls is the kind of code somebody
+   restores by accident a year from now.
+
+   To go back: strip r.numbers out of the map in readSettings_, in BOTH
+   places it answers from - the cached copy and the fresh read - or the
+   memory would hand out what the fresh path had just refused. */
 /* PENDING BOOKINGS, MERGED INTO A DAY (r3.9).
 
    Marked `pending` so a phone can draw them as what they are - asked for,
@@ -336,7 +422,55 @@ function stripBookings_(list){
 function notModified_(f, since){
   return !!(since && f && f.getLastUpdated().toISOString() === since);
 }
-function readSettings_(name, level, since, fresh, rxYears){
+/* ======================================================================
+   THE BILLS INDEX, WITHOUT ITS LINES (r4.1)
+
+   The index carries every bill AND every line of every bill. The phone's
+   Billing screen shows a name, a number, a date and a total; the lines are
+   wanted for the one bill somebody taps open, and for nothing else. On a
+   clinic-sized folder the lines are most of the file's weight, and it was
+   being sent in full on every read.
+
+   So a phone may ask for it slim - each bill kept whole except for its
+   lines, which is every field the phone's arithmetic and its screens use -
+   and ask for one bill by number when a row is opened (t:'bill').
+   Nothing is changed on Drive: this is what is SENT, not what is stored.
+   ====================================================================== */
+const BILLS_INDEX = 'bills-index.json';
+function slimBillsIndex_(idx){
+  if(!idx || !Array.isArray(idx.bills)) return idx;
+  const bills = idx.bills.map(function(b){
+    if(!b || typeof b !== 'object') return b;
+    const out = {};
+    Object.keys(b).forEach(function(k){ if(k !== 'items' && k !== 'lines') out[k] = b[k]; });
+    out.lineCount = Array.isArray(b.items) ? b.items.length : (Array.isArray(b.lines) ? b.lines.length : 0);
+    return out;
+  });
+  const copy = {};
+  Object.keys(idx).forEach(function(k){ if(k !== 'bills') copy[k] = idx[k]; });
+  copy.bills = bills;
+  copy.slim = true;
+  return copy;
+}
+function billNumberOf_(b){
+  return String((b && (b.billNumber || b.billNo || b.id)) || '');
+}
+/* One bill, whole, found by the number the desk printed on it. */
+function readOneBill_(number, level){
+  if(level !== 'admin') return { ok: false, error: 'not allowed', locked: true };
+  const want = String(number || '');
+  if(!want) return { ok: false, error: 'bad bill' };
+  const r = readSettings_(BILLS_INDEX, level, '', false, 0, false);
+  if(!r.ok) return r;
+  const idx = r.value;
+  if(!idx || !Array.isArray(idx.bills)) return { ok: true, value: null, modified: r.modified };
+  let found = null;
+  for(let i = 0; i < idx.bills.length && !found; i++){
+    if(billNumberOf_(idx.bills[i]) === want) found = idx.bills[i];
+  }
+  return { ok: true, value: found, modified: r.modified };
+}
+function readSettings_(name, level, since, fresh, rxYears, slim){
   const allowed = level === 'admin' ? ADMIN_SETTINGS : LITE_SETTINGS;
   if(allowed.indexOf(name) === -1) return { ok: false, error: 'not allowed', locked: level !== 'admin' };
   if(!fresh && (LITE_SETTINGS.indexOf(name) !== -1 || ADMIN_WARM.indexOf(name) !== -1)){
@@ -344,8 +478,8 @@ function readSettings_(name, level, since, fresh, rxYears){
     if(held){
       if(since && held.modified === since) return { ok: true, name: name, notModified: true, modified: since };
       let v = held.value;
-      if(name === 'patient-contacts.json' && level !== 'admin') v = stripContacts_(v);
       if(name === RX_INDEX && rxYears) v = trimRxIndex_(v, rxYears);
+      if(name === BILLS_INDEX && slim) v = slimBillsIndex_(v);
       return { ok: true, name: name, value: v, modified: held.modified, cached: true };
     }
   }
@@ -355,8 +489,8 @@ function readSettings_(name, level, since, fresh, rxYears){
   let value = parseOrNull_(f);
   const modified = f.getLastUpdated().toISOString();
   if(LITE_SETTINGS.indexOf(name) !== -1 || ADMIN_WARM.indexOf(name) !== -1) cachePutJson_('set:' + name, { value: value, modified: modified });
-  if(name === 'patient-contacts.json' && level !== 'admin') value = stripContacts_(value);
   if(name === RX_INDEX && rxYears) value = trimRxIndex_(value, rxYears);
+  if(name === BILLS_INDEX && slim) value = slimBillsIndex_(value);
   return { ok: true, name: name, value: value, modified: modified };
 }
 
@@ -597,16 +731,19 @@ function pushSub_(p, role){
   if(!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) return { ok: false, error: 'bad subscription' };
   if(!/^https:\/\/[^\s"']+$/.test(String(sub.endpoint))) return { ok: false, error: 'bad subscription' };
   const mode = String(p.mode || 'on') === 'silent' ? 'silent' : 'on';
+  const want = p.want ? (String(p.want) === 'photos' ? 'photos' : 'visits')
+    : ((prev && prev.want === 'photos') ? 'photos' : 'visits');
   writeJsonFile_(phonesFolder_(), 'sub-' + dev + '.json', {
     dev: dev,
     app: role === 'admin' ? 'admin' : 'lite',
     ver: String(p.ver || '').slice(0, 12),
     name: String(p.name || '').slice(0, 40),
     mode: mode,
+    want: want,
     sub: { endpoint: String(sub.endpoint), keys: { p256dh: String(sub.keys.p256dh), auth: String(sub.keys.auth) } },
     at: new Date().toISOString()
   });
-  return { ok: true, mode: mode };
+  return { ok: true, mode: mode, want: want };
 }
 
 /* Off means gone, not muted: the file is removed and nothing is sent to that
@@ -857,9 +994,10 @@ function readBatch_(itemsJson, level, rxYears){
        eleven good reads as well, and had nothing to show. Batching must
        never make a failure bigger than it was. */
     try{
-      if(kind === 'set')  return readSettings_(name, level, since, false, rxYears);
+      if(kind === 'set')  return readSettings_(name, level, since, false, rxYears, !!it.slim);
       if(kind === 'day')  return readDay_(folder, name, level, since);
       if(kind === 'file') return readRecord_(folder, name, level, since);
+      if(kind === 'bill') return readOneBill_(name, level);
       return { ok: false, error: 'bad item' };
     }catch(err){
       return { ok: false, error: 'relay error: ' + ((err && err.message) || String(err)) };
@@ -884,7 +1022,37 @@ function readSettingsAll_(level, sinceMapJson, fresh, rxYears){
     const r = readSettings_(name, level, String(sinceMap[name] || ''), fresh, rxYears);
     values[name] = r.ok ? (r.notModified ? { notModified: true, modified: r.modified } : { value: r.value, modified: r.modified }) : { error: r.error };
   });
+  /* WHO BECAME A PATIENT TODAY (r4.2), as a list of ids and nothing else.
+
+     The phones draw the desk's NEW mark, which the desk reads from
+     patient-created-at.json - one date per patient, a file the size of the
+     directory itself. Sending that to a phone to answer "is anybody on this
+     screen new" would roughly double what a phone downloads at opening, and
+     lite is not allowed the file at all.
+
+     So the answer is computed here and sent as the answer: the handful of
+     ids stamped today. Typically none to ten, a few hundred bytes, and the
+     same shape for lite and admin. */
+  values['newToday'] = { value: newTodayIds_(), modified: clinicToday_() };
   return { ok: true, values: values };
+}
+/* Cached for the day it is about: the file changes when somebody registers,
+   and a phone that is an hour stale here shows one fewer badge, which is not
+   worth a Drive read per pull. */
+function newTodayIds_(){
+  const today = clinicToday_();
+  const key = 'newtoday:' + today;
+  const held = cacheGetJson_(key);
+  if(held) return held;
+  let out = [];
+  try{
+    const map = parseOrNull_(settingsFile_('patient-created-at.json')) || {};
+    out = Object.keys(map).filter(function(id){
+      return String(map[id] || '').slice(0, 10) === today;
+    });
+  }catch(e){ out = []; }
+  try{ cachePutJson_(key, out); }catch(e){}
+  return out;
 }
 
 /* ======================================================================
@@ -1034,7 +1202,72 @@ function warmChanged_(sinceIso){
   return out;
 }
 
+/* How long the desk may be silent before its files are taken to be still. */
+const DESK_QUIET_MS  = 15 * 60 * 1000;
+/* How long since a phone last asked for anything. */
+const PHONE_QUIET_MS = 20 * 60 * 1000;
+/* And how often to sweep anyway, when both are quiet. */
+const IDLE_SWEEP_MS  = 30 * 60 * 1000;
+/* The desk's own heartbeat, written every minute by whichever Nexus holds
+   the filing job. It is the one honest answer to "can these files be
+   changing right now". */
+const FILER_FILE = 'filer.json';
+
+/**
+ * IS A SWEEP WORTH ITS SECONDS RIGHT NOW? (r4.3)
+ *
+ * A sweep costs six to seventeen seconds however little has changed: four
+ * Drive searches to ask what is new, a walk of the booking inbox, and the
+ * device flush. That is the right price while the clinic is working and the
+ * wrong one at three in the morning.
+ *
+ * Three things earn a full-rate sweep, and any one of them is enough:
+ *   - the memory has expired or was never built, so this run is what
+ *     rebuilds it;
+ *   - a phone asked for something in the last twenty minutes;
+ *   - the desk's heartbeat is fresh, which means the files can change.
+ *
+ * Nothing here makes a phone wait: pull-to-refresh goes through
+ * warmSweepNow_, which sweeps on demand and ignores all of this. The worst
+ * a skipped sweep can do is leave the memory up to half an hour old - and
+ * it is only ever skipped when the thing that writes those files has been
+ * silent for a quarter of an hour.
+ *
+ * EVERY DOUBT SWEEPS. An unreadable heartbeat, a missing marker, a clock
+ * that makes no sense: all of them fall through to sweeping, because being
+ * wrong in that direction costs nine seconds and being wrong in the other
+ * costs the clinic a stale answer.
+ */
+function warmDue_(){
+  try{
+    const cache = CacheService.getScriptCache();
+    const now = Date.now();
+
+    /* The memory is gone, or has never been built: this is the run that
+       builds it, whatever else is true. */
+    if(!cache.get('c:warm:alive')) return { due: true, why: 'memory needs building' };
+
+    const last = Number(cache.get('c:warm:at') || 0);
+    if(!last || (now - last) >= IDLE_SWEEP_MS) return { due: true, why: 'half an hour since the last one' };
+
+    const asked = Number(cache.get('c:lastask') || 0);
+    if(asked && (now - asked) < PHONE_QUIET_MS) return { due: true, why: 'a phone asked recently' };
+
+    /* One small file, rather than the four searches and the inbox walk. */
+    const beat = parseOrNull_(fileIn_(liveFolder_(INBOX), FILER_FILE));
+    const beatAt = beat ? (Date.parse(beat.at || '') || 0) : 0;
+    if(!beatAt) return { due: true, why: 'no heartbeat to read' };
+    if((now - beatAt) < DESK_QUIET_MS) return { due: true, why: 'the desk is awake' };
+
+    return { due: false, why: 'desk quiet since ' + beat.at + ', no phone in ' + Math.round((now - asked) / 60000) + ' min' };
+  }catch(err){
+    return { due: true, why: 'could not tell (' + err + ')' };
+  }
+}
+
 function warmCache(){
+  const d = warmDue_();
+  if(!d.due){ Logger.log('Sweep skipped: ' + d.why); return; }
   warmSweep_();
   try{ flushDevices_(); }catch(e){}
 }
@@ -1152,6 +1385,8 @@ function warmSweep_(){
      written while it was working is then inside the next window rather than
      missed between the two. */
   cache.put('c:warm:alive', '1', CACHE_SECONDS);
+  /* When this one ran, so the idle backstop above can be measured. */
+  cache.put('c:warm:at', String(Date.now()), CACHE_SECONDS);
   /* THE WINDOW MOVES ONLY WHEN THIS RUN COVERED IT (r3.1), and that is the
      single most important line in this file. Everything from the last
      sweptAt to this one has now been looked at - either by the search, or
@@ -1203,6 +1438,12 @@ function blocksOn_(list, day){
 /* Same rule as phonesFolder_: a binned inbox would silently swallow every
    booking a phone made. */
 function inboxFolder_(){ return liveFolder_(INBOX); }
+/** One named file in a folder, or null. */
+function fileIn_(folder, name){
+  if(!folder) return null;
+  const it = folder.getFilesByName(name);
+  return it.hasNext() ? it.next() : null;
+}
 function pendingFor_(day){
   const out = [];
   const it = inboxFolder_().getFiles();
@@ -1231,6 +1472,65 @@ function book_(json){
   if(!/^ph-[A-Za-z0-9-]{6,60}$/.test(id)) return { ok: false, error: 'Booking has no id' };
   const folder = inboxFolder_();
   if(folder.getFilesByName(id + '.json').hasNext()) return { ok: true, id: id, already: true };   // a double tap, or a retry
+  const v = validateBooking_(b, id);
+  if(!v.ok) return v;
+  folder.createFile(id + '.json', JSON.stringify(v.rec, null, 2), MimeType.PLAIN_TEXT);
+  return { ok: true, id: id };
+}
+/* WHERE A PHONE BOOKING IS, by id: 'waiting' (top of the inbox), 'filed'
+   (Nexus moved it into done/), or 'gone'. */
+function whereIsBooking_(id){
+  const inbox = inboxFolder_();
+  const it = inbox.getFilesByName(id + '.json');
+  if(it.hasNext()) return { where: 'waiting', file: it.next() };
+  const doneIt = inbox.getFoldersByName('done');
+  const done = doneIt.hasNext() ? doneIt.next() : null;
+  if(done && done.getFilesByName(id + '.json').hasNext()) return { where: 'filed' };
+  return { where: 'gone' };
+}
+const AT_THE_DESK_ = 'The desk already has it \u2014 change it there';
+function amend_(json){
+  let b;
+  try{ b = JSON.parse(json); }catch(e){ return { ok: false, error: 'Booking could not be read' }; }
+  const id = String(b.id || '');
+  if(!/^ph-[A-Za-z0-9-]{6,60}$/.test(id)) return { ok: false, error: 'Booking has no id' };
+  if(b.rough !== true) return { ok: false, error: 'Only a rough slot can be changed from a phone' };
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(15000)) return { ok: false, error: 'relay error: busy, try again' };
+  try{
+    const at = withRetry_(() => whereIsBooking_(id));
+    if(at.where === 'filed') return { ok: false, filed: true, error: AT_THE_DESK_ };
+    if(at.where !== 'waiting') return { ok: false, gone: true, error: 'That rough slot is no longer waiting' };
+    const was = parseOrNull_(at.file) || {};
+    if(was.rough !== true) return { ok: false, error: 'Only a rough slot can be changed from a phone' };
+    const v = validateBooking_(b, id);
+    if(!v.ok) return v;
+    const rec = v.rec;
+    /* When and by whom it was first asked for stay as they were; the change
+       is stamped beside them. */
+    if(was.bookedAt) rec.bookedAt = was.bookedAt;
+    if(was.bookedBy) rec.bookedBy = was.bookedBy;
+    rec.amendedAt = new Date().toISOString();
+    at.file.setContent(JSON.stringify(rec, null, 2));
+    return { ok: true, id: id, amended: true };
+  } finally { lock.releaseLock(); }
+}
+function unbook_(id){
+  id = String(id || '');
+  if(!/^ph-[A-Za-z0-9-]{6,60}$/.test(id)) return { ok: false, error: 'Booking has no id' };
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(15000)) return { ok: false, error: 'relay error: busy, try again' };
+  try{
+    const at = withRetry_(() => whereIsBooking_(id));
+    if(at.where === 'filed') return { ok: false, filed: true, error: AT_THE_DESK_ };
+    if(at.where !== 'waiting') return { ok: true, id: id, already: true };   // nothing waiting: the wish is met
+    const was = parseOrNull_(at.file) || {};
+    if(was.rough !== true) return { ok: false, error: 'Only a rough slot can be removed from a phone' };
+    at.file.setTrashed(true);
+    return { ok: true, id: id, removed: true };
+  } finally { lock.releaseLock(); }
+}
+function validateBooking_(b, id){
   const today = clinicToday_();
   const date = String(b.date || '');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: 'No date' };
@@ -1287,8 +1587,7 @@ function book_(json){
     bookedAt: new Date().toISOString(), source: 'phone'
   };
   if(notes.length) rec.phoneWarnings = notes;
-  folder.createFile(id + '.json', JSON.stringify(rec, null, 2), MimeType.PLAIN_TEXT);
-  return { ok: true, id: id };
+  return { ok: true, rec: rec };
 }
 
 /* RUN THIS ONCE after pasting r2.3 (the booking relay). It writes one test
@@ -1398,6 +1697,92 @@ function testBookingInbox(){
 /* WHERE IS MY BOOKING? (r2.4) waiting: still in the inbox. filed: Nexus has
    taken it (it is in done/). unknown: neither. A phone uses this to drop its
    note for a booking that was filed and then deleted at the desk. */
+/* ======================================================================
+   PATIENT PHOTOS (r4.5)
+   ====================================================================== */
+const PHOTO_INBOX = 'photo-inbox';
+const PHOTO_DIR = 'patient-photos';
+const PHOTO_ID_RE_ = /^pp-[A-Za-z0-9-]{6,60}$/;
+const B64_RE_ = /^[A-Za-z0-9+\/]+={0,2}$/;
+function isJpegB64_(b64){
+  try{
+    const head = Utilities.base64Decode(String(b64).slice(0, 8));
+    return head.length >= 2 && (head[0] & 0xFF) === 0xFF && (head[1] & 0xFF) === 0xD8;
+  }catch(e){ return false; }
+}
+function photo_(b, p){
+  const id = String(b.id || '');
+  if(!PHOTO_ID_RE_.test(id)) return { ok: false, error: 'The photo has no id' };
+  const pid = String(b.pid || '');
+  const patients = withRetry_(() => parseOrNull_(settingsFile_('patients.json')));
+  if(!patients) return { ok: false, error: 'relay error: the patient directory could not be read just now' };
+  if(!pid || !patients[pid]) return { ok: false, error: 'That patient is not in the directory' };
+  const img = String(b.img || ''), thumb = String(b.thumb || '');
+  if(img.length < 1000 || img.length > 700000 || !B64_RE_.test(img) || !isJpegB64_(img)) return { ok: false, error: 'The photo could not be read' };
+  if(thumb.length < 200 || thumb.length > 120000 || !B64_RE_.test(thumb) || !isJpegB64_(thumb)) return { ok: false, error: 'The photo could not be read' };
+  const folder = liveFolder_(PHOTO_INBOX);
+  if(folder.getFilesByName(id + '.json').hasNext()) return { ok: true, id: id, already: true };   // a retry
+  const at = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(String(b.at || '')) ? String(b.at) : new Date().toISOString();
+  const rec = { id: id, pid: pid, at: at, by: String(b.by || '').trim().slice(0, 40) || 'phone',
+    dev: String(p.dev || '').slice(0, 40), img: img, thumb: thumb, receivedAt: new Date().toISOString() };
+  folder.createFile(id + '.json', JSON.stringify(rec), MimeType.PLAIN_TEXT);
+  return { ok: true, id: id };
+}
+/* Who has a photo, and who has said no to one (r4.6). The registered-today
+   list is gone: phones ask about whoever is marked in today. `needs` stays
+   in the answer, empty, so a 4.38/4.39 phone reads it without breaking. */
+function photoIndex_(){
+  const idx = parseOrNull_(settingsFile_('photo-index.json')) || {};
+  const index = {};
+  Object.keys(idx).forEach(pid => {
+    const r = idx[pid];
+    if(r && r.id && PHOTO_ID_RE_.test(String(r.id))) index[pid] = { id: String(r.id), at: String(r.at || '') };
+  });
+  const dec = parseOrNull_(settingsFile_('photo-declined.json')) || {};
+  const declined = {};
+  Object.keys(dec).forEach(pid => {
+    if(/^[A-Za-z0-9]{1,20}$/.test(pid) && dec[pid]) declined[pid] = { at: String(dec[pid].at || '') };
+  });
+  return { ok: true, index: index, declined: declined, needs: [] };
+}
+/* A patient who does not want a photo. The same inbox as a photo, so no new
+   folder and no new sharing. */
+const DECLINE_ID_RE_ = /^pd-[A-Za-z0-9-]{6,60}$/;
+function photoDecline_(b, p){
+  const id = String(b.id || '');
+  if(!DECLINE_ID_RE_.test(id)) return { ok: false, error: 'The note has no id' };
+  const pid = String(b.pid || '');
+  const patients = withRetry_(() => parseOrNull_(settingsFile_('patients.json')));
+  if(!patients) return { ok: false, error: 'relay error: the patient directory could not be read just now' };
+  if(!pid || !patients[pid]) return { ok: false, error: 'That patient is not in the directory' };
+  const folder = liveFolder_(PHOTO_INBOX);
+  if(folder.getFilesByName(id + '.json').hasNext()) return { ok: true, id: id, already: true };
+  const at = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(String(b.at || '')) ? String(b.at) : new Date().toISOString();
+  folder.createFile(id + '.json', JSON.stringify({ kind: 'declined', id: id, pid: pid, at: at,
+    by: String(b.by || '').trim().slice(0, 40) || 'phone', dev: String(p.dev || '').slice(0, 40),
+    receivedAt: new Date().toISOString() }), MimeType.PLAIN_TEXT);
+  return { ok: true, id: id };
+}
+/* Thumbnails, by pid:id pairs, at most forty a call. A missing one is left
+   out rather than failing the rest. */
+function faceThumbs_(itemsCsv){
+  const pairs = itemsCsv.split(',').map(x => x.trim()).filter(Boolean).slice(0, 40)
+    .map(x => x.split(':')).filter(a => a.length === 2 && /^[A-Za-z0-9]{1,20}$/.test(a[0]) && PHOTO_ID_RE_.test(a[1]));
+  const thumbs = {};
+  const root = subFolder_(PHOTO_DIR);
+  if(!root) return { ok: true, thumbs: thumbs };
+  pairs.forEach(([pid, id]) => {
+    try{
+      const pit = root.getFoldersByName(pid);
+      if(!pit.hasNext()) return;
+      const fit = pit.next().getFilesByName(id + '-t.jpg');
+      if(!fit.hasNext()) return;
+      thumbs[id] = Utilities.base64Encode(fit.next().getBlob().getBytes());
+    }catch(e){}
+  });
+  return { ok: true, thumbs: thumbs };
+}
+
 function bookingStatus_(idsCsv){
   const ids = idsCsv.split(',').map(x => x.trim()).filter(x => /^ph-[A-Za-z0-9-]{6,60}$/.test(x)).slice(0, 20);
   const inbox = inboxFolder_();
