@@ -618,6 +618,9 @@ body{ background:#FAF7F2 !important; }
 .photo-btns{ display:flex; gap:10px; margin-top:12px; }
 .photo-btns .btn{ flex:1; }
 .photo-cancel{ display:block; width:100%; margin-top:8px; background:none; border:0; color:var(--muted); padding:10px; font-size:14px; }
+.face-unsent{ box-shadow:0 0 0 2px #D9822B; }
+.ph-unsent{ background:#FFF3E0; color:#6B3E0B; border:1px solid #F0C48A; border-radius:10px; padding:8px 10px; font-size:13px; margin:0 0 10px; line-height:1.4; }
+.ph-retry{ background:#fff; border:1px solid #D9822B; color:#8A4B0B; border-radius:999px; padding:3px 10px; font-size:12px; margin-left:4px; }
 .bk-remove{ display:block; width:100%; margin-top:10px; background:none; border:0; color:var(--danger); font-size:14px; padding:10px; }
 .bk-go.rough{ background:#fff; color:#3B2A1A; border:1.5px dashed #3B2A1A; }
 .bk-toast{ position:fixed; left:12px; right:12px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:95; background:#1D9E75; color:#fff; border-radius:12px; padding:11px 13px; font-size:0.88rem; opacity:0; transform:translateY(10px); transition:all .2s ease; pointer-events:none; }
@@ -813,7 +816,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.38';
+const LITE_VERSION = '4.39';
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1857,7 +1860,7 @@ function hsHeadHtml(pid, backCall){
   /* THE FACE, AND THE CAMERA (4.38). */
   const cam = '<button type="button" class="hsh-cam" onclick="photoTake(' + jsArg(pid) + ')">\uD83D\uDCF7 '
     + (photoOf(pid) ? 'Retake' : 'Photo') + '</button>';
-  return '<div class="hs-head"><div class="hsh-top">' + back + faceHtml(pid, 'face-lg') + '<div>'
+  return '<div class="hs-head">' + photoUnsentHtml(pid) + '<div class="hsh-top">' + back + faceHtml(pid, 'face-lg') + '<div>'
     + '<b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
     + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
     + '</div>' + cam + '</div>'
@@ -2663,7 +2666,8 @@ function faceHtml(pid, cls){
     if(!url && !ph.own) faceAsk(pid, ph.id);
     img = '<img data-face="' + escapeHtml(ph.id) + '" alt=""' + (url ? ' src="' + url + '"' : '') + '>';
   }
-  return '<span class="face' + (cls ? ' ' + cls : '') + '"><i>' + escapeHtml(faceInitials(nameOf(pid))) + '</i>' + img + '</span>';
+  const unsent = !!(ph && ph.own && photoUnsent(pid));
+  return '<span class="face' + (cls ? ' ' + cls : '') + (unsent ? ' face-unsent' : '') + '"' + (unsent ? ' title="Not sent to the desk yet"' : '') + '><i>' + escapeHtml(faceInitials(nameOf(pid))) + '</i>' + img + '</span>';
 }
 function facePaint(id, url){
   try{ document.querySelectorAll('img[data-face="' + id + '"]').forEach(el => { el.src = url; }); }catch(e){}
@@ -2788,6 +2792,7 @@ async function photoUse(){
   toast('Photo saved · sending to the desk');
   repaint();
   await photoSend();
+  if(!rec.sent){ toast('Photo not sent yet \u2014 ' + (rec.lastError || 'it will keep trying')); try{ repaint(); }catch(e){} }
 }
 function appVersionName(){ return (typeof ADMIN_VERSION !== 'undefined') ? 'admin phone' : 'lite phone'; }
 /* THE FIRST POST THIS APP MAKES. A photo does not fit in an address, so it
@@ -2797,14 +2802,20 @@ async function relayPost(params, body){
   const url = relayRequestUrl(params);
   const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, 45000) : null;
-  let res, j;
+  let res, j, text = '';
   try{
     res = await fetch(url, { method: 'POST', redirect: 'follow', cache: 'no-store',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body),
       signal: ctl ? ctl.signal : undefined });
-    j = await res.json();
+    text = await res.text();
   }catch(e){ throw new RelayError(res ? 'unreadable' : 'offline'); }
   finally{ if(timer) clearTimeout(timer); }
+  try{ j = JSON.parse(text); }
+  catch(e){
+    /* Google's own error page, not the relay's answer: a relay older than
+       r4.5 has no door for a POST at all (4.39). */
+    throw new RelayError(/doPost/i.test(text) ? 'no-post' : 'unreadable');
+  }
   if(!j || !j.ok) throw new RelayError((j && j.error) || 'relay', j);
   return j;
 }
@@ -2825,6 +2836,11 @@ async function photoSend(){
         if(why && !/^relay error/i.test(why) && e.message !== 'offline' && e.message !== 'unreadable'){
           photoPending = photoPending.filter(x => x.id !== p.id); photoSave();
           toast('Photo not saved: ' + why);
+        } else {
+          /* KEPT, AND SAID WHY (4.39). A photo that cannot go looked exactly
+             like one that had gone; on 25 Sep that hid a relay that could
+             not create photo-inbox/ for a quarter of an hour. */
+          p.lastError = photoWhy(e); p.lastTry = Date.now(); photoSave();
         }
       }
     }
@@ -2835,6 +2851,34 @@ setInterval(() => { photoRefresh(false); }, 60000);
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible'){ if(photoPending.some(p => !p.sent)) photoSend(); photoRefresh(false); }
 });
+/* WHY A PHOTO HAS NOT GONE, in words somebody can act on (4.39). */
+function photoWhy(e){
+  const m = (e && e.message) || '';
+  const err = String((e && e.body && e.body.error) || '');
+  if(m === 'offline') return 'No signal \u2014 it goes by itself when the phone is back online.';
+  if(m === 'no-post') return 'The relay cannot take photos yet \u2014 it needs updating to r4.5.';
+  if(/photo-inbox|access|permission|denied|create/i.test(err))
+    return 'The relay could not write to photo-inbox \u2014 the folder must exist and be shared with the relay\u2019s account as Editor.';
+  if(err) return err.replace(/^relay error:\s*/i, 'The relay said: ');
+  return 'The relay did not answer properly \u2014 it will try again.';
+}
+function photoUnsent(pid){
+  return photoPending.filter(p => p.pid === String(pid) && !p.sent).pop() || null;
+}
+function photoUnsentHtml(pid){
+  const p = photoUnsent(pid);
+  if(!p) return '';
+  return '<div class="ph-unsent"><b>Photo not sent yet.</b> '
+    + escapeHtml(p.lastError || 'Sending\u2026')
+    + ' <button type="button" class="ph-retry" onclick="photoRetry()">Try again</button></div>';
+}
+async function photoRetry(){
+  toast('Sending the photo\u2026');
+  await photoSend();
+  const left = photoPending.filter(p => !p.sent);
+  toast(left.length ? ('Still not sent \u2014 ' + (left[0].lastError || 'try again in a moment')) : 'Photo sent to the desk');
+  try{ repaint(); }catch(e){}
+}
 /* The list at the top of Patients: today's registrations with no face. */
 function photoNeedsHtml(){
   const list = photoNeedsList();
