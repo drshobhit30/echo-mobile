@@ -3831,6 +3831,46 @@ function lanPaint(){
     }
   }catch(e){}
 }
+/* ==== ANY CHANGE, ON EVERY PHONE, IN SECONDS (4.65, owner's call) ====
+   On the Wi-Fi LAN the phone asks the PC every three seconds for a tiny
+   stamp of what changed - the day files from two weeks back to five
+   ahead, the booking inbox, the photo list. About 20 ms, a few bytes. Only
+   when the stamp moves is the fortnight on screen read again (from the PC)
+   and redrawn; so a visit marked at the desk, a patient seated from a chair
+   panel, a booking tapped on another phone is on this screen within about
+   three seconds. Only while the app is on screen, only on the LAN, and not
+   for an unlocked admin (which reads through the relay). An older desk
+   server without the stamp: stopped asking for this session, no fault. */
+const LAN_STAMP_MS = 3000;
+let lanStamp = { days: '', photos: '' };
+let lanStampBusy = false, lanStampOff = false;
+function lanViewDay(){ try{ return (typeof Cal !== 'undefined' && Cal.getViewDay) ? Cal.getViewDay() : viewDay; }catch(e){ return ''; } }
+function lanWeek(day){ return (typeof Cal !== 'undefined' && Cal.ensureWeek) ? Cal.ensureWeek(day, true) : ensureWeek(day, true); }
+function lanPhotos(){ return (typeof Cal !== 'undefined' && Cal.photoRefresh) ? Cal.photoRefresh(true) : photoRefresh(true); }
+function lanAfterChange(){
+  try{ if(typeof renderPatients === 'function' && currentTab === 'patients' && !selectedPatient) renderPatients(); }catch(e){}
+}
+async function lanStampTick(){
+  if(lanStampBusy || lanStampOff || lanState !== 'up' || !lanBase || lanAdminLevel()) return;
+  try{ if(document.visibilityState !== 'visible') return; }catch(e){}
+  lanStampBusy = true;
+  try{
+    const j = await lanFetch(lanUrl(lanBase, 'stamp', {}), 2500);
+    const first = !lanStamp.days;
+    if(!first && j.days !== lanStamp.days){
+      const day = lanViewDay();
+      await lanWeek(day || todayStr());
+      if(day && day !== todayStr()) await lanWeek(todayStr());
+      lanAfterChange();
+    }
+    if(!first && j.photos !== lanStamp.photos){ try{ await lanPhotos(); }catch(e){} }
+    lanStamp = { days: String(j.days || ''), photos: String(j.photos || '') };
+  }catch(e){
+    if(e && e.answered) lanStampOff = true;       // an older desk server: no stamp, no fault
+    else lanFailed(e, 'stamp');
+  }finally{ lanStampBusy = false; }
+}
+setInterval(() => { lanStampTick(); }, LAN_STAMP_MS);
 async function relay(params){
   const act = params && params.action;
   if(lanInfo && LAN_WRITES[act] && await lanReadyNow()){
@@ -5035,7 +5075,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.64';
+const ADMIN_VERSION = '4.65';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
