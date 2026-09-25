@@ -827,7 +827,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.63';
+const LITE_VERSION = '4.64';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -1083,13 +1083,13 @@ function lanPaint(){
     const el = document.getElementById('lanMark');
     if(el){
       el.textContent = up ? ' \u26A1' : '';
-      el.title = up ? 'On the clinic Wi-Fi: reading straight from the reception PC' : '';
+      el.title = up ? 'Connected on the Wi-Fi LAN: reading straight from the reception PC' : '';
     }
     const why = document.getElementById('lanWhy');
     if(why){
       const when = lanWhy.at ? new Date(lanWhy.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '';
       why.textContent = !lanInfo ? 'Clinic PC: not set up yet \u2014 everything goes through the relay.'
-        : up ? 'Clinic PC: connected over the Wi-Fi \u26A1' + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
+        : up ? 'Clinic PC: connected on the Wi-Fi LAN \u26A1' + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
         : 'Clinic PC: not in use' + (lanWhy.text ? ' \u2014 ' + lanWhy.text + (when ? ' (' + when + ')' : '') : '') + '. Everything goes through the relay.';
     }
   }catch(e){}

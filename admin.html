@@ -3820,13 +3820,13 @@ function lanPaint(){
     const el = document.getElementById('lanMark');
     if(el){
       el.textContent = up ? ' \u26A1' : '';
-      el.title = up ? 'On the clinic Wi-Fi: reading straight from the reception PC' : '';
+      el.title = up ? 'Connected on the Wi-Fi LAN: reading straight from the reception PC' : '';
     }
     const why = document.getElementById('lanWhy');
     if(why){
       const when = lanWhy.at ? new Date(lanWhy.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '';
       why.textContent = !lanInfo ? 'Clinic PC: not set up yet \u2014 everything goes through the relay.'
-        : up ? 'Clinic PC: connected over the Wi-Fi \u26A1' + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
+        : up ? 'Clinic PC: connected on the Wi-Fi LAN \u26A1' + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
         : 'Clinic PC: not in use' + (lanWhy.text ? ' \u2014 ' + lanWhy.text + (when ? ' (' + when + ')' : '') : '') + '. Everything goes through the relay.';
     }
   }catch(e){}
@@ -5035,7 +5035,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.63';
+const ADMIN_VERSION = '4.64';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
