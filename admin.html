@@ -752,6 +752,7 @@ body{ background:#FAF7F2 !important; }
 .bk-slot.bk-booked.sel, .bk-slot.bk-closed.sel{ background:#BA7517 !important; border-color:#BA7517 !important; }
 .bk-msg{ min-height:18px; font-size:0.82rem; color:#A32D2D; margin-top:10px; }
 .bk-go{ width:100%; border:0; background:#3B2A1A; color:#F5EDE1; border-radius:13px; padding:13px; font:inherit; font-weight:700; font-size:0.95rem; margin-top:4px; }
+.bk-remove{ display:block; width:100%; margin-top:10px; background:none; border:0; color:var(--danger); font-size:14px; padding:10px; }
 .bk-go.rough{ background:#fff; color:#3B2A1A; border:1.5px dashed #3B2A1A; }
 .bk-toast{ position:fixed; left:12px; right:12px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:95; background:#1D9E75; color:#fff; border-radius:12px; padding:11px 13px; font-size:0.88rem; opacity:0; transform:translateY(10px); transition:all .2s ease; pointer-events:none; }
 .bk-toast.on{ opacity:1; transform:none; }
@@ -1690,6 +1691,9 @@ function rowsFor(day){
   const rows = [];
   (held.appointments || []).forEach(a => {
     if(!a) return;
+    /* THIS PHONE'S OWN ROUGH SLOT, STILL WAITING (4.37), is drawn from this
+       phone's copy - the one that can be changed - not from the relay's. */
+    if(a.pending && bkMine(a.id)) return;
     const st = a.status || 'scheduled';
     if(st === 'cancelled') return;
     const v = a.visitId ? byVisitId[String(a.visitId)] : null;
@@ -2328,6 +2332,11 @@ function openDrawer(day, kind, id){
       + row('Booked on', bookedOn ? escapeHtml(shortDate(bookedOn))
           + (agoWords(bookedOn) ? ' <i>\u00b7 ' + escapeHtml(agoWords(bookedOn)) + '</i>' : '') : '')
       + '</div></div>';
+    /* THIS PHONE'S ROUGH SLOT, NOT YET AT THE DESK (4.37). */
+    if(r.kind === 'appt' && bkEditable(bkMine(r.id))){
+      h += '<div class="dr-two"><button type="button" class="btn dr-btn" onclick="Cal.bkEditOpen(' + jsArg(r.id) + ')">\u270E Change</button>'
+        + '<button type="button" class="btn ghost dr-btn" onclick="Cal.bkRemove(' + jsArg(r.id) + ')">Remove</button></div>';
+    }
   }
   if(r.patientId && hooks.adminOn() && r.visitId){
     h += '<div class="dr-pair"><div class="dr-panel" id="drBill"><div class="rxs-k">Bill ' + (day === todayStr() ? 'today' : 'that day') + '</div><div class="muted">Reading\u2026</div></div>'
@@ -2397,11 +2406,16 @@ async function bkLoad(){
 function bkSave(){ idbPut('bk:pending', bkPending); }
 function bkPendingFor(day){
   const held = mem.days[day];
-  const ids = new Set(((held && held.appointments) || []).map(a => a && String(a.id)));
+  /* FILED, NOT MERELY SEEN (4.37). The relay shows every waiting booking in
+     the day as pending; that is not the desk having it. Only a copy without
+     the pending mark is - until then this phone's own copy is the one that
+     is drawn, and the one that can still be changed. An amended one is let
+     go by bkCheckAmended, which compares first. */
+  const ids = new Set(((held && held.appointments) || []).filter(a => a && !a.pending).map(a => String(a.id)));
   /* 4.16 audit: an UNSENT booking is never pruned - one made late in the
      evening with no signal used to vanish at midnight before it was ever
      sent. Only sent ones for a day gone by are let go. */
-  bkPending = bkPending.filter(p => !(mem.days[p.date] && ids.has(p.id) && p.date === day) && (!p.sent || p.date >= todayStr()));
+  bkPending = bkPending.filter(p => !(mem.days[p.date] && ids.has(p.id) && p.date === day && !p.amendedAt) && (!p.sent || p.date >= todayStr()));
   return bkPending.filter(p => p.date === day && !ids.has(p.id));
 }
 function bkDocs(){ const d = S('doctors.json'); return (Array.isArray(d) ? d : []).map(x => x && (x.name || x)).filter(Boolean); }
@@ -2487,10 +2501,13 @@ function bkRender(){
     ? '<div class="bk-f">Who <span>optional \u2014 a patient, a name as a note, or empty</span></div>'
     : '<div class="bk-f">Patient <span>name, ID or mobile</span></div>';
   document.getElementById('bkSheet').innerHTML =
-    '<div class="bk-head"><div class="bk-title">Book</div><button type="button" class="dr-x" onclick="Cal.bkClose()">\u2715</button></div>'
-    + '<div class="bk-switch"><button type="button" class="' + (rough ? '' : 'on') + '" onclick="Cal.bkSet(\'mode\',\'appt\')">Appointment</button>'
-    + '<button type="button" class="' + (rough ? 'on' : '') + '" onclick="Cal.bkSet(\'mode\',\'rough\')">Rough</button></div>'
-    + (rough ? '<div class="bk-note">A note that someone may come. It does not hold the time; a real booking can go over it.</div>' : '')
+    '<div class="bk-head"><div class="bk-title">' + (bk.editId ? 'Change rough slot' : 'Book') + '</div><button type="button" class="dr-x" onclick="Cal.bkClose()">\u2715</button></div>'
+    /* CHANGING, NOT BOOKING (4.37): a rough slot stays rough - the switch
+       would offer to turn it into a real booking the relay will not take. */
+    + (bk.editId ? '<div class="bk-note">Until the desk files it, this rough slot is still yours to change or remove.</div>'
+      : '<div class="bk-switch"><button type="button" class="' + (rough ? '' : 'on') + '" onclick="Cal.bkSet(\'mode\',\'appt\')">Appointment</button>'
+      + '<button type="button" class="' + (rough ? 'on' : '') + '" onclick="Cal.bkSet(\'mode\',\'rough\')">Rough</button></div>'
+      + (rough ? '<div class="bk-note">A note that someone may come. It does not hold the time; a real booking can go over it.</div>' : ''))
     + '<div class="bk-f">Day</div><select class="bk-in" onchange="Cal.bkSet(\'date\', this.value)">'
       + dayOpts.map(d => '<option value="' + d + '"' + (d === bk.date ? ' selected' : '') + '>' + escapeHtml(dayTitle(d)) + (d === today ? ' \u00b7 today' : '') + '</option>').join('') + '</select>'
     + who
@@ -2516,8 +2533,9 @@ function bkRender(){
     + '<div class="bk-f">Reason <span>optional</span></div><input class="bk-in" id="bkReason" value="' + escapeHtml(bk.reason) + '" oninput="Cal.bkReason(this.value)" placeholder="e.g. RCT second sitting">'
     + '<div class="bk-msg">' + escapeHtml(bk.msg || '') + '</div>'
     + '<button type="button" class="bk-go' + (rough ? ' rough' : '') + '" onclick="Cal.bkSubmit()">'
-      + (rough ? 'Add rough' : 'Book') + (bk.time ? ' \u00b7 ' + escapeHtml(dayTitle(bk.date)) + ' ' + clock(minsOf(bk.time)) : '')
-      + (bk.time && !rough && bkSlotState(minsOf(bk.time)) !== 'free' ? ' \u00b7 anyway' : '') + '</button>';
+      + (bk.editId ? 'Save change' : (rough ? 'Add rough' : 'Book')) + (bk.time ? ' \u00b7 ' + escapeHtml(dayTitle(bk.date)) + ' ' + clock(minsOf(bk.time)) : '')
+      + (bk.time && !rough && bkSlotState(minsOf(bk.time)) !== 'free' ? ' \u00b7 anyway' : '') + '</button>'
+    + (bk.editId ? '<button type="button" class="bk-remove" onclick="Cal.bkRemove(' + jsArg(bk.editId) + ')">Remove this rough slot</button>' : '');
   bkRenderHits();
 }
 function bkReason(v){ if(bk) bk.reason = v; }
@@ -2525,6 +2543,7 @@ function bkId(){ return 'ph-' + Date.now().toString(36) + '-' + Math.random().to
 function bkWho(){ try{ return localStorage.getItem('echoLite_name') || localStorage.getItem('echoAdmin_name') || ''; }catch(e){ return ''; } }
 async function bkSubmit(){
   if(!bk) return;
+  if(bk.editId) return bkAmend();
   const rough = bk.mode === 'rough';
   if(!rough && !bk.pid){ bk.msg = 'Choose a patient from the list \u2014 new patients are registered at the desk.'; return bkRender(); }
   if(!rough && !bk.doctor){ bk.msg = 'Choose a doctor.'; return bkRender(); }
@@ -2538,6 +2557,109 @@ async function bkSubmit(){
   renderCalendar();
   await bkSend();
   if(bkPending.some(p => !p.sent)) bkQuickRetry();
+}
+/* ==== A ROUGH SLOT STAYS EDITABLE UNTIL THE DESK HAS IT (4.37) ============
+   Owner's call: "rough booking until its sent to the desk, stays editable".
+   A rough slot this phone made can be changed or removed for as long as it
+   has not been FILED by Nexus. Not yet sent (no signal): changed here and
+   sent as changed. Sent and waiting in the relay's inbox: the relay changes
+   that file (r4.4, amend / unbook), and refuses once Nexus has moved it into
+   done/ - then it is the desk's, and the desk changes it. A real booking is
+   not offered this; it is changed at the desk, as it always was.
+
+   THE ONE RACE, SAID RATHER THAN HIDDEN. Nexus files from its own disk; the
+   relay changes the file on Drive. If the desk filed it in the seconds
+   before the change reached its disk, the desk has the earlier version.
+   bkCheckAmended compares this phone's copy with what the day shows once it
+   is filed, and says so out loud if they differ. */
+function bkMine(id){ return bkPending.find(p => p && String(p.id) === String(id)) || null; }
+function bkEditable(p){ return !!(p && p.rough === true && !p.filedAt); }
+function bkEditOpen(id){
+  const p = bkMine(id);
+  if(!bkEditable(p)) return;
+  try{ closeDrawer(); }catch(e){}
+  bk = { mode: 'rough', editId: p.id, date: p.date, q: p.patientId ? (nameOf(p.patientId) || p.patientId) : (p.newName || ''),
+    pid: p.patientId || '', name: '', doctor: p.doctor || '', time: p.time, mins: Number(p.mins) || 15,
+    reason: p.cameFor || '', lookup: [], msg: '' };
+  document.getElementById('bkWrap').classList.remove('hidden');
+  bkRender();
+}
+function bkDeskHasIt(e){ return !!(e && e.body && e.body.filed); }
+function bkRelayFault(e){ return !(e && e.body && e.body.error && !/^relay error/i.test(e.body.error)); }
+async function bkAmend(){
+  const p = bkMine(bk.editId);
+  if(!bkEditable(p)){ bk.msg = 'The desk already has it — change it there.'; return bkRender(); }
+  if(!bk.time){ bk.msg = 'Pick a time.'; return bkRender(); }
+  if(bkSending && !p.sent){ bk.msg = 'It is being sent right now — try again in a moment.'; return bkRender(); }
+  const next = { date: bk.date, time: bk.time, mins: bk.mins, patientId: bk.pid,
+    newName: bk.pid ? '' : String(bk.q || '').trim(), doctor: bk.doctor, cameFor: bk.reason, rough: true };
+  if(!p.sent){
+    Object.assign(p, next); bkSave();
+    bkClose(); toast('Rough slot changed · sending to the desk');
+    renderCalendar();
+    await bkSend();
+    return;
+  }
+  bk.msg = 'Saving…'; bkRender();
+  try{
+    await relay({ action: 'amend', booking: JSON.stringify(Object.assign({}, p, next)) });
+    if(next.date !== p.date) p.prevDate = p.date;
+    Object.assign(p, next, { amendedAt: Date.now(), sentAt: Date.now(), checkedAt: 0 });
+    bkSave();
+    bkClose(); toast('Rough slot changed');
+    renderCalendar();
+  }catch(e){
+    if(bkDeskHasIt(e)){ p.filedAt = p.filedAt || Date.now(); bkSave(); bk.msg = 'The desk already has it — change it there.'; return bkRender(); }
+    if(e && e.body && e.body.gone){ bkPending = bkPending.filter(x => x.id !== p.id); bkSave(); bkClose(); toast('That rough slot is no longer waiting'); renderCalendar(); return; }
+    bk.msg = bkRelayFault(e) ? 'Could not reach the desk just now — nothing was changed. Try again.' : e.body.error;
+    bkRender();
+  }
+}
+async function bkRemove(id){
+  const p = bkMine(id);
+  if(!bkEditable(p)){ alert('The desk already has it — remove it there.'); return; }
+  if(bkSending && !p.sent){ alert('It is being sent right now — try again in a moment.'); return; }
+  if(!confirm('Remove this rough slot?')) return;
+  const gone = () => {
+    bkPending = bkPending.filter(x => x.id !== p.id); bkSave();
+    try{ bkClose(); }catch(e){} try{ closeDrawer(); }catch(e){}
+    toast('Rough slot removed'); renderCalendar();
+  };
+  if(!p.sent) return gone();
+  try{
+    await relay({ action: 'unbook', id: p.id });
+    gone();
+  }catch(e){
+    if(bkDeskHasIt(e)){ p.filedAt = p.filedAt || Date.now(); bkSave(); alert('The desk already has it — remove it there.'); return; }
+    alert(bkRelayFault(e) ? 'Could not reach the desk just now — nothing was removed. Try again.' : e.body.error);
+  }
+}
+/* Where the desk filed it, on any day this phone holds. */
+function bkFiledCopy(id){
+  const days = mem.days || {};
+  for(const d of Object.keys(days)){
+    const list = (days[d] && days[d].appointments) || [];
+    const a = list.find(x => x && String(x.id) === String(id) && !x.pending);
+    if(a) return a;
+  }
+  return null;
+}
+function bkCheckAmended(){
+  let changed = false;
+  bkPending.filter(p => p && p.amendedAt).forEach(p => {
+    const a = bkFiledCopy(p.id);
+    if(!a) return;
+    const same = String(a.date) === String(p.date) && String(a.time) === String(p.time)
+      && Number(a.mins) === Number(p.mins) && String(a.patientId || '') === String(p.patientId || '')
+      && String(a.newName || '') === String(p.newName || '') && String(a.doctor || '') === String(p.doctor || '');
+    if(!same){
+      toast('The desk filed the earlier version of that rough slot (' + dayTitle(a.date) + ' '
+        + clock(minsOf(a.time)) + ') — change it at the desk');
+    }
+    bkPending = bkPending.filter(x => x.id !== p.id);
+    changed = true;
+  });
+  if(changed) bkSave();
 }
 let bkSending = false;
 async function bkSend(){
@@ -2603,8 +2725,10 @@ async function bkWatch(){
   bkWatchBusy = true;
   try{
     const now = Date.now();
-    const young = [...new Set(sent.filter(p => now - (p.sentAt || now) < 3 * 60 * 1000).map(p => p.date))];
+    const youngOnes = sent.filter(p => now - (p.sentAt || now) < 3 * 60 * 1000);
+    const young = [...new Set(youngOnes.map(p => p.date).concat(youngOnes.map(p => p.prevDate).filter(Boolean)))];
     for(const day of young) await bkFreshDay(day);
+    bkCheckAmended();
     const old = sent.filter(p => now - (p.sentAt || now) >= 3 * 60 * 1000 && now - (p.checkedAt || 0) >= 60 * 1000);
     if(old.length){
       let st = {};
@@ -2866,7 +2990,7 @@ function forgetForLock(){
   idbDel('set:' + CONTACTS);
 }
 
-return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
+return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, bkEditOpen, bkRemove, historyHtml, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS, idleWork, ptRowHtml,
   resetFresh: () => { settingsFreshThisOpen = false; } };
@@ -4169,7 +4293,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.36';
+const ADMIN_VERSION = '4.37';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
