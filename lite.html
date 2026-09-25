@@ -826,7 +826,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.50';
+const LITE_VERSION = '4.51';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -1222,6 +1222,22 @@ async function refreshSettings(force){
      request always carries the prescriptions index, which is most of what
      lite downloads and nothing this phone shows. */
   if(RECEPTION){
+    /* ONE CALL, NOT FOUR (4.51): the relay's batch answers all four from its
+       ready copy. Pull-to-refresh still asks each one fresh from Drive. */
+    if(!force){
+      try{
+        const items = SETTINGS.map(name => ({ t: 'set', n: name, s: heldModified(name) }));
+        const r = await relay({ action: 'batch', items: JSON.stringify(items) });
+        (r.results || []).forEach((x, i) => {
+          if(x && x.ok && !x.notModified) storeSetting(SETTINGS[i], { value: x.value, modified: x.modified });
+        });
+        repaint();
+        return;
+      }catch(e){
+        if(e && e.message === 'bad key'){ keyRejected(); return; }
+        /* anything else: the four one by one, below */
+      }
+    }
     await Promise.all(SETTINGS.map(async name => {
       try{
         const q = { action: 'settings', name };
@@ -3197,6 +3213,13 @@ function renderPatients(){
      to open on an instruction; it opens on the patients themselves now, A to
      Z, with the typing still the way to reach someone far down. */
   if(!q){
+    /* RECEPTION (4.51): who needs a photo, then the search. No A-to-Z list -
+       fifty rows and fifty faces fetched on every visit to the tab, for a
+       phone whose people type the name anyway. */
+    if(RECEPTION){
+      list.innerHTML = photoNeedsHtml() + '<div class="empty-state">Type a name, patient ID or phone number</div>';
+      return;
+    }
     if(!nameIdx.length){ list.innerHTML = '<div class="empty-state">No patients on this phone yet</div>'; return; }
     list.innerHTML = photoNeedsHtml() + '<div class="pt-az">' + nameIdx.length.toLocaleString('en-IN') + ' patients \u00b7 A to Z</div>'
       + nameIdx.slice(0, PT_SHOW).map(r => ptRowHtml(r[0], r[2])).join('')
@@ -3443,6 +3466,7 @@ async function notifApply(mode){
       name: notifPhoneName(), sub: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }) });
   }catch(e){ return { ok: false, error: 'The clinic would not register this phone: ' + notifWhy(e) }; }
   notifStore(mode);
+  notifStated(mode);
   return { ok: true };
 }
 
@@ -3518,6 +3542,25 @@ function notifClose(e){
    browser itself - after a long silence, or when storage is cleared - and
    the clinic would go on sending to an address nobody is listening at. Each
    open re-states it, which costs one small request and keeps the list true. */
+/* ONCE A DAY, NOT EVERY OPEN (4.51, owner's call). Re-stating cost two
+   relay calls on every open, one of them rewriting this phone's file in
+   Drive - the slowest thing the relay does. Once a day keeps the clinic's
+   list true; anything that changes what the clinic should know (on/silent,
+   which app, the key, the version) re-states at once, because it changes
+   the signature. So opening lite and then the reception app on one phone
+   still hands the notifications to whichever was opened last. */
+const NOTIF_STATED_KEY = 'echoPhone_notifStated';
+const NOTIF_RESTATE_MS = 20 * 3600 * 1000;
+function notifSig(m){ return [m, notifWant(), phoneTag(), relayUrl(), relayKey(), appVersion()].join('|'); }
+function notifStated(m){
+  try{ localStorage.setItem(NOTIF_STATED_KEY, JSON.stringify({ at: Date.now(), sig: notifSig(m) })); }catch(e){}
+}
+function notifStatedRecently(m){
+  try{
+    const r = JSON.parse(localStorage.getItem(NOTIF_STATED_KEY) || 'null');
+    return !!r && r.sig === notifSig(m) && Date.now() - Number(r.at || 0) < NOTIF_RESTATE_MS && Date.now() >= Number(r.at || 0);
+  }catch(e){ return false; }
+}
 async function notifRefresh(){
   const m = notifMode();
   if(m !== 'on' && m !== 'silent') return;
@@ -3526,6 +3569,8 @@ async function notifRefresh(){
     if(Notification.permission !== 'granted'){ notifSetHealth('needs'); notifPaint(); return; }
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
+    /* Still subscribed, and told the clinic today: nothing to send. */
+    if(sub && notifStatedRecently(m)){ notifSetHealth(''); notifPaint(); return; }
     /* THE KEY IS CHECKED ON EVERY OPEN (4.20). A subscription made against
        an older signing key stays perfectly valid as far as the phone is
        concerned - the browser has no idea the clinic's key changed - so the
@@ -3553,6 +3598,7 @@ async function notifRefresh(){
     const j = sub.toJSON();
     await relay({ action: 'pushSub', dev: phoneTag(), app: appLetter(), ver: appVersion(), mode: m, want: notifWant(),
       name: notifPhoneName(), sub: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }) });
+    notifStated(m);
     notifSetHealth('');
     notifPaint();
     /* WHAT THE WORKER NEEDS IF THE BROWSER RETIRES THIS SUBSCRIPTION. It
