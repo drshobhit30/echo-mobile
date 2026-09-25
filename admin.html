@@ -928,6 +928,7 @@ body{ background:#FAF7F2 !important; }
       that for you &mdash; only the phone&rsquo;s owner can.
     </div>
     <div class="nt-msg" id="notifMsg"></div>
+    <div class="nt-lan" id="lanWhy" style="font-size:0.72rem; color:var(--muted); margin:8px 0 0; line-height:1.35;"></div>
     <button type="button" class="nt-close" onclick="notifClose()">Done</button>
   </div>
 </div>
@@ -1362,13 +1363,14 @@ function storeSetting(name, v, fromLan){
    screen actually draws from. The big index it leaves in the store.
    A browser that will not give us a worker falls back to the old path. */
 const SETTINGS_WORKER_SRC = "self.onmessage = async (e) => {\n"
- + " const url = e.data.url, heavy = e.data.heavy, contacts = e.data.contacts, lan = !!e.data.lan, keep = e.data.keep || {}, TIMEOUT = lan ? 15000 : 25000;\n"
+ + " const url = e.data.url, heavy = e.data.heavy, contacts = e.data.contacts, lan = !!e.data.lan, keep = e.data.keep || {}, TIMEOUT = 25000;\n"
  + " let body = null, err = 'offline';\n"
- + " for(let attempt = 0; attempt < (lan ? 1 : 2) && body === null; attempt++){\n"
+ + " if(e.data.buf){ try{ body = JSON.parse(new TextDecoder().decode(e.data.buf)); }catch(e2){ body = null; err = 'unreadable'; } }\n"
+ + " for(let attempt = 0; attempt < (e.data.buf ? 0 : 2) && body === null; attempt++){\n"
  + "  if(attempt) await new Promise(r => setTimeout(r, 1500));\n"
  + "  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;\n"
  + "  const t = ctl ? setTimeout(function(){ try{ ctl.abort(); }catch(e2){} }, TIMEOUT) : null;\n"
- + "  try{ const res = await fetch(url, lan ? { mode:'cors', cache:'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace:'local' } : { redirect:'follow', cache:'no-store', signal: ctl ? ctl.signal : undefined });\n"
+ + "  try{ const res = await fetch(url, { redirect:'follow', cache:'no-store', signal: ctl ? ctl.signal : undefined });\n"
  + "       body = await res.json();\n"
  + "  }catch(e2){ body = null; err = (ctl && ctl.signal.aborted) ? 'took too long' : 'unreadable'; }\n"
  + "  finally{ if(t) clearTimeout(t); }\n"
@@ -1408,33 +1410,57 @@ function getSettingsWorker(){
 /* ONE REQUEST FOR ALL FIVE (relay r2.0), told which versions this phone holds
    so unchanged ones are not sent again. A relay from before r2.0 answers
    "unknown action", and the five are asked for one at a time as before. */
-async function refreshSettings(force){
-  if(settingsFreshThisOpen && !force) return;
+/* THE PC'S ANSWER IS FETCHED BY THE PAGE (4.63), where Chrome's permission
+   to reach the clinic network lives, and handed to the worker as bytes to
+   read and store - the reading of ten megabytes still never touches the
+   screen. */
+async function lanFetchBuffer(url, ms){
+  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+  const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms) : null;
+  try{
+    const res = await fetch(url, { mode: 'cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' });
+    if(!res.ok){
+      let why = 'the PC answered ' + res.status;
+      try{ const j = await res.json(); if(j && j.error) why = j.error; }catch(e){}
+      const err = new Error(why); err.answered = true; throw err;
+    }
+    return await res.arrayBuffer();
+  }finally{ if(tm) clearTimeout(tm); }
+}
+async function refreshSettings(force, noLan){
+  if(settingsFreshThisOpen && !force && !noLan) return;
   settingsFreshThisOpen = true;
   /* THE PC FIRST, ON THE CLINIC WI-FI (4.61): the same five files, read
      off its disk in about a second instead of many through Google. If it
      does not answer, the relay, exactly as before - in the same refresh. */
-  const viaLan = getSettingsWorker() ? await lanReadyNow() : false;
+  const viaLan = (!noLan && getSettingsWorker()) ? await lanReadyNow() : false;
   const sinceMap = {};
   SETTINGS.forEach(n => { const m = force ? '' : (viaLan ? heldLanModified(n) : heldModified(n)); if(m) sinceMap[n] = m; });
   const params = { action: 'settingsAll', sinceMap: JSON.stringify(sinceMap), rxYears: String(RX_YEARS) };
   if(force && !viaLan) params.fresh = '1';
   const keep = {};
   if(viaLan) SETTINGS.concat(['newToday']).forEach(n => { keep[n] = heldModified(n); });
+  let buf = null;
+  if(viaLan){
+    try{ buf = await lanFetchBuffer(lanUrl(lanBase, 'settingsAll', params), LAN_REQ_MS * 4); }
+    catch(e){ lanFailed(e, 'settings'); return refreshSettings(force, true); }
+  }
   const w = getSettingsWorker();
   if(w){
     const done = await new Promise(resolve => {
       const finish = (v) => { w.onmessage = null; w.onerror = null; resolve(v); };
       w.onmessage = (ev) => finish(ev.data || { ok: false, error: 'unreadable' });
       w.onerror = () => finish(null);                       // worker itself failed: fall back
-      try{ w.postMessage({ url: viaLan ? lanUrl(lanBase, 'settingsAll', params) : relayRequestUrl(params), heavy: RX_INDEX, contacts: CONTACTS, lan: viaLan, keep: keep }); }
+      try{
+        if(buf) w.postMessage({ buf: buf, heavy: RX_INDEX, contacts: CONTACTS, lan: true, keep: keep }, [buf]);
+        else w.postMessage({ url: relayRequestUrl(params), heavy: RX_INDEX, contacts: CONTACTS });
+      }
       catch(e){ finish(null); }
     });
     if(viaLan && (!done || !done.ok)){
-      /* The PC did not answer this time: the relay, now, as it always was. */
-      lanMarkDown();
-      settingsFreshThisOpen = false;
-      return refreshSettings(force);
+      /* The PC's answer could not be used this time: the relay, now. */
+      lanNote('settings: ' + ((done && done.error) || 'could not be read'));
+      return refreshSettings(force, true);
     }
     if(done === null){ settingsWorker = null; settingsWorkerDead = true; }
     else if(done.ok){
@@ -3125,7 +3151,7 @@ async function relayPost(params, body){
       return j;
     }catch(e){
       if(e instanceof RelayError) throw e;
-      lanMarkDown();                      // the PC did not answer: the relay, now
+      lanFailed(e, params.action);        // the relay, now
     }
   }
   return relayPostViaGoogle(params, body);
@@ -3700,7 +3726,7 @@ async function lanFetch(url, ms, opts){
     const res = await fetch(url, Object.assign({ mode: 'cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' }, (opts && opts.init) || {}));
     const j = await res.json();
     if(opts && opts.answers && j && !j.ok && !lanFault(j)) return j;     // a refusal by rule, said as the relay would say it
-    if(!j || !j.ok) throw new Error((j && j.error) || 'the PC said no');
+    if(!j || !j.ok){ const err = new Error((j && j.error) || ('the PC answered ' + res.status)); err.answered = true; throw err; }
     return j;
   }finally{ if(tm) clearTimeout(tm); }
 }
@@ -3715,6 +3741,20 @@ function lanFirst(promises){
   });
 }
 function lanMarkDown(){ lanState = 'down'; lanBase = ''; lanCheckedAt = Date.now(); lanPaint(); }
+/* ONE REQUEST THE PC COULD NOT ANSWER IS NOT A PC THAT IS GONE (4.63).
+   25 Sep: the reception PC was still running the first server, which did
+   not know the newer requests; each "unknown action" switched the whole
+   phone to the relay and the lightning went, though the PC was right
+   there. Now: the PC answered, so it stays in use and only that request
+   goes to the relay. Only no answer at all - no signal to it, a timeout -
+   takes the phone off the PC. The reason is kept, and shown in the bell
+   sheet, so the next puzzle is a glance and not a guess. */
+let lanWhy = { at: 0, text: '' };
+function lanNote(text){ lanWhy = { at: Date.now(), text: String(text || '').slice(0, 120) }; lanPaint(); }
+function lanFailed(e, what){
+  lanNote((what ? what + ': ' : '') + ((e && e.message) || 'no answer'));
+  if(!(e && e.answered)) lanMarkDown();
+}
 async function lanProbeNow(){
   if(!lanInfo || !lanInfo.key || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
   const bases = lanInfo.ips.slice(0, 4).map(ip => 'http://' + ip + ':' + (lanInfo.port || 8765));
@@ -3725,6 +3765,7 @@ async function lanProbeNow(){
   let got = '';
   try{ got = await lanFirst(bases.map(one)); }catch(e){ got = ''; }
   if(got){ lanBase = got; lanState = 'up'; lanCheckedAt = Date.now(); lanPaint(); return true; }
+  lanNote('the PC did not answer at ' + bases.map(b => b.replace('http://', '')).join(', '));
   lanMarkDown();
   /* The PC may have a new address, or a new card: ask the relay, behind. */
   lanInfoRefresh(false);
@@ -3775,11 +3816,19 @@ async function lanReadyNow(){
 }
 function lanPaint(){
   try{
-    const el = document.getElementById('lanMark');
-    if(!el) return;
     const up = lanState === 'up';
-    el.textContent = up ? ' ⚡' : '';
-    el.title = up ? 'On the clinic Wi-Fi: reading straight from the reception PC' : '';
+    const el = document.getElementById('lanMark');
+    if(el){
+      el.textContent = up ? ' \u26A1' : '';
+      el.title = up ? 'On the clinic Wi-Fi: reading straight from the reception PC' : '';
+    }
+    const why = document.getElementById('lanWhy');
+    if(why){
+      const when = lanWhy.at ? new Date(lanWhy.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '';
+      why.textContent = !lanInfo ? 'Clinic PC: not set up yet \u2014 everything goes through the relay.'
+        : up ? 'Clinic PC: connected over the Wi-Fi \u26A1' + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
+        : 'Clinic PC: not in use' + (lanWhy.text ? ' \u2014 ' + lanWhy.text + (when ? ' (' + when + ')' : '') : '') + '. Everything goes through the relay.';
+    }
   }catch(e){}
 }
 async function relay(params){
@@ -3792,7 +3841,7 @@ async function relay(params){
       return j;
     }catch(e){
       if(e instanceof RelayError) throw e;
-      lanMarkDown();                      // the PC did not answer: the relay, now
+      lanFailed(e, act);                  // the relay, now
     }
   }
   if(lanInfo && LAN_ACTIONS[act] && (act === 'bookingStatus' || act === 'lookup' || !lanAdminLevel())){
@@ -3803,7 +3852,7 @@ async function relay(params){
         const j = await lanFetch(lanUrl(lanBase, params.action, params), LAN_REQ_MS);
         lanServed++;
         return j;
-      }catch(e){ lanMarkDown(); }
+      }catch(e){ lanFailed(e, params.action); }
     }
   }
   return relayViaGoogle(params);
@@ -4986,7 +5035,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.62';
+const ADMIN_VERSION = '4.63';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
