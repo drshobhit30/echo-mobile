@@ -2817,6 +2817,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 let photoIdx = {};             // pid -> { id, at } from the desk's index
 let photoDeclined = {};        // pid -> { at }: said no to a photo, as the desk holds it (4.40)
 let photoDeclinedOwn = {};     // pid -> at: this phone's own, until the desk has filed it
+let photoArrivals = [];        // today's "Photo needed" buzzes, as the worker kept them (4.42)
 let photoIdxAt = 0;
 let photoPending = [];         // this phone's photos the desk has not filed yet
 const faceMem = {};            // photo id -> data URL of its thumbnail
@@ -2832,6 +2833,7 @@ async function photoLoad(){
     if(c){ photoIdx = c.idx || {}; photoDeclined = c.declined || {}; photoIdxAt = c.at || 0; }
   }catch(e){}
   try{ photoDeclinedOwn = (await idbGet('ph:declined-own')) || {}; }catch(e){ photoDeclinedOwn = {}; }
+  try{ await photoArrivalsLoad(); }catch(e){}
   photoPending.forEach(p => { if(p.thumbUrl) faceMem[p.id] = p.thumbUrl; });
 }
 function photoSave(){ idbPut('ph:pending', photoPending); }
@@ -2840,6 +2842,36 @@ function photoOf(pid){
   const desk = photoIdx[String(pid)];
   if(own && (!desk || String(own.at) >= String(desk.at || ''))) return { id: own.id, own: true };
   return desk || null;
+}
+/* THE ROW ARRIVES WITH THE BUZZ (4.42). The worker keeps every "Photo
+   needed" it shows - id, name, age and sex, waiting or in a chair - and this
+   reads them, so the row is on screen the moment the notification is, not a
+   minute later when the day's copy has come round through Drive and the
+   relay. Once that copy holds the visit, the visit is what is drawn. */
+async function photoArrivalsLoad(){
+  if(typeof caches === 'undefined') return false;
+  let list = [];
+  try{
+    const c = await caches.open('echo-nexus-lastapp');
+    const hit = await c.match('/__arrivals');
+    if(hit) list = await hit.json();
+  }catch(e){ list = []; }
+  const today = todayStr();
+  const next = (Array.isArray(list) ? list : []).filter(a => a && a.date === today && /^[A-Za-z0-9]{1,20}$/.test(String(a.pid || '')));
+  const changed = JSON.stringify(next) !== JSON.stringify(photoArrivals);
+  photoArrivals = next;
+  return changed;
+}
+function photoArrivalAdd(a){
+  if(!a || a.date !== todayStr() || !/^[A-Za-z0-9]{1,20}$/.test(String(a.pid || ''))) return false;
+  photoArrivals = photoArrivals.filter(x => x.pid !== a.pid).concat([a]);
+  return true;
+}
+function photoNameOf(pid){
+  pid = String(pid);
+  if(nameOf(pid)) return nameOf(pid);
+  const a = photoArrivals.filter(x => x.pid === pid).pop();
+  return (a && a.name) || '';
 }
 function photoIsDeclined(pid){
   pid = String(pid);
@@ -2852,18 +2884,30 @@ function photoIsDeclined(pid){
 function photoNeedsList(){
   const today = todayStr();
   const held = mem.days[today];
-  if(!held) return [];
   const rank = { ongoing: 0, waiting: 1 };
   const at = {}, out = [];
-  (held.visits || []).forEach(v => {
+  const arr = {};
+  photoArrivals.forEach(a => { arr[a.pid] = a; });
+  ((held && held.visits) || []).forEach(v => {
     if(!v || v.removedAt || v.mergedInto) return;
     const pid = String(v.patientId || '');
-    if(!pid || !nameOf(pid) || photoOf(pid) || photoIsDeclined(pid)) return;
+    const name = photoNameOf(pid);
+    if(!pid || !name || photoOf(pid) || photoIsDeclined(pid)) return;
     const st = effectiveStatus(v, today);
     const r = Object.prototype.hasOwnProperty.call(rank, st) ? rank[st] : 2;
-    const row = { pid, status: r === 2 ? 'done' : st, rank: r, at: String(v.arrivedAt || '') };
+    const row = { pid, name, ageSex: ageSexOf(pid) || (arr[pid] && arr[pid].ageSex) || '', status: r === 2 ? 'done' : st, rank: r, at: String(v.arrivedAt || '') };
     if(at[pid] === undefined){ at[pid] = out.length; out.push(row); }
     else if(r < out[at[pid]].rank) out[at[pid]] = row;
+  });
+  /* Told by a notification, not yet in this phone's copy of the day. */
+  photoArrivals.forEach(a => {
+    const pid = String(a.pid);
+    if(at[pid] !== undefined || photoOf(pid) || photoIsDeclined(pid)) return;
+    const name = photoNameOf(pid);
+    if(!name) return;
+    const st = a.status === 'ongoing' ? 'ongoing' : 'waiting';
+    at[pid] = out.length;
+    out.push({ pid, name, ageSex: ageSexOf(pid) || a.ageSex || '', status: st, rank: rank[st], at: String(a.at || '') });
   });
   return out.sort((a, b) => a.rank - b.rank || a.at.localeCompare(b.at));
 }
@@ -3003,7 +3047,7 @@ function photoPreview(){
   }
   const pid = photoShot.pid;
   wrap.innerHTML = '<div class="photo-sheet">'
-    + '<div class="photo-who"><b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b><span>' + escapeHtml(pid) + '</span></div>'
+    + '<div class="photo-who"><b>' + escapeHtml(photoNameOf(pid) || ('ID ' + pid)) + '</b><span>' + escapeHtml(pid) + '</span></div>'
     + '<img class="photo-big" src="' + photoShot.img + '" alt="">'
     + '<div class="photo-btns">'
       + '<button type="button" class="btn ghost" onclick="Cal.photoRetake()">Retake</button>'
@@ -3080,6 +3124,16 @@ async function photoSend(){
       }catch(e){
         /* A refusal by rule (not a fault) drops it, said out loud. */
         const why = e && e.body && e.body.error;
+        /* A PATIENT REGISTERED A MINUTE AGO (4.42). The notification can
+           reach this phone before the desk's patient list has reached Drive,
+           and the relay checks against that list. Kept and retried for two
+           hours rather than thrown away. */
+        const young = Date.now() - Date.parse(p.at || '') < 2 * 3600 * 1000;
+        if(why && /not in the directory/i.test(why) && young){
+          p.lastError = 'This patient has not reached the clinic list on Drive yet \u2014 it goes by itself in a minute or two.';
+          p.lastTry = Date.now(); photoSave();
+          continue;
+        }
         if(why && !/^relay error/i.test(why) && e.message !== 'offline' && e.message !== 'unreadable'){
           photoPending = photoPending.filter(x => x.id !== p.id); photoSave();
           toast('Photo not saved: ' + why);
@@ -3096,7 +3150,11 @@ async function photoSend(){
 setInterval(() => { if(photoPending.some(p => !p.sent)) photoSend(); }, 30000);
 setInterval(() => { photoRefresh(false); }, 60000);
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'visible'){ if(photoPending.some(p => !p.sent)) photoSend(); photoRefresh(false); }
+  if(document.visibilityState === 'visible'){
+    if(photoPending.some(p => !p.sent)) photoSend();
+    photoRefresh(false);
+    photoArrivalsLoad().then(ch => { if(ch){ try{ repaint(); }catch(e){} } }, () => {});
+  }
 });
 /* WHY A PHOTO HAS NOT GONE, in words somebody can act on (4.39). */
 function photoWhy(e){
@@ -3151,8 +3209,8 @@ function photoNeedsHtml(){
   const tag = { ongoing: 'In chair', waiting: 'Waiting', done: 'Done' };
   return '<div class="ph-needs"><div class="ph-needs-h">Needs a photo <span>' + list.length + '</span></div>'
     + list.map(n => '<div class="ph-need' + (n.status === 'done' ? ' ph-need-done' : '') + '" data-pid="' + escapeHtml(n.pid) + '">' + faceHtml(n.pid, 'face-sm')
-        + '<div class="ph-need-who"><b>' + escapeHtml(nameOf(n.pid)) + '</b><span>' + escapeHtml(tag[n.status] || '') + ' \u00b7 ' + escapeHtml(n.pid)
-        + (ageSexOf(n.pid) ? ' \u00b7 ' + escapeHtml(ageSexOf(n.pid)) : '') + '</span></div>'
+        + '<div class="ph-need-who"><b>' + escapeHtml(n.name) + '</b><span>' + escapeHtml(tag[n.status] || '') + ' \u00b7 ' + escapeHtml(n.pid)
+        + (n.ageSex ? ' \u00b7 ' + escapeHtml(n.ageSex) : '') + '</span></div>'
         + '<div class="ph-need-btns">'
         + '<button type="button" class="btn ph-take" onclick="Cal.photoTake(' + jsArg(n.pid) + ')">\uD83D\uDCF7 Take photo</button>'
         + '<button type="button" class="ph-decline" onclick="Cal.photoDecline(' + jsArg(n.pid) + ')">Patient declined</button>'
@@ -3164,7 +3222,7 @@ function photoNeedsHtml(){
    record. Needs a signal, and says so when there is none. */
 async function photoDecline(pid){
   pid = String(pid);
-  const name = nameOf(pid) || ('ID ' + pid);
+  const name = photoNameOf(pid) || ('ID ' + pid);
   if(!confirm(name + ' does not want a photo taken?\n\nEvery phone will stop asking for one. The desk can undo this from the patient record.')) return false;
   const at = new Date().toISOString();
   const id = 'pd-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
@@ -4718,7 +4776,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.41';
+const ADMIN_VERSION = '4.42';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */

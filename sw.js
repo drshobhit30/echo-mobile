@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.41';  // one number across lite, admin and this file
+const CACHE_VERSION = 'echo-nexus-4.42';  // one number across lite, admin and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -189,8 +189,38 @@ self.addEventListener('push', (event) => {
     data: { date: String(d.date || ''), pid: String(d.pid || ''), kind: d.kind === 'photo' ? 'photo' : 'visit' }
   };
   if(!d.silent) opts.vibrate = [40, 60, 40];
-  event.waitUntil(self.registration.showNotification(title, opts));
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, opts),
+    d.kind === 'photo' ? keepArrival(d) : Promise.resolve()
+  ]));
 });
+
+/* THE ROW ARRIVES WITH THE BUZZ (4.42). A "Photo needed" carries the patient
+   - id, name, age and sex, waiting or in a chair. It is kept here, where the
+   app reads it the moment it opens, and handed to an app already open, so
+   the Needs a photo row is on screen at once instead of a minute later when
+   the day's copy has come round through Drive and the relay. Today's only,
+   and a few dozen at most. */
+const ARRIVALS_KEY = '/__arrivals';
+async function keepArrival(d){
+  const a = { pid: String(d.pid || '').slice(0, 20), name: String(d.name || '').slice(0, 80),
+    ageSex: String(d.ageSex || '').slice(0, 12), status: d.status === 'ongoing' ? 'ongoing' : 'waiting',
+    at: String(d.at || new Date().toISOString()).slice(0, 40), date: String(d.date || '').slice(0, 10) };
+  if(!/^[A-Za-z0-9]{1,20}$/.test(a.pid) || !/^\d{4}-\d{2}-\d{2}$/.test(a.date)) return;
+  try{
+    const cache = await caches.open(LAST_APP_CACHE);
+    let list = [];
+    try{ const hit = await cache.match(ARRIVALS_KEY); if(hit) list = await hit.json(); }catch(e){ list = []; }
+    if(!Array.isArray(list)) list = [];
+    list = list.filter(x => x && x.date === a.date && x.pid !== a.pid);
+    list.push(a);
+    await cache.put(ARRIVALS_KEY, new Response(JSON.stringify(list.slice(-60)), { headers: { 'Content-Type': 'application/json' } }));
+  }catch(e){}
+  try{
+    const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    open.forEach(c => { try{ c.postMessage({ type: 'photoArrival', arrival: a }); }catch(e){} });
+  }catch(e){}
+}
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
