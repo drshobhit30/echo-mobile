@@ -3872,6 +3872,14 @@ function lanFailed(e, what){
   if(!(e && e.answered)) lanMarkDown();
 }
 async function lanProbeNow(){
+  /* NO SECRET YET (4.68): the card came from before the Wi-Fi was sealed,
+     or from a relay copy a few minutes old. Asked for again by itself -
+     every two minutes at most, on any look, not only when the app is
+     opened afresh - and said so in the bell sheet meanwhile. */
+  if(lanSecretMissing()){ lanSecretAsk(); lanMarkDown(); return false; }
+  /* Admin's own secret missing: the PC is still used for what a locked app
+     reads, and the admin secret is asked for behind it. */
+  if(lanInfo && lanInfo.key && !lanInfo.akey) lanSecretAsk();
   if(!lanInfo || !lanInfo.key || !lanInfo.skey || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
   const bases = lanInfo.ips.slice(0, 4).map(ip => 'http://' + ip + ':' + (lanInfo.port || 8765));
   const one = (b) => lanFetch(lanUrl(b, 'ping'), LAN_PROBE_MS).then(j => {
@@ -3909,10 +3917,15 @@ function lanInfoRefresh(force){
   }, () => { lanInfoAsking = null; return false; });
   return lanInfoAsking;
 }
+let LAN_SECRET_RECHECK_MS = 2 * 60 * 1000;        // let: the tests shorten it
+function lanSecretMissing(){ return !!(lanInfo && lanInfo.key && (!lanInfo.skey)); }
+function lanSecretAsk(){
+  if(Date.now() - Number((lanInfo && lanInfo.gotAt) || 0) > LAN_SECRET_RECHECK_MS) lanInfoRefresh(true);
+}
 function lanStart(){
   /* 4.66: a card from before the admin secret existed is asked for again
      (at most every ten minutes, in case the relay is older too). */
-  const noSecret = lanInfo && (!lanInfo.akey || !lanInfo.skey) && Date.now() - Number(lanInfo.gotAt || 0) > 10 * 60 * 1000;
+  const noSecret = lanInfo && lanInfo.key && (!lanInfo.skey || !lanInfo.akey) && Date.now() - Number(lanInfo.gotAt || 0) > LAN_SECRET_RECHECK_MS;
   if(!lanInfo || noSecret || Date.now() - Number(lanInfo.gotAt || 0) > LAN_INFO_MS) lanInfoRefresh(true);
   if(lanInfo) lanEnsure();
 }
@@ -3946,6 +3959,7 @@ function lanPaint(){
       const when = lanWhy.at ? new Date(lanWhy.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '';
       why.textContent = !lanInfo ? 'Clinic PC: not set up yet \u2014 everything goes through the relay.'
         : up ? 'Clinic PC: connected on the Wi-Fi LAN \u26A1' + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
+        : lanSecretMissing() ? 'Clinic PC: waiting for the Wi-Fi secret from the relay \u2014 it arrives by itself within a few minutes. Everything goes through the relay meanwhile.'
         : 'Clinic PC: not in use' + (lanWhy.text ? ' \u2014 ' + lanWhy.text + (when ? ' (' + when + ')' : '') : '') + '. Everything goes through the relay.';
     }
   }catch(e){}
@@ -5290,7 +5304,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.67';
+const ADMIN_VERSION = '4.68';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
