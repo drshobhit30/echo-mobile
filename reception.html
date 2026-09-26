@@ -827,7 +827,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.65';
+const LITE_VERSION = '4.67';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -976,6 +976,119 @@ try{ lanInfo = JSON.parse(localStorage.getItem(LAN_INFO_KEY) || 'null'); }catch(
 function lanOnCellular(){
   try{ const c = navigator.connection; return !!(c && c.type === 'cellular'); }catch(e){ return false; }
 }
+/* ==== SEALED ON THE WI-FI (4.67, owner's call) ====
+   Everything a phone says to the reception PC over the clinic Wi-Fi, and
+   everything the PC says back, is encrypted (AES-256-CBC) and signed
+   (HMAC-SHA256). Plain Wi-Fi can be read by anyone on it; sealed, a name, a
+   number, a booking or a photo cannot be read off it, and a request cannot
+   be altered or played back (each carries the time and a one-off number).
+
+   The secret comes from the relay, over Google's encrypted connection, and
+   never crosses the Wi-Fi: 'skey' for every phone, and for the unlocked
+   admin app also 'akey'. The PC tells which one sealed a request and
+   answers with the same. Measured: a megabyte sealed or opened in a few
+   milliseconds on a phone. THE SAME BLOCK is in lite.html and admin.html
+   (a test holds them identical). */
+let sealClockSkew = 0;
+let sealRefreshAt = 0;
+const sealKeyCache = new Map();
+function sealUtf8(s){ return new TextEncoder().encode(String(s)); }
+async function sealKeys(secret){
+  if(sealKeyCache.has(secret)) return sealKeyCache.get(secret);
+  const S = crypto.subtle;
+  const base = await S.importKey('raw', sealUtf8(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const encRaw = await S.sign('HMAC', base, sealUtf8('echo-seal-enc'));
+  const macRaw = await S.sign('HMAC', base, sealUtf8('echo-seal-mac'));
+  const keys = {
+    enc: await S.importKey('raw', encRaw, { name: 'AES-CBC' }, false, ['encrypt', 'decrypt']),
+    mac: await S.importKey('raw', macRaw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
+  };
+  if(sealKeyCache.size > 4) sealKeyCache.clear();
+  sealKeyCache.set(secret, keys);
+  return keys;
+}
+/* iv (16) | ciphertext | mac (32). The mac covers a direction byte ('Q' a
+   request, 'A' an answer), the iv and the ciphertext - so an answer can
+   never be sent back to the PC as if it were a request. */
+async function sealPack(obj, dir, keys){
+  const S = crypto.subtle;
+  const iv = crypto.getRandomValues(new Uint8Array(16));
+  const ct = new Uint8Array(await S.encrypt({ name: 'AES-CBC', iv }, keys.enc, sealUtf8(JSON.stringify(obj))));
+  const signed = new Uint8Array(1 + 16 + ct.length);
+  signed[0] = dir.charCodeAt(0); signed.set(iv, 1); signed.set(ct, 17);
+  const mac = new Uint8Array(await S.sign('HMAC', keys.mac, signed));
+  const out = new Uint8Array(16 + ct.length + 32);
+  out.set(iv, 0); out.set(ct, 16); out.set(mac, 16 + ct.length);
+  return out;
+}
+/* The plaintext bytes, or null if the seal does not hold. */
+async function sealOpenRaw(buf, dir, keys){
+  const S = crypto.subtle;
+  const b = new Uint8Array(buf);
+  if(b.length < 64 || (b.length - 48) % 16) return null;
+  const n = b.length - 32;
+  const signed = new Uint8Array(1 + n);
+  signed[0] = dir.charCodeAt(0); signed.set(b.subarray(0, n), 1);
+  if(!(await S.verify('HMAC', keys.mac, b.subarray(n), signed))) return null;
+  try{ return await S.decrypt({ name: 'AES-CBC', iv: b.subarray(0, 16) }, keys.enc, b.subarray(16, n)); }
+  catch(e){ return null; }
+}
+async function sealUnpack(buf, dir, keys){
+  const raw = await sealOpenRaw(buf, dir, keys);
+  if(!raw) return null;
+  try{ return JSON.parse(new TextDecoder().decode(raw)); }catch(e){ return null; }
+}
+function sealB64(u8){
+  let s = '';
+  for(let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function sealNonce(){ return Array.from(crypto.getRandomValues(new Uint8Array(12)), x => ('0' + x.toString(16)).slice(-2)).join(''); }
+/* One sealed request to the PC at `base`. Resolves with the answer's
+   plaintext bytes. Throws with err.answered = true when the PC answered but
+   refused (bad seal, replay), and without it when nothing answered. A phone
+   clock that is off is set right from the PC's own, once. New keys on the
+   PC (Nexus: Change Wi-Fi keys) make the phone fetch its card again. */
+async function sealPost(base, secret, q, ms){
+  const keys = await sealKeys(secret);
+  for(let attempt = 0; attempt < 2; attempt++){
+    const body = sealB64(await sealPack(Object.assign({}, q, { t: Date.now() + sealClockSkew, n: sealNonce() }), 'Q', keys));
+    const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms || 5000) : null;
+    let res, buf;
+    try{
+      res = await fetch(base + '/sealed', { method: 'POST', mode: 'cors', cache: 'no-store', headers: { 'Content-Type': 'text/plain' }, body,
+        signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' });
+      buf = await res.arrayBuffer();
+    }finally{ if(tm) clearTimeout(tm); }
+    if(res.status === 200){
+      const raw = await sealOpenRaw(buf, 'A', keys);
+      if(!raw){ const e = new Error('the PC’s answer did not open'); e.answered = true; throw e; }
+      return raw;
+    }
+    let e = null;
+    try{ e = JSON.parse(new TextDecoder().decode(buf)); }catch(x){ e = null; }
+    if(e && e.error === 'clock' && isFinite(Number(e.now)) && !attempt){ sealClockSkew = Number(e.now) - Date.now(); continue; }
+    if(e && e.error === 'bad seal' && Date.now() - sealRefreshAt > 60000){ sealRefreshAt = Date.now(); try{ lanInfoRefresh(true); }catch(x){} }
+    const err = new Error((e && e.error) ? 'the PC refused: ' + e.error : ('the PC answered ' + res.status));
+    err.answered = true;
+    throw err;
+  }
+}
+/* A request in the shape the open route had (an address with the action
+   and its fields), sent sealed with the staff secret. The address's fields
+   become the request's; the key on it is dropped - the seal is the proof. */
+async function lanSealed(url, ms, opts, wantRaw){
+  if(!lanInfo || !lanInfo.skey) throw new Error('no Wi-Fi secret yet');
+  const u = new URL(url);
+  const p = {};
+  u.searchParams.forEach((v, k) => { if(k !== 'key') p[k] = v; });
+  if(opts && opts.init && opts.init.body !== undefined && opts.init.body !== null) p.body = String(opts.init.body);
+  const raw = await sealPost(u.origin, lanInfo.skey, { a: u.pathname.replace(/^\/+/, ''), p, d: phoneTag() }, ms);
+  if(wantRaw) return raw;
+  try{ return JSON.parse(new TextDecoder().decode(raw)); }
+  catch(e){ const err = new Error('the PC’s answer could not be read'); err.answered = true; throw err; }
+}
 function lanUrl(base, action, params){
   const u = new URL(base + '/' + action);
   u.searchParams.set('key', lanInfo.key);
@@ -983,19 +1096,15 @@ function lanUrl(base, action, params){
   return u.toString();
 }
 async function lanFetch(url, ms, opts){
-  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
-  const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms) : null;
-  try{
-    const res = await fetch(url, Object.assign({ mode: 'cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' }, (opts && opts.init) || {}));
-    const j = await res.json();
-    if(opts && opts.answers && j && !j.ok && !lanFault(j)) return j;     // a refusal by rule, said as the relay would say it
-    if(!j || !j.ok){ const err = new Error((j && j.error) || ('the PC answered ' + res.status)); err.answered = true; throw err; }
-    return j;
-  }finally{ if(tm) clearTimeout(tm); }
+  /* SEALED (4.67): the same request, sent sealed - see "SEALED ON THE WI-FI". */
+  const j = await lanSealed(url, ms, opts, false);
+  if(opts && opts.answers && j && !j.ok && !lanFault(j)) return j;     // a refusal by rule, said as the relay would say it
+  if(!j || !j.ok){ const err = new Error((j && j.error) || 'the PC said no'); err.answered = true; throw err; }
+  return j;
 }
 /* The PC's own trouble (a file it could not read, a missing folder) is not
    a refusal: the relay is asked instead. A refusal by rule is the answer. */
-function lanFault(j){ return !j || /^(desk:|relay error)/i.test(String(j.error || '')) || j.error === 'bad key' || j.error === 'unknown action'; }
+function lanFault(j){ return !j || /^(desk:|relay error)/i.test(String(j.error || '')) || j.error === 'bad key' || j.error === 'bad seal' || j.error === 'unknown action'; }
 function lanFirst(promises){
   return new Promise((resolve, reject) => {
     let left = promises.length;
@@ -1019,7 +1128,7 @@ function lanFailed(e, what){
   if(!(e && e.answered)) lanMarkDown();
 }
 async function lanProbeNow(){
-  if(!lanInfo || !lanInfo.key || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
+  if(!lanInfo || !lanInfo.key || !lanInfo.skey || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
   const bases = lanInfo.ips.slice(0, 4).map(ip => 'http://' + ip + ':' + (lanInfo.port || 8765));
   const one = (b) => lanFetch(lanUrl(b, 'ping'), LAN_PROBE_MS).then(j => {
     if(j.echo === 'echo-nexus-desk' && j.id === lanInfo.id) return b;
@@ -1057,7 +1166,10 @@ function lanInfoRefresh(force){
   return lanInfoAsking;
 }
 function lanStart(){
-  if(!lanInfo || Date.now() - Number(lanInfo.gotAt || 0) > LAN_INFO_MS) lanInfoRefresh(true);
+  /* 4.67: a card from before the Wi-Fi was sealed is asked for again (at
+     most every ten minutes, in case the relay is older too). */
+  const noSecret = lanInfo && !lanInfo.skey && Date.now() - Number(lanInfo.gotAt || 0) > 10 * 60 * 1000;
+  if(!lanInfo || noSecret || Date.now() - Number(lanInfo.gotAt || 0) > LAN_INFO_MS) lanInfoRefresh(true);
   if(lanInfo) lanEnsure();
 }
 /* A new network is a new question. */
@@ -1464,17 +1576,8 @@ function getSettingsWorker(){
    read and store - the reading of ten megabytes still never touches the
    screen. */
 async function lanFetchBuffer(url, ms){
-  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
-  const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms) : null;
-  try{
-    const res = await fetch(url, { mode: 'cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' });
-    if(!res.ok){
-      let why = 'the PC answered ' + res.status;
-      try{ const j = await res.json(); if(j && j.error) why = j.error; }catch(e){}
-      const err = new Error(why); err.answered = true; throw err;
-    }
-    return await res.arrayBuffer();
-  }finally{ if(tm) clearTimeout(tm); }
+  /* SEALED (4.67): opened here, and the plain bytes handed to the worker. */
+  return await lanSealed(url, ms, null, true);
 }
 async function refreshSettings(force, noLan){
   if(settingsFreshThisOpen && !force && !noLan) return;

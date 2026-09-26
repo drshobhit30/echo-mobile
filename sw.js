@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.65';  // one number across lite, admin and this file
+const CACHE_VERSION = 'echo-nexus-4.67';  // one number across lite, admin, reception and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -197,7 +197,9 @@ self.addEventListener('push', (event) => {
     timestamp: Date.now(),
     /* kind 'photo' (4.41): a "Photo needed" for the reception phone, which
        opens the photo list rather than the day. */
-    data: { date: String(d.date || ''), pid: String(d.pid || ''), kind: d.kind === 'photo' ? 'photo' : 'visit' }
+    /* kind 'money' (4.67): a money alert or the day's summary, for the
+       admin phone - it opens the admin app. */
+    data: { date: String(d.date || ''), pid: String(d.pid || ''), kind: d.kind === 'photo' ? 'photo' : (d.kind === 'money' ? 'money' : 'visit') }
   };
   if(!d.silent) opts.vibrate = [40, 60, 40];
   event.waitUntil(Promise.all([
@@ -237,22 +239,24 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const d = event.notification.data || {};
   const photo = d.kind === 'photo';
-  const tail = photo ? (d.pid ? '#photo=' + d.pid : '')
+  const money = d.kind === 'money';
+  const tail = money ? '' : photo ? (d.pid ? '#photo=' + d.pid : '')
     : (d.date ? '#day=' + d.date + (d.pid ? '&pid=' + d.pid : '') : '');
   event.waitUntil((async () => {
     const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     /* A "Photo needed" belongs to the reception app (4.50): its window if one
        is open, else the reception app itself - never lite's calendar. */
-    const mine = photo ? /reception\.html/ : /admin\.html|lite\.html|reception\.html/;
+    /* A money alert belongs to the admin app (4.67), never lite's calendar. */
+    const mine = money ? /admin\.html/ : photo ? /reception\.html/ : /admin\.html|lite\.html|reception\.html/;
     for(const c of open){
       if(mine.test(c.url)){
         try{ await c.focus(); }catch(e){}
-        try{ c.postMessage(photo ? { type: 'openPhoto', pid: d.pid || '' } : { type: 'openVisit', date: d.date || '', pid: d.pid || '' }); }catch(e){}
+        if(!money){ try{ c.postMessage(photo ? { type: 'openPhoto', pid: d.pid || '' } : { type: 'openVisit', date: d.date || '', pid: d.pid || '' }); }catch(e){} }
         return;
       }
     }
-    let page = photo ? 'reception.html' : 'lite.html';
-    if(!photo){
+    let page = money ? 'admin.html' : photo ? 'reception.html' : 'lite.html';
+    if(!photo && !money){
       try{
         const cache = await caches.open(LAST_APP_CACHE);
         const hit = await cache.match(LAST_APP);

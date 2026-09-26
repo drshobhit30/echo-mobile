@@ -1415,17 +1415,8 @@ function getSettingsWorker(){
    read and store - the reading of ten megabytes still never touches the
    screen. */
 async function lanFetchBuffer(url, ms){
-  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
-  const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms) : null;
-  try{
-    const res = await fetch(url, { mode: 'cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' });
-    if(!res.ok){
-      let why = 'the PC answered ' + res.status;
-      try{ const j = await res.json(); if(j && j.error) why = j.error; }catch(e){}
-      const err = new Error(why); err.answered = true; throw err;
-    }
-    return await res.arrayBuffer();
-  }finally{ if(tm) clearTimeout(tm); }
+  /* SEALED (4.67): opened here, and the plain bytes handed to the worker. */
+  return await lanSealed(url, ms, null, true);
 }
 async function refreshSettings(force, noLan){
   if(settingsFreshThisOpen && !force && !noLan) return;
@@ -3574,20 +3565,34 @@ let currentDate = todayStr();
 const ADMIN_IDLE_MS = 30 * 60 * 1000;
 const SESS_AT = 'echoAdmin_sessionAt';
 let adminSession = null;
+/* THE PC'S OWN SESSION (4.66). On the clinic Wi-Fi the PIN also opens a
+   session on the reception PC, and while it lives every admin read goes
+   there, sealed - see "ADMIN ON THE WI-FI" below. The two are independent:
+   either one keeps admin open; the relay's is what works away from the
+   clinic. */
+let pcSession = null;
 try{
   adminSession = sessionStorage.getItem('echoAdmin_session') || null;
+  pcSession = sessionStorage.getItem('echoAdmin_pcSession') || null;
   const at = Number(sessionStorage.getItem(SESS_AT) || 0);
-  if(adminSession && at && Date.now() - at > ADMIN_IDLE_MS) adminSession = null;   // slept too long
-}catch(e){ adminSession = null; }
+  if((adminSession || pcSession) && at && Date.now() - at > ADMIN_IDLE_MS){ adminSession = null; pcSession = null; }   // slept too long
+}catch(e){ adminSession = null; pcSession = null; }
 function keepSession(v){
   try{
     if(v){ sessionStorage.setItem('echoAdmin_session', v); sessionStorage.setItem(SESS_AT, String(Date.now())); }
-    else { sessionStorage.removeItem('echoAdmin_session'); sessionStorage.removeItem(SESS_AT); }
+    else { sessionStorage.removeItem('echoAdmin_session'); if(!pcSession) sessionStorage.removeItem(SESS_AT); }
+  }catch(e){}
+}
+function keepPcSession(v){
+  pcSession = v || null;
+  try{
+    if(v){ sessionStorage.setItem('echoAdmin_pcSession', v); sessionStorage.setItem(SESS_AT, String(Date.now())); }
+    else { sessionStorage.removeItem('echoAdmin_pcSession'); if(!adminSession) sessionStorage.removeItem(SESS_AT); }
   }catch(e){}
 }
 let lastTouch = 0;
 function touchSession(){
-  if(!adminSession) return;
+  if(!adminOn()) return;
   const now = Date.now();
   if(now - lastTouch < 20000) return;        // a timestamp, not a heartbeat
   lastTouch = now;
@@ -3596,7 +3601,7 @@ function touchSession(){
 function sessionIdleMs(){
   try{ const at = Number(sessionStorage.getItem(SESS_AT) || 0); return at ? Date.now() - at : 0; }catch(e){ return 0; }
 }
-function adminOn(){ return !!adminSession; }
+function adminOn(){ return !!(adminSession || pcSession); }
 function takeSetupFromLink(){
   const h = String(location.hash || '').replace(/^#/, '');
   if(!h) return;
@@ -3662,7 +3667,9 @@ async function relayViaGoogle(params){
       document.getElementById('setupMsg').textContent = 'This phone\u2019s link is no longer valid. Open the new admin setup link.';
       showSetup();
     }
-    if(body && body.error === 'session ended') lockAdmin();
+    /* 4.66: the relay's session ending is not the end of admin while the
+       PC's session lives - only the relay's half is let go. */
+    if(body && body.error === 'session ended'){ if(pcSession){ adminSession = null; keepSession(null); } else lockAdmin(); }
     throw new RelayError((body && body.error) || 'relay', body);
   }
   return body;
@@ -3684,9 +3691,9 @@ async function relayViaGoogle(params){
    of the relay at once - the screen never sees the difference.
 
    Only reading, and only what a staff key may read: the week, the photo
-   list and the thumbnails. The admin app uses the PC only while locked -
-   unlocked, it reads through the relay as before. Bookings and photos
-   still go through the relay. */
+   list and the thumbnails. Unlocked, the admin app reads from the PC too
+   (4.66) - sealed, see "ADMIN ON THE WI-FI" below. Bookings and photos go
+   to the PC as well (4.62). */
 const LAN_INFO_KEY = 'echoPhone_lan';
 const LAN_ACTIONS = { week: 1, photoIndex: 1, faceThumbs: 1, bookingStatus: 1, lookup: 1 };
 /* WRITES (4.62): a booking, a rough slot changed or removed, go to the PC's
@@ -3713,6 +3720,119 @@ try{ lanInfo = JSON.parse(localStorage.getItem(LAN_INFO_KEY) || 'null'); }catch(
 function lanOnCellular(){
   try{ const c = navigator.connection; return !!(c && c.type === 'cellular'); }catch(e){ return false; }
 }
+/* ==== SEALED ON THE WI-FI (4.67, owner's call) ====
+   Everything a phone says to the reception PC over the clinic Wi-Fi, and
+   everything the PC says back, is encrypted (AES-256-CBC) and signed
+   (HMAC-SHA256). Plain Wi-Fi can be read by anyone on it; sealed, a name, a
+   number, a booking or a photo cannot be read off it, and a request cannot
+   be altered or played back (each carries the time and a one-off number).
+
+   The secret comes from the relay, over Google's encrypted connection, and
+   never crosses the Wi-Fi: 'skey' for every phone, and for the unlocked
+   admin app also 'akey'. The PC tells which one sealed a request and
+   answers with the same. Measured: a megabyte sealed or opened in a few
+   milliseconds on a phone. THE SAME BLOCK is in lite.html and admin.html
+   (a test holds them identical). */
+let sealClockSkew = 0;
+let sealRefreshAt = 0;
+const sealKeyCache = new Map();
+function sealUtf8(s){ return new TextEncoder().encode(String(s)); }
+async function sealKeys(secret){
+  if(sealKeyCache.has(secret)) return sealKeyCache.get(secret);
+  const S = crypto.subtle;
+  const base = await S.importKey('raw', sealUtf8(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const encRaw = await S.sign('HMAC', base, sealUtf8('echo-seal-enc'));
+  const macRaw = await S.sign('HMAC', base, sealUtf8('echo-seal-mac'));
+  const keys = {
+    enc: await S.importKey('raw', encRaw, { name: 'AES-CBC' }, false, ['encrypt', 'decrypt']),
+    mac: await S.importKey('raw', macRaw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
+  };
+  if(sealKeyCache.size > 4) sealKeyCache.clear();
+  sealKeyCache.set(secret, keys);
+  return keys;
+}
+/* iv (16) | ciphertext | mac (32). The mac covers a direction byte ('Q' a
+   request, 'A' an answer), the iv and the ciphertext - so an answer can
+   never be sent back to the PC as if it were a request. */
+async function sealPack(obj, dir, keys){
+  const S = crypto.subtle;
+  const iv = crypto.getRandomValues(new Uint8Array(16));
+  const ct = new Uint8Array(await S.encrypt({ name: 'AES-CBC', iv }, keys.enc, sealUtf8(JSON.stringify(obj))));
+  const signed = new Uint8Array(1 + 16 + ct.length);
+  signed[0] = dir.charCodeAt(0); signed.set(iv, 1); signed.set(ct, 17);
+  const mac = new Uint8Array(await S.sign('HMAC', keys.mac, signed));
+  const out = new Uint8Array(16 + ct.length + 32);
+  out.set(iv, 0); out.set(ct, 16); out.set(mac, 16 + ct.length);
+  return out;
+}
+/* The plaintext bytes, or null if the seal does not hold. */
+async function sealOpenRaw(buf, dir, keys){
+  const S = crypto.subtle;
+  const b = new Uint8Array(buf);
+  if(b.length < 64 || (b.length - 48) % 16) return null;
+  const n = b.length - 32;
+  const signed = new Uint8Array(1 + n);
+  signed[0] = dir.charCodeAt(0); signed.set(b.subarray(0, n), 1);
+  if(!(await S.verify('HMAC', keys.mac, b.subarray(n), signed))) return null;
+  try{ return await S.decrypt({ name: 'AES-CBC', iv: b.subarray(0, 16) }, keys.enc, b.subarray(16, n)); }
+  catch(e){ return null; }
+}
+async function sealUnpack(buf, dir, keys){
+  const raw = await sealOpenRaw(buf, dir, keys);
+  if(!raw) return null;
+  try{ return JSON.parse(new TextDecoder().decode(raw)); }catch(e){ return null; }
+}
+function sealB64(u8){
+  let s = '';
+  for(let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function sealNonce(){ return Array.from(crypto.getRandomValues(new Uint8Array(12)), x => ('0' + x.toString(16)).slice(-2)).join(''); }
+/* One sealed request to the PC at `base`. Resolves with the answer's
+   plaintext bytes. Throws with err.answered = true when the PC answered but
+   refused (bad seal, replay), and without it when nothing answered. A phone
+   clock that is off is set right from the PC's own, once. New keys on the
+   PC (Nexus: Change Wi-Fi keys) make the phone fetch its card again. */
+async function sealPost(base, secret, q, ms){
+  const keys = await sealKeys(secret);
+  for(let attempt = 0; attempt < 2; attempt++){
+    const body = sealB64(await sealPack(Object.assign({}, q, { t: Date.now() + sealClockSkew, n: sealNonce() }), 'Q', keys));
+    const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms || 5000) : null;
+    let res, buf;
+    try{
+      res = await fetch(base + '/sealed', { method: 'POST', mode: 'cors', cache: 'no-store', headers: { 'Content-Type': 'text/plain' }, body,
+        signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' });
+      buf = await res.arrayBuffer();
+    }finally{ if(tm) clearTimeout(tm); }
+    if(res.status === 200){
+      const raw = await sealOpenRaw(buf, 'A', keys);
+      if(!raw){ const e = new Error('the PC’s answer did not open'); e.answered = true; throw e; }
+      return raw;
+    }
+    let e = null;
+    try{ e = JSON.parse(new TextDecoder().decode(buf)); }catch(x){ e = null; }
+    if(e && e.error === 'clock' && isFinite(Number(e.now)) && !attempt){ sealClockSkew = Number(e.now) - Date.now(); continue; }
+    if(e && e.error === 'bad seal' && Date.now() - sealRefreshAt > 60000){ sealRefreshAt = Date.now(); try{ lanInfoRefresh(true); }catch(x){} }
+    const err = new Error((e && e.error) ? 'the PC refused: ' + e.error : ('the PC answered ' + res.status));
+    err.answered = true;
+    throw err;
+  }
+}
+/* A request in the shape the open route had (an address with the action
+   and its fields), sent sealed with the staff secret. The address's fields
+   become the request's; the key on it is dropped - the seal is the proof. */
+async function lanSealed(url, ms, opts, wantRaw){
+  if(!lanInfo || !lanInfo.skey) throw new Error('no Wi-Fi secret yet');
+  const u = new URL(url);
+  const p = {};
+  u.searchParams.forEach((v, k) => { if(k !== 'key') p[k] = v; });
+  if(opts && opts.init && opts.init.body !== undefined && opts.init.body !== null) p.body = String(opts.init.body);
+  const raw = await sealPost(u.origin, lanInfo.skey, { a: u.pathname.replace(/^\/+/, ''), p, d: phoneTag() }, ms);
+  if(wantRaw) return raw;
+  try{ return JSON.parse(new TextDecoder().decode(raw)); }
+  catch(e){ const err = new Error('the PC’s answer could not be read'); err.answered = true; throw err; }
+}
 function lanUrl(base, action, params){
   const u = new URL(base + '/' + action);
   u.searchParams.set('key', lanInfo.key);
@@ -3720,19 +3840,15 @@ function lanUrl(base, action, params){
   return u.toString();
 }
 async function lanFetch(url, ms, opts){
-  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
-  const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms) : null;
-  try{
-    const res = await fetch(url, Object.assign({ mode: 'cors', cache: 'no-store', signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' }, (opts && opts.init) || {}));
-    const j = await res.json();
-    if(opts && opts.answers && j && !j.ok && !lanFault(j)) return j;     // a refusal by rule, said as the relay would say it
-    if(!j || !j.ok){ const err = new Error((j && j.error) || ('the PC answered ' + res.status)); err.answered = true; throw err; }
-    return j;
-  }finally{ if(tm) clearTimeout(tm); }
+  /* SEALED (4.67): the same request, sent sealed - see "SEALED ON THE WI-FI". */
+  const j = await lanSealed(url, ms, opts, false);
+  if(opts && opts.answers && j && !j.ok && !lanFault(j)) return j;     // a refusal by rule, said as the relay would say it
+  if(!j || !j.ok){ const err = new Error((j && j.error) || 'the PC said no'); err.answered = true; throw err; }
+  return j;
 }
 /* The PC's own trouble (a file it could not read, a missing folder) is not
    a refusal: the relay is asked instead. A refusal by rule is the answer. */
-function lanFault(j){ return !j || /^(desk:|relay error)/i.test(String(j.error || '')) || j.error === 'bad key' || j.error === 'unknown action'; }
+function lanFault(j){ return !j || /^(desk:|relay error)/i.test(String(j.error || '')) || j.error === 'bad key' || j.error === 'bad seal' || j.error === 'unknown action'; }
 function lanFirst(promises){
   return new Promise((resolve, reject) => {
     let left = promises.length;
@@ -3756,7 +3872,7 @@ function lanFailed(e, what){
   if(!(e && e.answered)) lanMarkDown();
 }
 async function lanProbeNow(){
-  if(!lanInfo || !lanInfo.key || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
+  if(!lanInfo || !lanInfo.key || !lanInfo.skey || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
   const bases = lanInfo.ips.slice(0, 4).map(ip => 'http://' + ip + ':' + (lanInfo.port || 8765));
   const one = (b) => lanFetch(lanUrl(b, 'ping'), LAN_PROBE_MS).then(j => {
     if(j.echo === 'echo-nexus-desk' && j.id === lanInfo.id) return b;
@@ -3794,7 +3910,10 @@ function lanInfoRefresh(force){
   return lanInfoAsking;
 }
 function lanStart(){
-  if(!lanInfo || Date.now() - Number(lanInfo.gotAt || 0) > LAN_INFO_MS) lanInfoRefresh(true);
+  /* 4.66: a card from before the admin secret existed is asked for again
+     (at most every ten minutes, in case the relay is older too). */
+  const noSecret = lanInfo && (!lanInfo.akey || !lanInfo.skey) && Date.now() - Number(lanInfo.gotAt || 0) > 10 * 60 * 1000;
+  if(!lanInfo || noSecret || Date.now() - Number(lanInfo.gotAt || 0) > LAN_INFO_MS) lanInfoRefresh(true);
   if(lanInfo) lanEnsure();
 }
 /* A new network is a new question. */
@@ -3831,6 +3950,63 @@ function lanPaint(){
     }
   }catch(e){}
 }
+/* ==== ADMIN ON THE WI-FI, SEALED (4.66, owner's call) ====
+   Unlocked, on the clinic Wi-Fi, every admin read - money, bills, lab,
+   calls, patients - comes straight from the reception PC: a few hundredths
+   of a second where the relay takes one to three. Away from the clinic, or
+   whenever the PC does not answer, the relay, exactly as before.
+
+   Plain Wi-Fi can be read by anybody on it, so nothing admin travels
+   readable. The relay hands this phone - and only an admin phone - the PC's
+   admin secret over Google's encrypted connection. Every request and answer
+   is encrypted with it (AES-256-CBC) and signed (HMAC-SHA256): the PIN, the
+   session and every figure. Each request carries the time and a one-off
+   number, so a copy of one is refused. Measured: sealing and opening a
+   megabyte is a few milliseconds on a phone.
+
+   The PIN opens a session on the PC and on the relay at the same moment.
+   The PC answers first on the Wi-Fi, so admin opens at once; the relay's
+   session arrives behind it, for when the phone leaves the building. */
+const SEALED_ACTIONS = { batch: 1, list: 1, week: 1, settings: 1 };
+const SEALED_BATCH_MAX = 48;
+function sealedUsable(){ return !!(pcSession && lanInfo && lanInfo.akey && lanInfo.skey && lanState === 'up' && lanBase && !lanOnCellular()); }
+/* One sealed admin request, with the admin secret. Resolves with the PC's
+   answer; throws when there is no answer (err.answered false) or the PC
+   refused the seal itself. */
+async function sealedCall(action, params, ms, session){
+  const p = {};
+  Object.keys(params || {}).forEach(k => { if(k !== 'action' && params[k] !== undefined && params[k] !== null) p[k] = String(params[k]); });
+  const raw = await sealPost(lanBase, lanInfo.akey, { a: action, p, s: session === undefined ? (pcSession || '') : session, d: deviceTag() }, ms || LAN_REQ_MS);
+  try{ return JSON.parse(new TextDecoder().decode(raw)); }
+  catch(e){ const err = new Error('the PC\u2019s answer could not be read'); err.answered = true; throw err; }
+}
+/* An admin read from the PC. Returns the answer, or null when the relay
+   should be asked instead (never an error the screen has to handle). */
+async function sealedRead(act, params){
+  try{
+    const j = await sealedCall(act, params, act === 'batch' ? LAN_REQ_MS * 3 : LAN_REQ_MS);
+    if(j && j.error === 'session ended'){ keepPcSession(null); lanNote('the PC’s admin session ended'); return null; }
+    if(!j || (!j.ok && lanFault(j))){ lanNote(act + ': ' + ((j && j.error) || 'no answer')); return null; }
+    if(act === 'batch' && j.ok && (j.results || []).some(x => !x || (!x.ok && lanFault(x)))){ lanNote('batch: the PC could not read a file'); return null; }
+    lanServed++;
+    if(!j.ok) throw new RelayError(j.error || 'refused', j);
+    return j;
+  }catch(e){
+    if(e instanceof RelayError) throw e;
+    lanFailed(e, 'admin ' + act);
+    return null;
+  }
+}
+/* The PIN, to the PC. null when the PC is not there to ask. */
+async function sealedUnlock(pin){
+  if(!(lanInfo && lanInfo.akey) || !(await lanReadyNow())) return null;
+  try{ return await sealedCall('unlock', { pin }, LAN_REQ_MS, ''); }
+  catch(e){ lanFailed(e, 'unlock'); return null; }
+}
+function sealedLock(session){
+  if(!session || !lanInfo || !lanInfo.akey || !lanBase) return;
+  sealedCall('lock', {}, 3000, session).catch(() => {});
+}
 /* ==== ANY CHANGE, ON EVERY PHONE, IN SECONDS (4.65, owner's call) ====
    On the Wi-Fi LAN the phone asks the PC every three seconds for a tiny
    stamp of what changed - the day files from two weeks back to five
@@ -3851,7 +4027,7 @@ function lanAfterChange(){
   try{ if(typeof renderPatients === 'function' && currentTab === 'patients' && !selectedPatient) renderPatients(); }catch(e){}
 }
 async function lanStampTick(){
-  if(lanStampBusy || lanStampOff || lanState !== 'up' || !lanBase || lanAdminLevel()) return;
+  if(lanStampBusy || lanStampOff || lanState !== 'up' || !lanBase || (lanAdminLevel() && !sealedUsable())) return;
   try{ if(document.visibilityState !== 'visible') return; }catch(e){}
   lanStampBusy = true;
   try{
@@ -3873,6 +4049,15 @@ async function lanStampTick(){
 setInterval(() => { lanStampTick(); }, LAN_STAMP_MS);
 async function relay(params){
   const act = params && params.action;
+  /* 4.66: an unlocked admin reads from the PC, sealed, on the clinic Wi-Fi. */
+  if(SEALED_ACTIONS[act] && pcSession && lanInfo && lanInfo.akey && await lanReadyNow()){
+    const j = await sealedRead(act, params);
+    if(j) return j;
+    /* The PC could not answer this one. The relay can - if it has a session
+       too; without one it would answer as if locked, which is worse than
+       asking for the PIN again. */
+    if(!adminSession){ lockAdmin(); throw new RelayError('session ended', { error: 'session ended' }); }
+  }
   if(lanInfo && LAN_WRITES[act] && await lanReadyNow()){
     try{
       const j = await lanFetch(lanUrl(lanBase, act, params), LAN_REQ_MS, { answers: true });
@@ -3897,7 +4082,7 @@ async function relay(params){
   }
   return relayViaGoogle(params);
 }
-function lanAdminLevel(){ return !!adminSession; }
+function lanAdminLevel(){ return adminOn(); }
 
 /* ---- Drive, as the lifted loaders know it, answered by the relay ----
    A folder is 'dir:<name>'; a file is 'file:<folder>/<name>'. The relay is
@@ -3980,8 +4165,10 @@ async function batchFlush(){
     if(!byKey[w.key]){ byKey[w.key] = []; order.push(w.key); }
     byKey[w.key].push(w);
   });
-  for(let i = 0; i < order.length; i += BATCH_MAX){
-    const slice = order.slice(i, i + BATCH_MAX);
+  /* 4.66: the PC is not a queue - one sealed request carries far more. */
+  const per = sealedUsable() ? SEALED_BATCH_MAX : BATCH_MAX;
+  for(let i = 0; i < order.length; i += per){
+    const slice = order.slice(i, i + per);
     const items = slice.map(k => byKey[k][0].item);
     let r = null, err = null;
     try{
@@ -4141,10 +4328,33 @@ async function pinKey(k){
   if(pinDigits.length < 4) return;
   const msg = document.getElementById('pinMsg');
   msg.textContent = 'Checking\u2026';
+  const pin = pinDigits;
+  const gen = ++unlockGen;
+  /* BOTH AT ONCE (4.66). The relay is asked in any case - its session is the
+     one that works away from the clinic - and on the Wi-Fi the PC is asked
+     too, and answers in a few hundredths of a second, so admin opens then.
+     The relay's session is kept when it arrives, unless admin was locked
+     again in between. */
+  const viaRelay = relay({ action: 'unlock', pin, device: deviceTag() })
+    .then(r => ({ ok: true, session: r.session }), e => ({ ok: false, err: e }));
+  viaRelay.then(r => {
+    if(r.ok && gen === unlockGen && adminOn() && !adminSession){ adminSession = r.session; keepSession(r.session); }
+  });
   try{
-    const r = await relay({ action: 'unlock', pin: pinDigits, device: deviceTag() });
-    adminSession = r.session;
-    keepSession(r.session);
+    const pc = await sealedUnlock(pin);
+    let r;
+    if(pc && pc.ok && pc.session){
+      keepPcSession(pc.session);
+      r = await Promise.race([viaRelay, new Promise(res => setTimeout(() => res(null), 0))]);
+      if(r && r.ok && !adminSession){ adminSession = r.session; keepSession(r.session); }
+    } else if(pc && pc.error && ['wrong PIN', 'too many tries', 'no PIN set'].indexOf(pc.error) !== -1){
+      throw new RelayError(pc.error, pc);
+    } else {
+      r = await viaRelay;
+      if(!r.ok) throw r.err;
+      adminSession = r.session;
+      keepSession(r.session);
+    }
     closePinPad();
     paintLock(); paintTabs();
     /* 4.18 audit: the settings on this phone were fetched while it was
@@ -4181,10 +4391,15 @@ async function pinKey(k){
     pinDigits = ''; setTimeout(paintPinDots, 350);
   }
 }
+let unlockGen = 0;
 function lockAdmin(){
   const had = adminSession;
+  const hadPc = pcSession;
+  unlockGen++;
   adminSession = null;
+  keepPcSession(null);
   keepSession(null);
+  sealedLock(hadPc);
   if(had){
     try{
       const url = new URL(relayUrl());
@@ -5075,7 +5290,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.65';
+const ADMIN_VERSION = '4.67';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
