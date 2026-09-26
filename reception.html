@@ -382,6 +382,8 @@ body{ background:#FDFAF4 !important; }
 .ka-card:active{ transform:scale(0.99); }
 .ka-band{ flex:0 0 6px; }
 .ka-in{ flex:1; min-width:0; padding:12px 14px 13px; }
+.ka-face{ display:flex; align-items:center; padding-left:12px; }
+.ka-face + .ka-in{ padding-left:11px; }
 .ka-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
 .ka-when{ font-size:0.8rem; font-weight:700; }
 .ka-name{ font-size:1.02rem; font-weight:700; color:var(--ink); margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -827,7 +829,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.68';
+const LITE_VERSION = '4.69';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -2078,6 +2080,10 @@ function rowHtml(r, day){
        the edge and the time in the right shades of the same hue. */
     + ' style="--kbg:' + tone.bg + '; --kbd:' + tone.border + '; --kdk:' + tone.text + ';">'
     + '<div class="ka-band"></div>'
+    /* THE FACE ON THE CARD (4.69, owner's call) - beside the doctor's
+       colour, the time and status staying where they were. A rough slot
+       names nobody, so it has none. */
+    + (r.patientId && !r.rough ? '<div class="ka-face">' + faceHtml(r.patientId, 'face-sm') + '</div>' : '')
     + '<div class="ka-in">'
       + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span><span>'
         + (r.pending
@@ -3090,6 +3096,7 @@ async function photoLoad(){
   try{ photoDeclinedOwn = (await idbGet('ph:declined-own')) || {}; }catch(e){ photoDeclinedOwn = {}; }
   try{ await photoArrivalsLoad(); }catch(e){}
   photoPending.forEach(p => { if(p.thumbUrl) faceMem[p.id] = p.thumbUrl; });
+  setTimeout(() => { faceKeepPrune(); }, 30000);
 }
 function photoSave(){ idbPut('ph:pending', photoPending); }
 function photoOf(pid){
@@ -3215,6 +3222,29 @@ function faceHtml(pid, cls){
   const unsent = !!(ph && ph.own && photoUnsent(pid));
   return '<span class="face' + (cls ? ' ' + cls : '') + (unsent ? ' face-unsent' : '') + '"' + (unsent ? ' title="Not sent to the desk yet"' : '') + '><i>' + escapeHtml(faceInitials(photoNameOf(pid))) + '</i>' + img + '</span>';
 }
+/* THE FACE FOR THE LOCK SCREEN (4.69). Every face this phone has fetched
+   is also left where the worker can find it without the network, so a
+   "Visit marked" for somebody whose face is on this phone shows it at once.
+   Nothing is fetched to make a notification: a face not yet on the phone is
+   simply the clinic's icon, as before. Faces not drawn for sixty days are
+   let go. */
+const FACE_KEEP = '/__face/';
+function faceKeep(pid, url){
+  if(!pid || !url || typeof caches === 'undefined') return;
+  caches.open('echo-nexus-lastapp').then(c => c.put(FACE_KEEP + encodeURIComponent(String(pid)),
+    new Response(JSON.stringify({ url: url, at: Date.now() }), { headers: { 'Content-Type': 'application/json' } }))).catch(() => {});
+}
+async function faceKeepPrune(){
+  if(typeof caches === 'undefined') return;
+  try{
+    const c = await caches.open('echo-nexus-lastapp');
+    const keys = await c.keys();
+    for(const k of keys){
+      if(new URL(k.url).pathname.indexOf(FACE_KEEP) === -1) continue;
+      try{ const j = await (await c.match(k)).json(); if(!j || Date.now() - Number(j.at || 0) > 60 * 86400000) await c.delete(k); }catch(e){ await c.delete(k); }
+    }
+  }catch(e){}
+}
 function facePaint(id, url){
   try{ document.querySelectorAll('img[data-face="' + id + '"]').forEach(el => { el.src = url; }); }catch(e){}
 }
@@ -3233,7 +3263,7 @@ async function faceFetch(){
   const missing = [];
   ids.forEach(id => {
     const url = held['face:' + id];
-    if(url){ faceMem[id] = url; facePaint(id, url); }
+    if(url){ faceMem[id] = url; facePaint(id, url); faceKeep(want[id], url); }
     else missing.push(id);
   });
   for(let i = 0; i < missing.length; i += 30){
@@ -3243,7 +3273,7 @@ async function faceFetch(){
       const got = r.thumbs || {};
       Object.keys(got).forEach(id => {
         const url = 'data:image/jpeg;base64,' + got[id];
-        faceMem[id] = url; idbPut('face:' + id, url); facePaint(id, url);
+        faceMem[id] = url; idbPut('face:' + id, url); facePaint(id, url); faceKeep(want[id], url);
       });
     }catch(e){ /* tried again the next time it is drawn */ }
   }
@@ -3334,6 +3364,7 @@ async function photoUse(){
   };
   photoPending.push(rec); photoSave();
   faceMem[rec.id] = rec.thumbUrl;
+  faceKeep(rec.pid, rec.thumbUrl);            // 4.69: this phone's own photo, for its notifications too
   photoCancel();
   toast('Photo saved · sending to the desk');
   repaint();

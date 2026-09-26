@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.68';  // one number across lite, admin, reception and this file
+const CACHE_VERSION = 'echo-nexus-4.69';  // one number across lite, admin, reception and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -202,11 +202,30 @@ self.addEventListener('push', (event) => {
     data: { date: String(d.date || ''), pid: String(d.pid || ''), kind: d.kind === 'photo' ? 'photo' : (d.kind === 'money' ? 'money' : 'visit') }
   };
   if(!d.silent) opts.vibrate = [40, 60, 40];
-  event.waitUntil(Promise.all([
-    self.registration.showNotification(title, opts),
-    d.kind === 'photo' ? keepArrival(d) : Promise.resolve()
-  ]));
+  event.waitUntil((async () => {
+    /* THE FACE (4.69): the patient's photo as the notification's picture,
+       when the app has already put it on this phone. Read from the phone
+       itself, never fetched - a notification never waits on the network. */
+    const face = await faceFor(d.pid);
+    if(face) opts.icon = face;
+    await Promise.all([
+      self.registration.showNotification(title, opts),
+      d.kind === 'photo' ? keepArrival(d) : Promise.resolve()
+    ]);
+  })());
 });
+const FACE_KEEP = '/__face/';
+async function faceFor(pid){
+  if(!pid || !/^[A-Za-z0-9]{1,20}$/.test(String(pid))) return '';
+  try{
+    const cache = await caches.open(LAST_APP_CACHE);
+    const hit = await cache.match(FACE_KEEP + encodeURIComponent(String(pid)));
+    if(!hit) return '';
+    const j = await hit.json();
+    const url = j && typeof j.url === 'string' ? j.url : '';
+    return /^data:image\/(jpeg|png|webp);base64,/.test(url) && url.length < 200000 ? url : '';
+  }catch(e){ return ''; }
+}
 
 /* THE ROW ARRIVES WITH THE BUZZ (4.42). A "Photo needed" carries the patient
    - id, name, age and sex, waiting or in a chair. It is kept here, where the
