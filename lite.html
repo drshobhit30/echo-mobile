@@ -631,6 +631,73 @@ body{ background:#FAF7F2 !important; }
 .photo-btns .btn{ flex:1; }
 .photo-cancel{ display:block; width:100%; margin-top:8px; background:none; border:0; color:var(--muted); padding:10px; font-size:14px; }
 .face-unsent{ box-shadow:0 0 0 2px #D9822B; }
+/* PATIENT FILES (4.70) */
+.pf-row{ cursor:pointer; }
+.pf-nocam{ background:#F3E8D2; color:#8A5F26; font-size:15px; border:1.5px dashed #C9A56B; }
+.face-lg.pf-nocam{ font-size:24px; }
+.pf-chip{ flex:0 0 auto; font-size:11px; font-weight:600; border-radius:999px; padding:2px 8px; background:#EFE4D0; color:#5A4630; }
+.pf-st-ongoing{ background:#E1F2EA; color:#146B4F; }
+.pf-st-waiting{ background:#FFF0D6; color:#8A5F26; }
+.pf-st-booked, .pf-st-came{ background:#EAF1FB; color:#2F5E94; }
+.pf-clip{ flex:0 0 auto; font-size:12px; color:#5A4630; min-width:30px; text-align:right; }
+.pf-clip-0{ opacity:.35; }
+.pf-badge{ background:#fff; border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13px; color:var(--brown); cursor:pointer; }
+.pf-wrap{ z-index:85; }
+.pf-shotwrap{ z-index:87; }
+.pf-facewrap{ z-index:88; }
+.pf-sheet{ max-height:88vh; overflow-y:auto; }
+.pf-head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.pf-facebtn{ background:none; border:0; padding:0; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; flex:0 0 auto; }
+.pf-facebtn small{ font-size:11px; color:#8A5F26; font-weight:600; }
+.pf-who{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.pf-who span{ font-size:12px; color:var(--muted); }
+.pf-link{ align-self:flex-start; background:none; border:0; padding:4px 0 0; font:inherit; font-size:12px; color:var(--muted); text-decoration:underline; cursor:pointer; }
+.pf-x{ flex:0 0 auto; background:none; border:0; font-size:26px; line-height:1; color:var(--muted); padding:0 4px; cursor:pointer; }
+.pf-shoot{ display:block; width:100%; padding:12px; font-size:15px; margin:4px 0 12px; }
+.pf-sec{ font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#8A5F26; font-weight:700; margin:4px 0 6px; }
+.pf-sec span{ background:#8A5F26; color:#fff; border-radius:999px; padding:1px 7px; margin-left:4px; letter-spacing:0; }
+.pf-none{ font-size:13px; color:var(--muted); padding:8px 0 4px; line-height:1.45; }
+.pf-list{ display:flex; flex-direction:column; gap:8px; }
+.pf-card{ display:flex; gap:10px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; cursor:pointer; }
+.pf-card.pf-struck{ opacity:.5; }
+.pf-card.pf-struck .pf-meta b{ text-decoration:line-through; }
+.pf-th{ position:relative; flex:0 0 58px; width:58px; height:58px; border-radius:8px; background:#EFE4D0; overflow:hidden; }
+.pf-th img{ width:100%; height:100%; object-fit:cover; }
+.pf-th img:not([src]){ display:none; }
+.pf-th i{ position:absolute; left:3px; bottom:3px; font-style:normal; font-size:9px; font-weight:700; background:rgba(255,255,255,.88); border-radius:4px; padding:0 3px; }
+.pf-meta{ flex:1; min-width:0; display:flex; flex-direction:column; font-size:12px; color:var(--muted); gap:1px; }
+.pf-meta b{ font-size:14px; color:var(--brown); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-tchip{ font-style:normal; background:#F4EDE0; color:#5A4630; border-radius:8px; padding:0 6px; font-size:11px; }
+.pf-strk{ color:var(--danger); }
+.pf-wait{ color:#8A5F26; }
+.pf-unsent{ color:#B45309; }
+.pf-bigpage{ display:block; width:100%; max-height:42vh; object-fit:contain; border-radius:12px; background:#EFE4D0; }
+.pf-pages{ display:flex; gap:8px; overflow-x:auto; padding:10px 0 4px; }
+.pf-pg{ position:relative; flex:0 0 58px; width:58px; height:58px; border-radius:8px; overflow:hidden; background:#EFE4D0; border:1px solid var(--line); }
+.pf-pg img{ width:100%; height:100%; object-fit:cover; }
+.pf-pg button{ position:absolute; top:1px; right:1px; width:20px; height:20px; border-radius:50%; border:0; background:rgba(0,0,0,.55); color:#fff; font-size:13px; line-height:20px; padding:0; }
+.pf-more{ font-size:26px; color:#8A5F26; border:1.5px dashed #C9A56B; background:#FFF8EA; cursor:pointer; }
+.pf-note{ font-size:12px; color:var(--muted); margin:2px 0 8px; }
+.pf-types{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 10px; }
+.pf-type{ border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 11px; font:inherit; font-size:13px; color:var(--brown); cursor:pointer; }
+.pf-type.on{ background:#8A5F26; border-color:#8A5F26; color:#fff; }
+.pf-remark{ width:100%; box-sizing:border-box; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font:inherit; font-size:15px; background:#fff; }
+.photo-btns .btn[disabled]{ opacity:.45; }
+.pf-view{ position:fixed; inset:0; z-index:92; background:#111; color:#fff; display:flex; flex-direction:column; }
+.pf-view.hidden{ display:none; }
+.pf-vhead{ display:flex; align-items:center; gap:10px; padding:calc(10px + env(safe-area-inset-top)) 12px 10px; background:#1b1b1b; }
+.pf-vhead > div{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.pf-vhead b{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-vhead span{ font-size:12px; color:#bbb; }
+.pf-vhead .pf-x{ color:#ddd; }
+.pf-vimg{ flex:1; overflow:auto; touch-action:pan-x pan-y pinch-zoom; display:flex; align-items:flex-start; justify-content:center; }
+.pf-vimg img{ width:100%; height:auto; margin:auto; }
+.pf-vimg img.pf-zoom{ width:250%; max-width:none; }
+.pf-vmsg{ flex:1; padding:40px 24px; text-align:center; font-size:15px; line-height:1.5; color:#ddd; }
+.pf-vmsg .btn{ display:inline-block; padding:12px 20px; text-decoration:none; }
+.pf-vnav{ display:flex; align-items:center; justify-content:center; gap:18px; padding:10px 0 calc(10px + env(safe-area-inset-bottom)); background:#1b1b1b; font-size:14px; }
+.pf-vnav button{ background:#333; color:#fff; border:0; border-radius:50%; width:40px; height:40px; font-size:22px; }
+.pf-vnav button[disabled]{ opacity:.3; }
 .ph-unsent{ background:#FFF3E0; color:#6B3E0B; border:1px solid #F0C48A; border-radius:10px; padding:8px 10px; font-size:13px; margin:0 0 10px; line-height:1.4; }
 .ph-retry{ background:#fff; border:1px solid #D9822B; color:#8A4B0B; border-radius:999px; padding:3px 10px; font-size:12px; margin-left:4px; }
 .bk-remove{ display:block; width:100%; margin-top:10px; background:none; border:0; color:var(--danger); font-size:14px; padding:10px; }
@@ -829,7 +896,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.69';
+const LITE_VERSION = '4.70';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -953,14 +1020,17 @@ async function relayViaGoogle(params){
    unlocked, it reads through the relay as before. Bookings and photos
    still go through the relay. */
 const LAN_INFO_KEY = 'echoPhone_lan';
-const LAN_ACTIONS = { week: 1, photoIndex: 1, faceThumbs: 1, bookingStatus: 1, lookup: 1 };
+const LAN_ACTIONS = { week: 1, photoIndex: 1, faceThumbs: 1, bookingStatus: 1, lookup: 1, filesFor: 1, fileThumbs: 1, fileGet: 1 };
+/* Patient files (4.70) are staff reading, whatever the app: asked of the PC
+   on the clinic Wi-Fi even while admin is unlocked. */
+const LAN_ANY_LEVEL = { bookingStatus: 1, lookup: 1, filesFor: 1, fileThumbs: 1, fileGet: 1 };
 /* WRITES (4.62): a booking, a rough slot changed or removed, go to the PC's
    own inbox - Nexus files them in seconds instead of after Drive. The PC
    applies the relay's rules exactly. If the PC does not answer, the same
    thing goes through the relay at once; Nexus files by id, so a booking can
    never be filed twice whichever way it arrived. */
 const LAN_WRITES = { book: 1, amend: 1, unbook: 1 };
-const LAN_POSTS = { photo: 1, photoDecline: 1 };
+const LAN_POSTS = { photo: 1, photoDecline: 1, fileAdd: 1 };
 let LAN_WAIT_MS = 700;                 // how long a request waits for the first look
 let LAN_PROBE_MS = 1500;               // how long a look waits for the PC
 let LAN_REQ_MS = 5000;                 // how long a real request waits for the PC
@@ -1272,7 +1342,7 @@ async function relay(params){
       lanFailed(e, act);                  // the relay, now
     }
   }
-  if(lanInfo && LAN_ACTIONS[act] && (act === 'bookingStatus' || act === 'lookup' || !lanAdminLevel())){
+  if(lanInfo && LAN_ACTIONS[act] && (LAN_ANY_LEVEL[act] || !lanAdminLevel())){
     let up = false;
     try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), LAN_WAIT_MS))]); }catch(e){ up = false; }
     if(up && lanBase){
@@ -2331,6 +2401,8 @@ function hsHeadHtml(pid, backCall){
     + '<b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
     + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
     + '</div>' + cam + '</div>'
+    /* 4.70: the patient's files. */
+    + '<div class="hs-files">' + pfBadgeHtml(pid, 'pf-badge') + '</div>'
     + (waNumberOf(pid) ? '<div class="hs-wa">' + callBtnHtml(pid, 'call-chip')
         + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
     + numListHtml(pid)
@@ -2611,6 +2683,8 @@ function openDrawer(day, kind, id){
       +   bit(doctorLabel(r.doctor), 'dr-doc', 'color:' + tone.text + '; background:' + tone.bg
             + '; border-color:' + tone.border + ';')
       +   bit(when)
+      /* 4.70: the patient's files, one tap away. */
+      +   (r.patientId ? pfBadgeHtml(r.patientId, 'dr-c pf-drclip', true) : '')
       + '</div></div>'
       + '<div class="dr-headr"><span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>'
       + '<button type="button" class="dr-x" onclick="closeDrawer()" aria-label="Close">\u2715</button></div></div>';
@@ -3375,12 +3449,12 @@ function appVersionName(){ return (typeof ADMIN_VERSION !== 'undefined') ? 'admi
 /* THE FIRST POST THIS APP MAKES. A photo does not fit in an address, so it
    goes as the body; the key and the tag still ride on the address, checked
    by the relay the same way. text/plain, so the browser asks nothing first. */
-async function relayPost(params, body){
+async function relayPost(params, body, ms){
   if(lanInfo && params && LAN_POSTS[params.action] && await lanReadyNow()){
     try{
       const u = new URL(lanUrl(lanBase, params.action, {}));
       u.searchParams.set('dev', phoneTag());
-      const j = await lanFetch(u.toString(), 30000, { answers: true,
+      const j = await lanFetch(u.toString(), Math.max(30000, ms || 0), { answers: true,
         init: { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) } });
       lanServed++;
       if(!j.ok) throw new RelayError(j.error || 'refused', j);
@@ -3390,12 +3464,12 @@ async function relayPost(params, body){
       lanFailed(e, params.action);        // the relay, now
     }
   }
-  return relayPostViaGoogle(params, body);
+  return relayPostViaGoogle(params, body, ms);
 }
-async function relayPostViaGoogle(params, body){
+async function relayPostViaGoogle(params, body, ms){
   const url = relayRequestUrl(params);
   const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
-  const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, 45000) : null;
+  const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms || 45000) : null;
   let res, j, text = '';
   try{
     res = await fetch(url, { method: 'POST', redirect: 'follow', cache: 'no-store',
@@ -3546,6 +3620,571 @@ async function photoDecline(pid){
   return true;
 }
 
+const PF_NS = '';     // how a tap in the files screens reaches them
+/* ===================================================== patient files ==
+   PATIENT FILES (4.70, owner's call). X-rays, warranty cards, reports - a
+   phone PHOTOGRAPHS a document (one to ten pages), picks a type from the
+   admin's list, adds a remark if it wants, and sends it. Nothing is
+   uploaded from a phone: files, PDFs and folders are added at the desk.
+
+   THE TODAY LIST at the top of Patients: everybody marked in or booked
+   today, with their face (a camera circle when there is none), the time,
+   where they are, and how many files they have. A tap anywhere on the row
+   opens their files. The face circle in that sheet is the patient-photo
+   camera; the one button is for documents. Two cameras, never confused.
+
+   NOTHING IS LOST ON THE WAY. A document is kept on this phone until the
+   desk has it listed: sent on clinic Wi-Fi straight to the reception PC,
+   anywhere else through the relay, retried by itself, and said out loud
+   when it cannot go. The desk files by id, so a document sent twice
+   (because the answer was lost) is filed once.
+   Identical in lite and admin (PF_NS says how a tap reaches it). */
+const PF_MAX_PAGES = 10;
+const PF_LONG_EDGE = 2400;             // readable: an OPG's roots, a warranty card's small print
+const PF_PAGE_MAX_CHARS = 1400000;     // ~1 MB a page; re-squeezed until it fits
+const PF_VIEW_MAX = 20 * 1024 * 1024;  // bigger than this is opened at the desk
+const PF_FILES_MS = 60 * 1000;         // how often a patient's list is asked again
+const PF_TYPES_MS = 30 * 60 * 1000;
+const PF_ID_RE = /^pf-[A-Za-z0-9-]{6,60}$/;
+const PF_DEFAULT_TYPES = [
+  { id: 'xray', label: 'X-ray / OPG' }, { id: 'cbct', label: 'CBCT' }, { id: 'warranty', label: 'Warranty card' },
+  { id: 'lab-report', label: 'Lab report' }, { id: 'outside-rx', label: 'Outside prescription' },
+  { id: 'consent', label: 'Consent' }, { id: 'other', label: 'Other' }
+];
+let pfPending = [];                    // this phone's documents the desk has not listed yet
+let pfFiles = {};                      // pid -> { at, list: [card] } as the desk lists them
+let pfTypesList = null, pfTypesAt = 0;
+let pfShot = null;                     // { pid, pages: [{ url, b64 }], type, remark } while photographing
+let pfSheetPid = '';
+let pfSending = false;
+const pfThumbMem = {};                 // file id -> data URL
+let pfThumbWant = {}, pfThumbTimer = null;
+const pfBlobMem = {};                  // 'id/name' -> object URL, for the session
+let pfView = null;                     // { pid, id, items: [{ name, url?, kind }], i }
+
+async function pfLoad(){
+  try{ pfPending = (await idbGet('pf:pending')) || []; }catch(e){ pfPending = []; }
+  try{ const c = await idbGet('pf:files'); if(c && typeof c === 'object') pfFiles = c; }catch(e){}
+  try{ const t = await idbGet('pf:types'); if(t && Array.isArray(t.list)){ pfTypesList = t.list; pfTypesAt = t.at || 0; } }catch(e){}
+  pfPending.forEach(p => { if(p.thumbUrl) pfThumbMem[p.id] = p.thumbUrl; });
+  /* Yesterday's lists are not kept: the Today list is today's. */
+  const keep = {};
+  Object.keys(pfFiles).forEach(pid => { if(pfFiles[pid] && Date.now() - (pfFiles[pid].at || 0) < 7 * 86400000) keep[pid] = pfFiles[pid]; });
+  pfFiles = keep;
+  setTimeout(() => { pfTypesRefresh(false); }, 8000);
+  if(pfPending.some(p => !p.sent)) setTimeout(() => { pfSend(); }, 5000);
+}
+function pfSavePending(){ idbPut('pf:pending', pfPending); }
+function pfSaveFiles(){ idbPut('pf:files', pfFiles); }
+
+/* ---- the types (admin's list, from Nexus Settings) ------------------- */
+function pfTypesFrom(raw){
+  let list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.types) ? raw.types : null);
+  if(!list || !list.length) list = PF_DEFAULT_TYPES;
+  list = list.filter(t => t && /^[a-z0-9-]{1,30}$/.test(String(t.id || '')) && String(t.label || '').trim())
+    .map(t => ({ id: String(t.id), label: String(t.label).trim().slice(0, 40), hidden: !!t.hidden }));
+  const other = list.find(t => t.id === 'other') || { id: 'other', label: 'Other' };
+  other.hidden = false;
+  return list.filter(t => t.id !== 'other').concat([other]);
+}
+function pfTypes(){ return pfTypesFrom(pfTypesList); }
+function pfTypeLabel(id, fallback){ const t = pfTypes().find(x => x.id === id); return t ? t.label : (fallback || 'Other'); }
+async function pfTypesRefresh(force){
+  if(!force && Date.now() - pfTypesAt < PF_TYPES_MS) return;
+  try{
+    const r = await relay({ action: 'settings', name: 'file-types.json' });
+    pfTypesList = pfTypesFrom(r.value);
+    pfTypesAt = Date.now();
+    idbPut('pf:types', { list: pfTypesList, at: pfTypesAt });
+  }catch(e){ /* an older relay, or no signal: the list this phone has, or the defaults */ }
+}
+
+/* ---- what a patient has --------------------------------------------- */
+function pfListOf(pid){
+  pid = String(pid);
+  const desk = (pfFiles[pid] && pfFiles[pid].list) || [];
+  const listed = {};
+  desk.forEach(c => { listed[c.id] = 1; });
+  const mine = pfPending.filter(p => p.pid === pid && !listed[p.id]).map(p => ({
+    id: p.id, pid: pid, type: p.type, typeLabel: p.typeLabel, remark: p.remark, at: p.at, by: p.by, src: 'phone',
+    kind: 'pages', count: p.count || (p.pages ? p.pages.length : 0), thumb: true, own: true, sent: !!p.sent, lastError: p.lastError || '' }));
+  return mine.concat(desk.slice().sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))));
+}
+function pfCountOf(pid){ return pfListOf(pid).filter(c => !c.struck).length; }
+const pfAsking = {};
+const pfTried = {};                    // pid -> when a failed ask was made, so a dead relay is not asked on every redraw
+async function pfFilesAsk(pids, force){
+  const want = [];
+  (pids || []).map(String).forEach(pid => {
+    if(!/^[A-Za-z0-9]{1,20}$/.test(pid) || pfAsking[pid]) return;
+    if(!force && pfFiles[pid] && Date.now() - (pfFiles[pid].at || 0) < PF_FILES_MS) return;
+    if(!force && Date.now() - (pfTried[pid] || 0) < PF_FILES_MS) return;
+    want.push(pid);
+  });
+  if(!want.length) return false;
+  want.forEach(pid => { pfAsking[pid] = 1; pfTried[pid] = Date.now(); });
+  let changed = false;
+  try{
+    for(let i = 0; i < want.length; i += 60){
+      const chunk = want.slice(i, i + 60);
+      const r = await relay({ action: 'filesFor', pids: chunk.join(',') });
+      const got = (r && r.files) || {};
+      chunk.forEach(pid => {
+        const list = Array.isArray(got[pid]) ? got[pid].filter(c => c && PF_ID_RE.test(String(c.id || ''))) : [];
+        const before = JSON.stringify((pfFiles[pid] && pfFiles[pid].list) || []);
+        pfFiles[pid] = { at: Date.now(), list: list };
+        if(JSON.stringify(list) !== before) changed = true;
+      });
+    }
+  }catch(e){
+    /* an older relay, or no signal: what this phone already has */
+  }finally{
+    want.forEach(pid => { delete pfAsking[pid]; });
+  }
+  /* Listed at the desk: this phone's copy is no longer needed. */
+  const before = pfPending.length;
+  let resent = false;
+  pfPending = pfPending.filter(p => {
+    const l = pfFiles[p.pid] && pfFiles[p.pid].list;
+    if(p.sent && l && l.some(c => c.id === p.id)) return false;
+    /* SENT A DAY AGO AND STILL NOT LISTED: sent again (the desk answers
+       "already" if it has it), once a day for a week. After that it is
+       said, and let go. */
+    if(p.sent && p.pages && Date.now() - (p.sentAt || 0) > 86400000){
+      if((p.resends || 0) >= 6){ toast('A document for ' + (nameOf(p.pid) || ('ID ' + p.pid)) + ' never reached the desk\u2019s list \u2014 check with the desk'); return false; }
+      p.sent = false; resent = true; p.resends = (p.resends || 0) + 1; p.lastError = 'not on the desk\u2019s list yet \u2014 sending again';
+    }
+    if(p.sent && !p.pages && Date.now() - (p.sentAt || 0) > 86400000) return false;   // from an older version, pages already gone
+    return true;
+  });
+  if(pfPending.some(p => !p.sent)) setTimeout(() => { pfSend(); }, 1000);
+  if(pfPending.length !== before || resent){ pfSavePending(); changed = true; }
+  if(changed){ pfSaveFiles(); pfRepaint(); }
+  else if(pfSheetPid && want.indexOf(pfSheetPid) !== -1){ try{ pfSheetPaint(); }catch(e){} }
+  return changed;
+}
+function pfRepaint(){
+  try{ if(pfSheetPid) pfSheetPaint(); }catch(e){}
+  try{ repaint(); }catch(e){}
+}
+
+/* ---- the Today list ---------------------------------------------------- */
+function pfTodayList(){
+  const today = todayStr();
+  const rows = rowsFor(today) || [];
+  const rank = { ongoing: 0, waiting: 1, done: 2, came: 3, booked: 3 };
+  const at = {}, out = [];
+  rows.forEach(r => {
+    if(!r || (r.kind !== 'appt' && r.kind !== 'walkin')) return;
+    const pid = String(r.patientId || '');
+    if(!pid || r.rough || r.status === 'noshow' || r.status === 'rough' || !Object.prototype.hasOwnProperty.call(rank, r.status)) return;
+    const row = { pid, name: nameOf(pid) || photoNameOf(pid) || ('ID ' + pid), status: r.status, rank: rank[r.status],
+      mins: r.mins, doctor: r.doctor || '', chair: r.chair || '' };
+    if(at[pid] === undefined){ at[pid] = out.length; out.push(row); }
+    else if(row.rank < out[at[pid]].rank) out[at[pid]] = row;
+  });
+  /* Told by a notification, not yet in this phone's copy of the day. */
+  (photoArrivals || []).forEach(a => {
+    const pid = String(a.pid);
+    if(at[pid] !== undefined) return;
+    const name = photoNameOf(pid);
+    if(!name) return;
+    const st = a.status === 'ongoing' ? 'ongoing' : 'waiting';
+    at[pid] = out.length;
+    out.push({ pid, name, status: st, rank: rank[st], mins: localMinsOfIso(a.at), doctor: '', chair: '' });
+  });
+  return out.sort((a, b) => a.rank - b.rank
+    || (a.rank === 2 ? (b.mins || 0) - (a.mins || 0) : (a.mins || 0) - (b.mins || 0)));
+}
+function pfCircleHtml(pid, cls){
+  /* NO FACE YET: the circle says so. In the list it only says so - the row
+     is what is tapped; a small camera in a fast-scrolling list would be hit
+     by mistake. */
+  if(!photoOf(pid) && !photoIsDeclined(pid)) return '<span class="face ' + (cls || 'face-sm') + ' pf-nocam" title="No photo yet">\ud83d\udcf7</span>';
+  return faceHtml(pid, cls || 'face-sm');
+}
+function pfTodayHtml(){
+  photoTodayCheck();
+  const list = pfTodayList();
+  if(!list.length) return '';
+  pfFilesAsk(list.map(n => n.pid), false);
+  const tag = { ongoing: 'In chair', waiting: 'Waiting', done: 'Done', came: 'Came', booked: 'Booked' };
+  return '<div class="ph-needs pf-today"><div class="ph-needs-h">Today <span>' + list.length + '</span></div>'
+    + list.map(n => {
+        const count = pfCountOf(n.pid);
+        const chip = n.status === 'ongoing' && n.chair ? 'Chair ' + String(n.chair).replace(/^\D+/, '') : tag[n.status];
+        const when = [clock(n.mins), n.status === 'booked' ? 'booked' : '', n.doctor].filter(Boolean).join(' \u00b7 ');
+        return '<div class="ph-need pf-row' + (n.status === 'done' ? ' ph-need-done' : '')
+          + (n.pid === photoLit.pid && Date.now() < photoLit.until ? ' ph-need-lit' : '') + '" data-pid="' + escapeHtml(n.pid) + '"'
+          + ' onclick="' + PF_NS + 'pfSheetOpen(' + jsArg(n.pid) + ')">' + pfCircleHtml(n.pid, 'face-sm')
+          + '<div class="ph-need-who"><b>' + escapeHtml(n.name) + '</b><span>' + escapeHtml(when || n.pid) + '</span></div>'
+          + '<span class="pf-chip pf-st-' + escapeHtml(n.status) + '">' + escapeHtml(chip || '') + '</span>'
+          + '<span class="pf-clip' + (count ? '' : ' pf-clip-0') + '">\ud83d\udcce' + (count ? ' ' + count : '') + '</span>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+}
+/* The way in from the patient record and the calendar drawer. */
+function pfBadgeHtml(pid, cls, short){
+  if(!pid) return '';
+  pfFilesAsk([pid], false);
+  const n = pfCountOf(pid);
+  return '<button type="button" class="' + (cls || 'pf-badge') + '" onclick="event.stopPropagation(); ' + PF_NS + 'pfSheetOpen(' + jsArg(pid) + ')">\ud83d\udcce ' + (short ? (n || '') : 'Files' + (n ? ' \u00b7 ' + n : '')) + '</button>';
+}
+
+/* ---- the files sheet ------------------------------------------------ */
+function pfWrap(id, cls){
+  let w = document.getElementById(id);
+  if(!w){ w = document.createElement('div'); w.id = id; w.className = cls; document.body.appendChild(w); }
+  return w;
+}
+function pfSheetOpen(pid){
+  pfSheetPid = String(pid);
+  pfFilesAsk([pfSheetPid], true);
+  pfTypesRefresh(false);
+  pfSheetPaint();
+}
+function pfSheetClose(){
+  pfSheetPid = '';
+  const w = document.getElementById('pfSheet');
+  if(w) w.classList.add('hidden');
+}
+function pfSheetPaint(){
+  const pid = pfSheetPid;
+  if(!pid) return;
+  const w = pfWrap('pfSheet', 'photo-wrap pf-wrap');
+  const as = ageSexOf(pid);
+  const has = !!photoOf(pid), declined = photoIsDeclined(pid);
+  const face = has
+    ? '<button type="button" class="pf-facebtn" onclick="' + PF_NS + 'pfFaceBig(' + jsArg(pid) + ')">' + faceHtml(pid, 'face-lg') + '</button>'
+    : '<button type="button" class="pf-facebtn pf-addface" onclick="' + PF_NS + 'photoTake(' + jsArg(pid) + ')"><span class="face face-lg pf-nocam">\ud83d\udcf7</span><small>Add photo</small></button>';
+  const list = pfListOf(pid);
+  const live = list.filter(c => !c.struck).length;
+  w.innerHTML = '<div class="photo-sheet pf-sheet" onclick="event.stopPropagation()">'
+    + '<div class="pf-head">' + face + '<div class="pf-who"><b>' + escapeHtml(nameOf(pid) || photoNameOf(pid) || ('ID ' + pid)) + '</b>'
+    + '<span>' + escapeHtml(pid) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + (!has ? (declined ? ' \u00b7 declined a photo' : ' \u00b7 no photo yet') : '') + '</span>'
+    + (!has && !declined ? '<button type="button" class="pf-link" onclick="' + PF_NS + 'photoDecline(' + jsArg(pid) + ')">Patient declined a photo</button>' : '')
+    + '</div><button type="button" class="pf-x" onclick="' + PF_NS + 'pfSheetClose()" aria-label="Close">\u00d7</button></div>'
+    + photoUnsentHtml(pid) + pfUnsentHtml(pid)
+    + '<button type="button" class="btn pf-shoot" onclick="' + PF_NS + 'pfShoot(' + jsArg(pid) + ')">\ud83d\udcc4 Photograph a document</button>'
+    + '<div class="pf-sec">Files' + (live ? ' <span>' + live + '</span>' : '') + '</div>'
+    + (list.length ? '<div class="pf-list">' + list.map(c => pfCardHtml(pid, c)).join('') + '</div>'
+      : '<div class="pf-none">' + (pfFiles[pid] ? 'None yet. X-rays, reports and cards photographed here, or added at the desk, show here.'
+          : pfAsking[pid] ? 'Reading\u2026' : 'The desk\u2019s list could not be read just now \u2014 it is asked again in a minute.') + '</div>')
+    + '</div>';
+  w.onclick = () => pfSheetClose();
+  w.classList.remove('hidden');
+}
+function pfCardHtml(pid, c){
+  const label = pfTypeLabel(c.type, c.typeLabel);
+  let url = pfThumbMem[c.id];
+  if(!url && c.thumb && !c.own) pfThumbAsk(pid, c.id);
+  const kind = c.kind === 'folder' ? 'FOLDER' : c.kind === 'pages' ? '' : (String((c.files && c.files[0] && c.files[0].name) || '').split('.').pop() || 'FILE').toUpperCase().slice(0, 5);
+  const state = c.own ? (c.sent ? '<span class="pf-wait">\u23f3 with the desk</span>' : '<span class="pf-wait pf-unsent">\u23f3 ' + escapeHtml(c.lastError || 'sending\u2026') + '</span>') : '';
+  const d = String(c.at || '').slice(0, 10);
+  return '<div class="pf-card' + (c.struck ? ' pf-struck' : '') + '" onclick="' + PF_NS + 'pfOpenFile(' + jsArg(pid) + ',' + jsArg(c.id) + ')">'
+    + '<span class="pf-th">' + (c.thumb ? '<img data-pfth="' + escapeHtml(c.id) + '" alt=""' + (url ? ' src="' + url + '"' : '') + '>' : '') + (kind ? '<i>' + escapeHtml(kind) + '</i>' : '') + '</span>'
+    + '<span class="pf-meta"><b>' + escapeHtml(c.remark || c.folderName || label) + '</b>'
+    + '<span><em class="pf-tchip">' + escapeHtml(label) + '</em>' + (c.count > 1 ? ' ' + c.count + (c.kind === 'pages' ? ' pages' : ' files') : '') + '</span>'
+    + '<span>' + escapeHtml((/^\d{4}-\d{2}-\d{2}$/.test(d) ? shortDate(d) : '') + ' \u00b7 ' + (c.src === 'desk' ? 'desk' : (c.by || 'phone'))) + '</span>'
+    + (c.struck ? '<span class="pf-strk">struck \u00b7 ' + escapeHtml(c.struck.reason || '') + '</span>' : '') + state
+    + '</span></div>';
+}
+function pfThumbAsk(pid, id){
+  if(pfThumbWant[id] !== undefined) return;
+  pfThumbWant[id] = String(pid);
+  clearTimeout(pfThumbTimer);
+  pfThumbTimer = setTimeout(pfThumbFetch, 60);
+}
+function pfThumbPaint(id, url){
+  try{ document.querySelectorAll('img[data-pfth="' + id + '"]').forEach(el => { el.src = url; }); }catch(e){}
+}
+async function pfThumbFetch(){
+  const want = pfThumbWant; pfThumbWant = {};
+  const ids = Object.keys(want);
+  if(!ids.length) return;
+  let held = {};
+  try{ held = await idbGetMany(ids.map(id => 'pft:' + id)); }catch(e){ held = {}; }
+  const missing = [];
+  ids.forEach(id => { const u = held['pft:' + id]; if(u){ pfThumbMem[id] = u; pfThumbPaint(id, u); } else missing.push(id); });
+  for(let i = 0; i < missing.length; i += 30){
+    const chunk = missing.slice(i, i + 30);
+    try{
+      const r = await relay({ action: 'fileThumbs', items: chunk.map(id => want[id] + ':' + id).join(',') });
+      const got = (r && r.thumbs) || {};
+      Object.keys(got).forEach(id => {
+        const u = 'data:image/jpeg;base64,' + got[id];
+        pfThumbMem[id] = u; idbPut('pft:' + id, u); pfThumbPaint(id, u);
+      });
+    }catch(e){ /* tried again the next time it is drawn */ }
+  }
+}
+/* The face, larger, with the way to retake it - as on the record. */
+function pfFaceBig(pid){
+  const ph = photoOf(pid);
+  const url = ph && faceMem[ph.id];
+  const w = pfWrap('pfFace', 'photo-wrap pf-facewrap');
+  w.innerHTML = '<div class="photo-sheet" onclick="event.stopPropagation()">'
+    + '<div class="photo-who"><b>' + escapeHtml(nameOf(pid) || photoNameOf(pid) || ('ID ' + pid)) + '</b><span>' + escapeHtml(pid) + '</span></div>'
+    + (url ? '<img class="photo-big" src="' + url + '" alt="">' : '<div class="photo-big pf-noface">' + faceHtml(pid, 'face-lg') + '</div>')
+    + '<div class="photo-btns"><button type="button" class="btn ghost" onclick="' + PF_NS + 'pfFaceClose()">Close</button>'
+    + '<button type="button" class="btn" onclick="' + PF_NS + 'pfFaceClose(); ' + PF_NS + 'photoTake(' + jsArg(pid) + ')">\ud83d\udcf7 Retake</button></div></div>';
+  w.onclick = () => pfFaceClose();
+  w.classList.remove('hidden');
+}
+function pfFaceClose(){ const w = document.getElementById('pfFace'); if(w) w.classList.add('hidden'); }
+
+/* ---- photographing a document ------------------------------------------ */
+function pfShoot(pid){
+  if(!pfShot || pfShot.pid !== String(pid)) pfShot = { pid: String(pid), pages: [], type: '', remark: '' };
+  if(pfShot.pages.length >= PF_MAX_PAGES){ toast('Ten pages is the most in one document'); return; }
+  let inp = document.getElementById('pfInput');
+  if(!inp){
+    inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.setAttribute('capture', 'environment');
+    inp.id = 'pfInput'; inp.style.display = 'none';
+    inp.addEventListener('change', () => { pfPicked(inp.files && inp.files[0]); });
+    document.body.appendChild(inp);
+  }
+  inp.value = '';
+  inp.click();
+}
+/* READABLE, NOT HUGE: the long edge at 2400 (never enlarged), squeezed until
+   a page is about a megabyte. The browser turns the picture the way the
+   camera held it when it draws it. */
+function pfScale(img, edge, q){
+  const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
+  const s = Math.min(1, edge / Math.max(w0, h0));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w0 * s)); c.height = Math.max(1, Math.round(h0 * s));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', q);
+}
+function pfPage(img){
+  let url = pfScale(img, PF_LONG_EDGE, 0.82);
+  if(url.length > PF_PAGE_MAX_CHARS) url = pfScale(img, PF_LONG_EDGE, 0.7);
+  if(url.length > PF_PAGE_MAX_CHARS) url = pfScale(img, PF_LONG_EDGE, 0.6);
+  if(url.length > PF_PAGE_MAX_CHARS) url = pfScale(img, 2000, 0.6);
+  return url;
+}
+function pfPicked(file){
+  if(!file || !pfShot) return;
+  const src = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    try{
+      const url = pfPage(img);
+      pfShot.pages.push({ url: url, thumb: pfScale(img, 240, 0.75) });
+      pfShotPaint();
+    }catch(e){ toast('That picture could not be used \u2014 try again'); }
+    URL.revokeObjectURL(src);
+  };
+  img.onerror = () => { URL.revokeObjectURL(src); toast('That picture could not be read \u2014 try again'); };
+  img.src = src;
+}
+function pfShotPaint(){
+  if(!pfShot) return;
+  const w = pfWrap('pfShotWrap', 'photo-wrap pf-shotwrap');
+  const n = pfShot.pages.length;
+  const remark = document.getElementById('pfRemarkIn');
+  if(remark) pfShot.remark = remark.value;
+  w.innerHTML = '<div class="photo-sheet pf-sheet" onclick="event.stopPropagation()">'
+    + '<div class="photo-who"><b>' + escapeHtml(nameOf(pfShot.pid) || photoNameOf(pfShot.pid) || ('ID ' + pfShot.pid)) + '</b><span>' + escapeHtml(pfShot.pid) + '</span></div>'
+    + (n ? '<img class="pf-bigpage" src="' + pfShot.pages[n - 1].url + '" alt="">' : '')
+    + '<div class="pf-pages">' + pfShot.pages.map((p, i) => '<span class="pf-pg"><img src="' + p.thumb + '" alt=""><button type="button" onclick="' + PF_NS + 'pfPageDrop(' + i + ')" aria-label="Remove page">\u00d7</button></span>').join('')
+    + (n < PF_MAX_PAGES ? '<button type="button" class="pf-pg pf-more" onclick="' + PF_NS + 'pfShoot(' + jsArg(pfShot.pid) + ')">+</button>' : '') + '</div>'
+    + '<div class="pf-note">' + n + ' page' + (n === 1 ? '' : 's') + (n < PF_MAX_PAGES ? ' \u00b7 tap + to add another' : ' \u00b7 the most in one document') + '</div>'
+    + '<div class="pf-types">' + pfTypes().filter(t => !t.hidden).map(t => '<button type="button" class="pf-type' + (pfShot.type === t.id ? ' on' : '') + '" onclick="' + PF_NS + 'pfPickType(' + jsArg(t.id) + ')">' + escapeHtml(t.label) + '</button>').join('') + '</div>'
+    + '<input type="text" id="pfRemarkIn" class="pf-remark" maxlength="200" placeholder="Remark (optional) \u2014 e.g. pre-op 36" value="' + escapeHtml(pfShot.remark || '') + '">'
+    + '<div class="photo-btns"><button type="button" class="btn ghost" onclick="' + PF_NS + 'pfShotCancel()">Cancel</button>'
+    + '<button type="button" class="btn" onclick="' + PF_NS + 'pfShotSave()"' + (n && pfShot.type ? '' : ' disabled') + '>Save</button></div>'
+    + (n && !pfShot.type ? '<div class="pf-note">Pick a type to save</div>' : '')
+    + '</div>';
+  w.onclick = null;
+  w.classList.remove('hidden');
+}
+function pfPickType(id){ if(!pfShot) return; pfShot.type = String(id); pfShotPaint(); }
+function pfPageDrop(i){
+  if(!pfShot) return;
+  pfShot.pages.splice(i, 1);
+  if(!pfShot.pages.length){ pfShotCancel(); return; }
+  pfShotPaint();
+}
+function pfShotCancel(){
+  if(pfShot && pfShot.pages.length > 1 && !confirm('Throw away these ' + pfShot.pages.length + ' pages?')) return;
+  pfShot = null;
+  const w = document.getElementById('pfShotWrap');
+  if(w) w.classList.add('hidden');
+}
+async function pfShotSave(){
+  if(!pfShot || !pfShot.pages.length || !pfShot.type) return;
+  const remark = document.getElementById('pfRemarkIn');
+  const rec = {
+    id: 'pf-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+    pid: pfShot.pid, type: pfShot.type, typeLabel: pfTypeLabel(pfShot.type),
+    remark: String((remark && remark.value) || pfShot.remark || '').trim().slice(0, 200),
+    at: new Date().toISOString(), by: (typeof bkWho === 'function' ? bkWho() : '') || appVersionName(),
+    pages: pfShot.pages.map(p => p.url.replace(/^data:image\/jpeg;base64,/, '')),
+    thumb: pfShot.pages[0].thumb.replace(/^data:image\/jpeg;base64,/, ''),
+    thumbUrl: pfShot.pages[0].thumb, count: pfShot.pages.length, sent: false
+  };
+  pfPending.push(rec); pfSavePending();
+  pfThumbMem[rec.id] = rec.thumbUrl;
+  pfShot = null;
+  const w = document.getElementById('pfShotWrap');
+  if(w) w.classList.add('hidden');
+  toast('Saved on this phone \u00b7 sending to the desk');
+  pfRepaint();
+  await pfSend();
+  if(!rec.sent) toast('Not sent yet \u2014 ' + (rec.lastError || 'it will keep trying'));
+  pfRepaint();
+}
+async function pfSend(){
+  if(pfSending) return;
+  pfSending = true;
+  try{
+    for(const p of pfPending.filter(x => !x.sent)){
+      try{
+        await relayPost({ action: 'fileAdd' }, { id: p.id, pid: p.pid, type: p.type, typeLabel: p.typeLabel, remark: p.remark,
+          at: p.at, by: p.by, pages: p.pages, thumb: p.thumb }, 120000);
+        p.sent = true; p.sentAt = Date.now(); p.lastError = '';
+        /* THE PAGES STAY until the desk LISTS it - not merely until it was
+           received. Anything that goes wrong between the two is sent again
+           from here. */
+        pfSavePending();
+      }catch(e){
+        const why = e && e.body && e.body.error;
+        const young = Date.now() - Date.parse(p.at || '') < 2 * 3600 * 1000;
+        if(why && /not in the directory/i.test(why) && young){
+          p.lastError = 'this patient has not reached the clinic list on Drive yet \u2014 it goes by itself in a minute or two';
+        } else if(why && !/^(relay error|desk:)/i.test(why) && !/unknown action/i.test(why) && e.message !== 'offline' && e.message !== 'unreadable'){
+          /* A refusal by rule (a patient not on the list for hours, a
+             page the relay could not read) is final, and said out loud. */
+          pfPending = pfPending.filter(x => x.id !== p.id);
+          toast('Document not saved: ' + why);
+        } else {
+          p.lastError = pfWhy(e);
+        }
+        p.lastTry = Date.now(); pfSavePending();
+      }
+    }
+  }finally{ pfSending = false; }
+}
+function pfWhy(e){
+  const m = (e && e.message) || '';
+  const err = String((e && e.body && e.body.error) || '');
+  if(m === 'offline') return 'no signal \u2014 it goes by itself when the phone is back online';
+  if(m === 'no-post' || /unknown action/i.test(err)) return 'the relay needs updating to r4.12';
+  if(/file-inbox|access|permission|denied|create/i.test(err)) return 'the relay could not write to file-inbox \u2014 the folder must exist and be shared with the relay\u2019s account as Editor';
+  if(err) return err.replace(/^relay error:\s*/i, 'the relay said: ');
+  return 'the relay did not answer properly \u2014 it will try again';
+}
+function pfUnsentHtml(pid){
+  const p = pfPending.filter(x => x.pid === String(pid) && !x.sent).pop();
+  if(!p) return '';
+  return '<div class="ph-unsent"><b>Document not sent yet.</b> ' + escapeHtml(p.lastError || 'Sending\u2026')
+    + ' <button type="button" class="ph-retry" onclick="' + PF_NS + 'pfRetry()">Try again</button></div>';
+}
+async function pfRetry(){
+  toast('Sending\u2026');
+  await pfSend();
+  const left = pfPending.filter(p => !p.sent);
+  toast(left.length ? ('Still not sent \u2014 ' + (left[0].lastError || 'try again in a moment')) : 'Sent to the desk');
+  pfRepaint();
+}
+
+/* ---- opening one ------------------------------------------------------- */
+async function pfOpenFile(pid, id){
+  const c = pfListOf(pid).find(x => x.id === id);
+  if(!c) return;
+  const label = pfTypeLabel(c.type, c.typeLabel);
+  const title = (c.remark || c.folderName || label);
+  const w = pfWrap('pfView', 'pf-view');
+  w.classList.remove('hidden');
+  const head = '<div class="pf-vhead"><div><b>' + escapeHtml(title) + '</b><span>' + escapeHtml(label) + (c.count > 1 ? ' \u00b7 ' + c.count + (c.kind === 'pages' ? ' pages' : ' files') : '') + '</span></div>'
+    + '<button type="button" class="pf-x" onclick="' + PF_NS + 'pfViewClose()" aria-label="Close">\u00d7</button></div>';
+  /* A folder, or anything too big for a phone: the desk. */
+  if(c.kind === 'folder' || (c.bytes > PF_VIEW_MAX && c.kind !== 'pages')){
+    w.innerHTML = head + '<div class="pf-vmsg">' + (c.kind === 'folder' ? 'A folder (' + (c.count || 0) + ' files)' : 'A large file') + ' \u2014 open it at the desk, on the patient\u2019s record \u2192 \ud83d\udcce Files.</div>';
+    return;
+  }
+  /* This phone's own, not yet listed: its pages if they are still here. */
+  if(c.own){
+    const p = pfPending.find(x => x.id === id);
+    const urls = (p && p.pages) ? p.pages.map(b => 'data:image/jpeg;base64,' + b) : [p && p.thumbUrl].filter(Boolean);
+    pfView = { pid, id, items: urls.map((u, i) => ({ name: 'p' + (i + 1) + '.jpg', url: u, kind: 'img' })), i: 0, head: head };
+    pfViewPaint();
+    return;
+  }
+  const files = (c.files || []).filter(f => f && f.name);
+  pfView = { pid, id, head: head, i: 0, items: files.map(f => ({ name: f.name, bytes: f.bytes || 0,
+    kind: /\.(jpe?g|png|gif|webp)$/i.test(f.name) ? 'img' : /\.pdf$/i.test(f.name) ? 'pdf' : 'other' })) };
+  pfViewPaint();
+}
+async function pfViewFetch(item){
+  const key = pfView.id + '/' + item.name;
+  if(pfBlobMem[key]) return pfBlobMem[key];
+  const r = await relay({ action: 'fileGet', pid: pfView.pid, id: pfView.id, name: item.name });
+  if(!r || !r.ok || !r.b64){ const err = new Error((r && r.tooBig) ? 'too big' : ((r && r.error) || 'not found')); throw err; }
+  const bin = atob(r.b64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: r.mime || 'application/octet-stream' }));
+  pfBlobMem[key] = url;
+  return url;
+}
+async function pfViewPaint(){
+  const w = document.getElementById('pfView');
+  if(!w || !pfView) return;
+  const v = pfView;
+  const n = v.items.length;
+  if(!n){ w.innerHTML = v.head + '<div class="pf-vmsg">Nothing to show.</div>'; return; }
+  const item = v.items[v.i];
+  const nav = n > 1 ? '<div class="pf-vnav"><button type="button" onclick="' + PF_NS + 'pfViewGo(-1)"' + (v.i ? '' : ' disabled') + '>\u2039</button>'
+    + '<span>' + (v.i + 1) + ' of ' + n + '</span><button type="button" onclick="' + PF_NS + 'pfViewGo(1)"' + (v.i < n - 1 ? '' : ' disabled') + '>\u203a</button></div>' : '';
+  if(item.bytes > PF_VIEW_MAX){
+    w.innerHTML = v.head + '<div class="pf-vmsg">' + escapeHtml(item.name) + ' is large \u2014 open it at the desk.</div>' + nav;
+    return;
+  }
+  if(!item.url){
+    w.innerHTML = v.head + '<div class="pf-vmsg">Opening\u2026</div>' + nav;
+    try{ item.url = await pfViewFetch(item); }
+    catch(e){
+      if(pfView !== v) return;
+      w.innerHTML = v.head + '<div class="pf-vmsg">' + (e && e.message === 'too big' ? 'Too large for a phone \u2014 open it at the desk.'
+        : e && e.message === 'offline' ? 'No signal \u2014 try again when the phone is back online.'
+        : 'It could not be opened just now (' + escapeHtml((e && e.message) || 'no answer') + ').') + '</div>' + nav;
+      return;
+    }
+    if(pfView !== v || v.items[v.i] !== item) return;
+  }
+  if(item.kind === 'img'){
+    /* Pinch to zoom on the picture itself; a double tap doubles it. */
+    w.innerHTML = v.head + '<div class="pf-vimg" id="pfVimg"><img src="' + item.url + '" alt="" ondblclick="this.classList.toggle(\'pf-zoom\')"></div>' + nav;
+  } else {
+    w.innerHTML = v.head + '<div class="pf-vmsg"><b>' + escapeHtml(item.name) + '</b><br><br>'
+      + '<a class="btn" href="' + item.url + '" target="_blank" rel="noopener"' + (item.kind === 'pdf' ? '' : ' download="' + escapeHtml(item.name) + '"') + '>'
+      + (item.kind === 'pdf' ? 'Open the PDF' : 'Download') + '</a></div>' + nav;
+  }
+}
+function pfViewGo(d){
+  if(!pfView) return;
+  pfView.i = Math.max(0, Math.min(pfView.items.length - 1, pfView.i + d));
+  pfViewPaint();
+}
+function pfViewClose(){
+  pfView = null;
+  const w = document.getElementById('pfView');
+  if(w){ w.classList.add('hidden'); w.innerHTML = ''; }
+}
+setInterval(() => { if(pfPending.some(p => !p.sent)) pfSend(); }, 30000);
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && pfPending.some(p => !p.sent)) pfSend();
+});
+window.addEventListener('online', () => { if(pfPending.some(p => !p.sent)) pfSend(); });
+/* ================================================= end patient files == */
+
 /* ------------------------------------------------------------ patients -- */
 /* THE NAMES ARE PREPARED ONCE (4.27). Every keystroke used to walk the whole
    directory - Object.keys, then toLowerCase on each of twenty thousand names,
@@ -3673,11 +4312,11 @@ function renderPatients(){
        fifty rows and fifty faces fetched on every visit to the tab, for a
        phone whose people type the name anyway. */
     if(RECEPTION){
-      list.innerHTML = photoNeedsHtml() + '<div class="empty-state">Type a name, patient ID or phone number</div>';
+      list.innerHTML = pfTodayHtml() + '<div class="empty-state">Type a name, patient ID or phone number</div>';
       return;
     }
     if(!nameIdx.length){ list.innerHTML = '<div class="empty-state">No patients on this phone yet</div>'; return; }
-    list.innerHTML = photoNeedsHtml() + '<div class="pt-az">' + nameIdx.length.toLocaleString('en-IN') + ' patients \u00b7 A to Z</div>'
+    list.innerHTML = pfTodayHtml() + '<div class="pt-az">' + nameIdx.length.toLocaleString('en-IN') + ' patients \u00b7 A to Z</div>'
       + nameIdx.slice(0, PT_SHOW).map(r => ptRowHtml(r[0], r[2])).join('')
       + (nameIdx.length > PT_SHOW
           ? '<div class="empty-state">' + (nameIdx.length - PT_SHOW).toLocaleString('en-IN')
@@ -4244,6 +4883,7 @@ async function boot(){
   await hydrate();          // the phone's own copy - no network
   await bkLoad();
   try{ await photoLoad(); }catch(e){}
+  try{ await pfLoad(); }catch(e){}
   photoRefresh(true);
   setTab('calendar');       // painted from it
   /* OPENING USES THE READY COPY (4.14). It asked Drive fresh on every open,
