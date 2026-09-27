@@ -66,14 +66,18 @@
     overflow:hidden;
   }
   .stage{
-    /* The whole window, always. */
-    width:100%; height:100vh; padding:4.4vh 4vw;
+    /* The whole window, always — but NOT to the very edge of the glass.
+       A TV overscans and a wall mount crops: the facts row and the corner
+       controls were arriving at the bottom edge of the panel. 15mm of real
+       clearance, in millimetres rather than vh, because the amount a screen
+       eats is a physical distance and does not scale with the window. */
+    width:100%; height:100vh; padding:4.4vh 4vw calc(4.4vh + 15mm);
     display:flex; flex-direction:column; position:relative;
   }
   /* A hairline inset from the edge: it makes the screen a composed panel
      rather than a page that happens to end where the glass does. */
   .stage::after{
-    content:''; position:absolute; inset:1.8vh 1.6vw;
+    content:''; position:absolute; inset:1.8vh 1.6vw calc(1.8vh + 15mm);
     border:1px solid rgba(138,95,38,0.22); border-radius:4px;
     pointer-events:none;
   }
@@ -98,6 +102,18 @@
     font-size:0.6em; letter-spacing:0.26em; text-transform:uppercase;
     color:var(--gold-deep);
   }
+  /* THE TAGLINE FROM THE LOGO. Set smaller and wider than the line above it,
+     in the muted ink rather than the gold: two gold lines stacked compete,
+     and the eye should still land on the clinic's name first. A hairline
+     above it holds the three lines together as one mark. */
+  .brandtag{
+    font-size:0.5em; letter-spacing:0.34em; text-transform:uppercase;
+    color:var(--muted); margin-top:0.5em; padding-top:0.45em;
+    border-top:1px solid rgba(138,95,38,0.22); display:inline-block;
+  }
+  /* On the idle screen the whole mark is the screen, so the tagline grows
+     with the rest of it. */
+  .idle .brandtag{ font-size:0.62em; letter-spacing:0.4em; }
 
   .centre{
     flex:1; display:flex; flex-direction:column;
@@ -105,8 +121,10 @@
     position:relative; padding:0 4vw;
   }
   .greet{
-    font-size:0.86em; letter-spacing:0.34em; text-transform:uppercase;
-    color:var(--gold-deep);
+    /* Wider and lighter than before. Letterspacing is what makes a small
+       line read as engraved rather than typed. */
+    font-size:0.8em; letter-spacing:0.42em; text-transform:uppercase;
+    color:var(--gold-deep); font-weight:400; padding-left:0.42em;
   }
   /* A rule with a point in the middle, rather than a plain dash. */
   .rule{ display:flex; align-items:center; gap:0.7em; margin:1.5em 0 1.6em; }
@@ -124,11 +142,21 @@
 
   .footrow{
     display:flex; align-items:flex-end; justify-content:space-between;
-    gap:1.5em; position:relative; padding:0 1.4vw;
+    gap:1.5em; position:relative; padding:1.1em 1.4vw 0;
+    /* A hairline the width of the row, so the foot is a band rather than
+       three things floating near the bottom edge. */
+    border-top:1px solid rgba(138,95,38,0.14);
   }
-  .facts{ display:flex; align-items:baseline; gap:2.2em; }
+  .facts{ display:flex; align-items:baseline; gap:2.6em; }
+  /* THE FACE, IN THE CORNER (owner's call, 26 Sep 2026) - for whoever walks
+     in to see who is seated. Kept small and beside the details, not in the
+     centre: the name in the middle is for the patient lying there, and a
+     large picture of their own face is not. */
+  .fact-face{ align-self:center; width:3.4em; height:3.4em; border-radius:50%; overflow:hidden; flex:0 0 auto;
+    box-shadow:0 0 0 2px #fff, 0 0 0 3px rgba(138,95,38,0.35); background:#F1E6D2; }
+  .fact-face img{ width:100%; height:100%; object-fit:cover; display:block; }
   .fact-k{
-    font-size:0.56em; letter-spacing:0.24em; text-transform:uppercase; color:#b3a289;
+    font-size:0.54em; letter-spacing:0.3em; text-transform:uppercase; color:#b3a289;
   }
   .fact-v{ font-size:1.05em; font-weight:500; color:#3A2E20; margin-top:0.25em; }
   .foot{ font-size:0.72em; letter-spacing:0.06em; color:#b3a289; }
@@ -145,6 +173,153 @@
      every element stacked at the top with the bottom half of the screen
      empty. That is what "not looking premium" actually was. */
   .is-hidden{ display:none !important; }
+  /* THE ONLY THING ADDED TO A PATIENT-FACING SCREEN at rest: one small pill,
+     in the panel's own gold, low in a corner away from the name. */
+  /* IN THE FOOTER ROW, not floating over it (v6.6). Absolutely positioned
+     in the corners, these sat on top of the Age and Chair figures — the
+     panel's own facts — because nothing reserved room for them. Laid out as
+     part of the row, overlap is not possible whatever the footer holds. */
+  .panelbtns{ display:flex; gap:0.6em; align-items:center; flex:0 0 auto; }
+  .seatbtn{
+    border:1px solid rgba(138,95,38,0.28); background:rgba(255,255,255,0.72);
+    color:var(--gold-deep); border-radius:999px; padding:0.55em 1.15em;
+    font-family:inherit; font-size:0.68em; letter-spacing:0.12em; text-transform:uppercase;
+    cursor:pointer; white-space:nowrap;
+  }
+  .seatbtn.done{ color:#8C6239; }
+  /* Names live here and nowhere else, and only while this is open. */
+  .sheet{
+    position:absolute; inset:0; z-index:5; background:rgba(251,247,239,0.97);
+    display:flex; flex-direction:column; padding:4vh 6vw; overflow-y:auto;
+  }
+  .sheet-h{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:1.2em; }
+  .sheet-t{ font-size:0.78em; letter-spacing:0.26em; text-transform:uppercase; color:var(--gold-deep); }
+  .sheet-x{ font-size:0.7em; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); cursor:pointer; }
+  .wrow{
+    display:flex; align-items:center; gap:1em; padding:0.85em 1.1em; margin-bottom:0.5em;
+    background:#fff; border:1px solid var(--line); border-radius:8px; cursor:pointer;
+  }
+  .wrow:hover{ border-color:var(--gold-light); background:var(--gold-pale); }
+  .wname{ flex:1; font-size:1.25em; font-weight:400; }
+  .wid{ font-size:0.72em; color:var(--muted); letter-spacing:0.08em; }
+  .wwait{ font-size:0.72em; color:#8C6239; white-space:nowrap; }
+  .sheet-empty{ font-size:0.9em; color:var(--muted); padding:1em 0; }
+  /* Same pill as the seat control, opposite corner. */
+  .rxbtn{
+    border:1px solid rgba(138,95,38,0.28); background:rgba(255,255,255,0.72);
+    color:var(--gold-deep); border-radius:999px; padding:0.55em 1.15em;
+    font-family:inherit; font-size:0.68em; letter-spacing:0.12em; text-transform:uppercase;
+    cursor:pointer; white-space:nowrap;
+  }
+  /* PATIENT FILES (Nexus v11.78): the X-rays and reports, behind one tap. */
+  .pfgrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(15em, 1fr)); gap:0.6em; }
+  .pfcard{ display:flex; gap:0.8em; align-items:center; padding:0.6em; background:#fff; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+  .pfcard:hover{ border-color:var(--gold-light); background:var(--gold-pale); }
+  .pfcard.struck{ opacity:0.5; }
+  .pfth{ flex:0 0 3.6em; width:3.6em; height:3.6em; border-radius:6px; background:#F4EDE0; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:0.62em; font-weight:700; color:var(--muted); }
+  .pfth img{ width:100%; height:100%; object-fit:cover; }
+  .pfmeta{ min-width:0; font-size:0.8em; line-height:1.35; }
+  .pfmeta b{ display:block; font-weight:500; font-size:1.08em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pfmeta span{ color:var(--muted); font-size:0.9em; }
+  .pfview{ display:flex; flex-direction:column; gap:0.8em; }
+  .pfview img{ max-width:100%; border-radius:8px; border:1px solid var(--line); background:#fff; }
+  .pfnote{ font-size:0.85em; color:var(--muted); padding:0.6em 0; }
+  .pflink{ display:inline-block; margin:0.3em 0.6em 0.3em 0; color:var(--gold-deep); }
+  /* The date can shrink; the controls cannot. */
+  .footrow .foot{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rxloading{ font-size:0.9em; color:var(--muted); padding:1.2em 0; }
+  .rxrow{
+    display:flex; gap:1.2em; align-items:baseline; cursor:pointer;
+    padding:0.8em 1.1em; margin-bottom:0.45em;
+    background:#fff; border:1px solid var(--line); border-radius:8px;
+  }
+  .rxrow:hover{ border-color:var(--gold-light); background:var(--gold-pale); }
+  .rxdate{ font-size:0.9em; font-weight:500; width:9em; flex:0 0 auto; }
+  .rxwhat{ flex:1; font-size:0.95em; }
+  .rxmeds{ font-size:0.72em; color:var(--muted); white-space:nowrap; }
+  .rxback{ font-size:0.7em; letter-spacing:0.14em; text-transform:uppercase;
+           color:var(--gold-deep); cursor:pointer; }
+  /* THE APP'S SHEET, in this panel's own markup. Every colour and weight
+     below is taken from the app's prescription sheet so the two read alike:
+     the labels carry the blue, the content stays black. */
+  .rxs-sheet{
+    background:#fff; border:1px solid var(--line); border-radius:8px;
+    padding:1.2em 1.4em; overflow-y:auto;
+  }
+  .rxs-ra{ display:grid; grid-template-columns:8em 1fr; gap:1em; padding:0.55em 0; align-items:start; }
+  .rxs-ra-l{
+    font-size:0.62em; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
+    color:#1B4A7A; background:#EAF1F8; border-radius:5px; padding:0.35em 0.6em; text-align:center;
+  }
+  .rxs-ra-b{ font-size:0.9em; line-height:1.55; color:#000; padding-top:0.15em; }
+  .rxs-rx{
+    border:1px solid var(--line); border-radius:10px;
+    margin:1em 0 0.6em; overflow:hidden;
+  }
+  /* The rounded corners clip whatever reaches the edge, so the first and
+     last columns keep a little more room of their own. */
+  .rxs-meds tr > :last-child{ padding-right:0.9em; }
+  .rxs-meds th.rxs-rx-mark{
+    font-size:1.15em; font-weight:700; color:#1B4A7A; text-transform:none;
+    letter-spacing:0; line-height:1; padding-top:0.25em; padding-bottom:0.25em;
+  }
+  .rxs-meds{ width:100%; border-collapse:collapse; table-layout:fixed; }
+  .rxs-meds thead tr{ background:#EAF1F8; }
+  /* PADDING ON BOTH SIDES. It was "0.7em 0" — nothing on the left — so every
+     medicine name started flush against its column edge and the first letter
+     was clipped by the rounded, overflow-hidden card around the table. */
+  .rxs-meds th{
+    font-size:0.62em; text-transform:uppercase; letter-spacing:0.09em; color:#1B4A7A;
+    text-align:left; font-weight:700; padding:0.6em 0.7em; border-bottom:1px solid var(--line);
+  }
+  .rxs-meds td{
+    font-size:0.9em; color:#000; vertical-align:top;
+    padding:0.65em 0.7em; border-bottom:1px solid #F2EADB;
+  }
+  .rxs-meds tbody tr:nth-child(even){ background:#FDFAF4; }
+  .rxs-meds tbody tr:last-child td{ border-bottom:none; }
+  /* A 3em box with 2.2em of left padding leaves 0.8em for the digit, and
+     with table-layout:fixed the number was pushed out of its own cell and
+     clipped away entirely. The column is simply centred now. */
+  .rxs-meds th.rxs-n, .rxs-meds td.rxs-n{ width:2.8em; text-align:center; padding-left:0.4em; padding-right:0.4em; }
+  .rxs-meds th.rxs-c, .rxs-meds td.rxs-c{ white-space:nowrap; }
+  .rxs-mn{ font-weight:600; }
+  .rxs-type{ font-weight:400; color:var(--muted); }
+  .rxs-salt{ font-size:0.72em; color:#444; margin-top:0.1em; }
+  .rxs-advice{ background:#F6EBD6; border-radius:8px; padding:0.7em 0.9em; margin-top:0.5em; }
+  .rxs-advice-l{
+    font-size:0.62em; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
+    color:#7a5420; margin-bottom:0.2em;
+  }
+  .rxs-advice-b{ font-size:0.9em; line-height:1.55; color:#000; }
+  .kv{ display:flex; gap:1em; margin-bottom:0.5em; font-size:0.85em; }
+  .kv b{ flex:0 0 7em; font-weight:400; font-size:0.8em; letter-spacing:0.14em;
+         text-transform:uppercase; color:#b3a289; }
+  .rxopen table{ width:100%; border-collapse:collapse; font-size:0.82em; margin-top:0.5em; }
+  .rxopen th{ text-align:left; font-size:0.72em; letter-spacing:0.12em; text-transform:uppercase;
+              color:#b3a289; font-weight:400; padding:0.35em 0.6em; border-bottom:1px solid var(--line); }
+  .rxopen td{ padding:0.45em 0.6em; border-bottom:1px solid #F3EDE0; }
+  /* The two ways out of a chair, given the same weight: neither is the
+     "normal" one, and styling one as primary would be the guess again. */
+  .leaverow{
+    display:flex; flex-direction:column; gap:0.25em; cursor:pointer;
+    padding:1.1em 1.2em; margin-bottom:0.6em;
+    background:#fff; border:1px solid var(--line); border-radius:8px;
+  }
+  .leaverow:hover{ border-color:var(--gold-light); background:var(--gold-pale); }
+  .leave-k{ font-size:1.15em; }
+  .leave-v{ font-size:0.72em; color:var(--muted); letter-spacing:0.04em; }
+  .sheet-foot{ margin-top:auto; font-size:0.66em; color:var(--muted); letter-spacing:0.06em; }
+  .warn{
+    background:#FBEDE9; border:1px solid #E9C4BB; color:#8C3729; border-radius:8px;
+    padding:0.9em 1.1em; font-size:0.8em; line-height:1.5; margin-bottom:0.9em;
+  }
+  .warnbtns{ display:flex; gap:0.6em; margin-top:0.7em; }
+  .wb{
+    border:1px solid #E9C4BB; background:#fff; color:#8C3729; border-radius:999px;
+    padding:0.45em 1em; font-size:0.9em; font-family:inherit; cursor:pointer;
+  }
+  .wb.go{ background:#8C3729; color:#fff; border-color:#8C3729; }
   .gate{ text-align:center; }
   .gate p{ color:var(--body); font-size:1em; max-width:26em; margin:0 auto 1.4em; line-height:1.7; }
   .gate button{
@@ -170,8 +345,66 @@
     font-size:0.62em; letter-spacing:0.14em; text-transform:uppercase;
     color:#cabfa8; cursor:pointer;
   }
+  /* THE FOLDER IS OUT OF REACH (Build A). Staff-sized and in the chair tag's
+     corner, in the same quiet tone: it is for whoever looks after the panel,
+     and must not alarm the patient lying under it. */
+  .folderwarn{
+    position:fixed; left:1em; bottom:2.1em;
+    font-size:0.62em; letter-spacing:0.1em; color:#B0793A;
+  }
   /* Only visible while testing on a laptop; harmless on the panel. */
   .hint{ position:fixed; bottom:0.6em; right:0.9em; font-size:0.7em; color:#c9bda6; }
+  .rxrow-kivi .rxwhat { color:#6b5c44; }
+  .rxkivi-tag { font-size:11px; letter-spacing:.06em; color:#8A5F26;
+    background:#F6E6C4; border:1px solid #D9BE7E; border-radius:999px; padding:2px 9px; }
+  .kivi-foot { display:flex; justify-content:center; padding:12px 0 2px; }
+  .kivi-btn { font:inherit; font-size:14px; padding:10px 22px; border-radius:11px;
+    border:1px solid #B08A3C; background:#fff; color:#8A5F26; cursor:pointer; min-width:220px; }
+  .kivi-btn[disabled] { color:#a79a85; border-color:#e3dccc; background:#faf8f4; cursor:default; }
+  .kivi-meta { font-size:12.5px; color:#8a7a63; padding:10px 2px 8px; }
+  .kivi-text { white-space:pre-wrap; font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:13px; line-height:1.75; background:#f7f5f0; border-radius:10px; padding:14px 16px; }
+  /* ---- THE TODAY SHEET ----------------------------------------------
+     Every live row is a button, so the whole row carries the border and the
+     lift, and the pill at its end says what pressing it will do. There is no
+     second control on a row: the row IS the control. */
+  .tband{ font-size:0.55em; letter-spacing:0.28em; text-transform:uppercase; color:#b3a289;
+    margin:0.9em 0 0.42em; }
+  .tband:first-child{ margin-top:0; }
+  .tlink{ letter-spacing:0.1em; color:var(--gold-deep); cursor:pointer; }
+  .tr{ display:flex; align-items:center; gap:1.05em; padding:0.78em 1em; margin-bottom:0.36em;
+    background:#fff; border:1px solid var(--line); border-radius:9px; }
+  .tr-go{ border-color:#DCCBA6; box-shadow:0 1px 0 rgba(138,95,38,0.07); cursor:pointer; }
+  .tr-go:hover{ border-color:var(--gold-light); background:var(--gold-pale); }
+  /* A booking whose time has gone, or a visit already finished. Faded rather
+     than labelled: the words that used to say so were taken off at the
+     owner's instruction, so the shade is now carrying it alone. */
+  .tr-dim{ opacity:0.55; }
+  /* Nothing to press, and it must not look as though there is. */
+  .tr-dead{ background:transparent; border-style:dashed; opacity:0.62; }
+  .tl{ font-size:0.86em; width:5.6em; flex:0 0 auto; color:#3A2E20; }
+  .tl-k{ font-size:0.63em; letter-spacing:0.2em; text-transform:uppercase; color:var(--gold-deep); }
+  .tn{ font-size:1.1em; }
+  .tn-none{ font-size:0.78em; color:var(--muted); }
+  .tas{ font-size:0.82em; color:#6b5c44; }
+  .tid{ font-size:0.76em; color:var(--muted); letter-spacing:0.06em; }
+  .tsp{ flex:1; }
+  .tsince{ font-size:0.72em; color:var(--muted); }
+  .there{ font-size:0.62em; letter-spacing:0.14em; text-transform:uppercase; color:#b3a289; }
+  .tgo{ font-size:0.62em; letter-spacing:0.14em; text-transform:uppercase; color:#B08A3C;
+    border:1px solid #E3D4B2; border-radius:999px; padding:0.34em 0.82em; white-space:nowrap; }
+  .tfree{ border:1px solid #E9C4BB; background:#fff; color:#8C3729; border-radius:999px;
+    padding:0.4em 1.05em; font-family:inherit; font-size:0.62em; letter-spacing:0.12em;
+    text-transform:uppercase; white-space:nowrap; margin-left:0.55em; cursor:pointer; }
+  .tchip{ font-size:0.6em; letter-spacing:0.08em; border-radius:999px; padding:0.32em 0.78em;
+    white-space:nowrap; color:#5f6b56; border:1px solid #D9DFCE; background:#F1F4EA; }
+  .tfold{ margin-top:auto; padding-top:0.9em; display:flex; justify-content:center; }
+  .tfoldbtn{ font-family:inherit; font-size:0.66em; letter-spacing:0.1em; color:#8A5F26;
+    border:1px solid #D9CBB0; background:transparent; border-radius:999px;
+    padding:0.5em 1.4em; cursor:pointer; }
+  /* The count beside "Today" on the wall. The only thing about other
+     patients that reaches the stage, and a digit is not a name. */
+  .seatbtn em{ font-style:normal; color:#B08A3C; }
 </style>
 </head>
 <body>
@@ -182,9 +415,11 @@
       <div class="brandtext">
         <div class="brandname">ECHO DENTAL CLINIC</div>
         <div class="brandsub">&amp; Implant Center</div>
+        <div class="brandtag">Speciality Dental Care</div>
       </div>
     </div>
-    <p style="margin-top:2em;">Choose the clinic folder once. This screen only reads it — it never changes anything.</p>
+    <p style="margin-top:2em;">Connect the clinic folder once. This screen shows who is in the chair, and records seating and finishing — nothing else.</p>
+    <p style="margin-top:-0.6em; font-size:0.86em; color:#8a7a63;">If the browser offers <b>Allow on every visit</b>, choose it — then this panel will not ask again.</p>
     <button type="button" id="pickBtn">Connect the clinic folder</button>
     <div class="err" id="gateErr"></div>
     <!-- WHICH CHAIR THIS PANEL IS. Asked on the gate rather than buried in a
@@ -209,6 +444,7 @@
     <div class="brandtext">
       <div class="brandname">ECHO DENTAL CLINIC</div>
       <div class="brandsub">&amp; Implant Center</div>
+      <div class="brandtag">Speciality Dental Care</div>
     </div>
   </div>
 
@@ -221,12 +457,29 @@
   <!-- THE DETAILS SIT IN THE CORNER, as labelled fields rather than a badge
        around the name. They are for the person who walks in and needs to know
        which patient this is; the patient in the chair needs their name. -->
+  <div class="sheet is-hidden" id="seatSheet"></div>
   <div class="footrow">
     <div class="facts" id="facts"></div>
     <div class="foot" id="foot"></div>
+    <div class="panelbtns">
+      <button type="button" class="rxbtn is-hidden" id="filesBtn" onclick="openFilesSheet()">&#128206; Files</button>
+      <button type="button" class="rxbtn is-hidden" id="rxBtn" onclick="openRxSheet()">&#8478; Previous prescriptions</button>
+      <!-- THE WHOLE DAY, behind one tap. This replaced the "Chair N" button:
+           both chairs are the first band inside the sheet now, along with
+           everybody waiting and everybody booked who was never marked in. So
+           the panel ends with one button fewer than it had, not one more.
+
+           "Seat a patient" went the same way - Today opens the same list and
+           does the same job, and a second button onto one sheet is a second
+           thing to read past. The count beside it is the only thing about
+           other patients that reaches the stage, and a digit is not a name. -->
+      <button type="button" class="seatbtn" id="todayBtn" onclick="openTodaySheet()">Today</button>
+      <button type="button" class="seatbtn is-hidden" id="seatBtn">Finished</button>
+    </div>
   </div>
 </div>
 <div class="chairtag" id="chairTag" onclick="setMyChair('')"></div>
+<div class="folderwarn is-hidden" id="folderWarn"></div>
 <div class="hint" id="hint"></div>
 
 <script>
@@ -265,16 +518,128 @@ async function loadHandle(){
     });
   }catch(e){ return null; }
 }
+/* NO SELF-REPAIR ON THE PANEL (Build A, 26 Sep 2026). This
+   panel used to rewrite a file that read as zeros from the copy it last
+   WROTE - which could be hours old - and a file holding "v1 done, v2
+   waiting, v3 in chair 2" came back as "v1 in chair 1": a patient who had
+   gone home was put back in the chair. The panel is a display. A file that
+   reads as zeros, empty or broken is looked at once more, the way the app
+   does it, and if it still will not read it is "could not be read" - the
+   screen keeps its last good read and nothing is written. The app is the
+   one that repairs. */
+let ZERO_RECHECK_MS = 350;
+/* NOT THERE and COULD NOT BE READ are two answers (Build A, the app's v10.05
+   rule). Only a file that is missing from a folder that DID open counts as
+   absent: a day with no arrivals has no visits file, and that is a real
+   empty day. A folder that will not open - the share dropped, the drive
+   "Unavailable" - is a failed read, never an empty clinic. */
+function isAbsent(e){ return !!(e && (e.name === 'NotFoundError' || e.name === 'TypeMismatchError')); }
+async function readFileAt(path, stampOnly){
+  let h = dir;
+  const parts = path.split('/');
+  try{
+    for(let i = 0; i < parts.length - 1; i++) h = await h.getDirectoryHandle(parts[i]);
+  }catch(e){ return { state:'failed' }; }
+  let fh = null;
+  try{ fh = await h.getFileHandle(parts[parts.length - 1]); }
+  catch(e){ return isAbsent(e) ? { state:'missing' } : { state:'failed' }; }
+  try{
+    const f = await fh.getFile();
+    const stamp = String(f.lastModified) + ':' + String(f.size);
+    return stampOnly ? { state:'ok', stamp: stamp } : { state:'ok', text: await f.text(), stamp: stamp };
+  }catch(e){ return isAbsent(e) ? { state:'missing' } : { state:'failed' }; }
+}
+/* Read and parse, looking once more at a file that will not parse - the
+   other machine may be halfway through writing it. */
+async function readJsonFull(path){
+  let r = await readFileAt(path);
+  if(r.state !== 'ok') return r;
+  try{ return { state:'ok', data: JSON.parse(r.text), stamp: r.stamp }; }catch(e){}
+  await new Promise(res => setTimeout(res, ZERO_RECHECK_MS));
+  r = await readFileAt(path);
+  if(r.state !== 'ok') return r;
+  try{ return { state:'ok', data: JSON.parse(r.text), stamp: r.stamp }; }
+  catch(e){ return { state:'failed' }; }
+}
+/* Paths whose LAST read failed, kept beside the plain answer so every
+   display caller can go on treating null as "nothing to show" while the
+   ones that must not - the wall's tick, the reload, the Today sheet - ask
+   readOk() first. The same shape as the app's _readFailed. A value in hand
+   is proof enough that the read worked, so only a null is looked up. */
+const readFailed = new Set();
+function readOk(path, got){ return got != null || !readFailed.has(path); }
 async function readJson(path){
-  /* path is folder/file. Missing is not an error: a day with no arrivals has
-     no visits file at all, which is simply an empty day. */
+  const r = await readJsonFull(path);
+  if(r.state === 'failed') readFailed.add(path); else readFailed.delete(path);
+  return r.state === 'ok' ? r.data : null;
+}
+async function writeRaw(path, text){
   try{
     let h = dir;
     const parts = path.split('/');
-    for(let i = 0; i < parts.length - 1; i++) h = await h.getDirectoryHandle(parts[i]);
-    const fh = await h.getFileHandle(parts[parts.length - 1]);
-    return JSON.parse(await (await fh.getFile()).text());
-  }catch(e){ return null; }
+    for(let i = 0; i < parts.length - 1; i++) h = await h.getDirectoryHandle(parts[i], { create:true });
+    const fh = await h.getFileHandle(parts[parts.length - 1], { create:true });
+    const w = await fh.createWritable();
+    await w.write(text);
+    await w.close();
+    return true;
+  }catch(e){ return false; }
+}
+/* The size and time of the file as it is NOW, or '' when it cannot be told. */
+async function fileStamp(path){
+  const r = await readFileAt(path, true);
+  return r.state === 'ok' ? r.stamp : (r.state === 'missing' ? 'missing' : '');
+}
+function idsOf(data){
+  const list = Array.isArray(data) ? data : ((data && Array.isArray(data.list)) ? data.list : []);
+  const out = new Set();
+  list.forEach(x => { if(x && x.id != null) out.add(String(x.id)); });
+  return out;
+}
+/* WRITING BACK: ONE CHANGE, ON A FRESH READ, CHECKED (Build A, 26 Sep 2026).
+   Only the day's visits and appointments files are ever written - this panel
+   displays the clinic, it does not run it. It used to read the whole file,
+   decide, and write the whole list back; a change reception made in the
+   seconds between was undone. Now every write:
+     - reads the file immediately before, and applies only this panel's one
+       change, to the one record, on that fresh copy (change(data));
+     - checks the file's time and size again just before writing, and if it
+       moved, starts over on a new read (a few times, then says so);
+     - reads it back after, and confirms the change is there (landed) and
+       that no record which was in the file has gone missing. A change that
+       is not there was overwritten by reception in the same instant, and
+       reception's is the newer word: it is reported, never re-forced.
+   If any of that cannot be done it says so on the sheet, never "saved".
+   A file that will not read is refused, never written over. */
+const WRITE_TRIES = 4;
+async function guardedWrite(path, o){
+  for(let attempt = 0; attempt < WRITE_TRIES; attempt++){
+    const r = await readJsonFull(path);
+    if(r.state === 'failed') return { error: o.unreadable || 'That file could not be read — nothing was changed.' };
+    if(r.state === 'missing' && !o.emptyIfMissing) return { error: o.missing || 'That file is not in the clinic folder.' };
+    const data = (r.state === 'missing') ? o.emptyIfMissing() : r.data;
+    const before = idsOf(data);
+    const res = await o.change(data);
+    if(res && (res.error || res.stop)) return res;
+    const stampBefore = (r.state === 'missing') ? 'missing' : r.stamp;
+    if((await fileStamp(path)) !== stampBefore) continue;       // moved under us: start again
+    if(!(await writeRaw(path, JSON.stringify(data, null, 2))))
+      return { error: 'Could not save — the clinic folder did not take the write.' };
+    const back = await readJsonFull(path);
+    if(back.state !== 'ok')
+      return { error: 'Saved, but the file did not read back to confirm it — check at reception.' };
+    /* Not there: another machine wrote the same record in the same moment.
+       Theirs is the newer decision, so it is NOT written over again. */
+    if(!o.landed(back.data))
+      return { error: 'Another machine changed this at the same moment \u2014 nothing was forced. Look again and retry.' };
+    const now = idsOf(back.data);
+    const lost = Array.from(before).filter(id => !now.has(id));
+    if(lost.length)
+      return { error: 'Saved, but the file came back with ' + lost.length
+        + ' other record' + (lost.length === 1 ? '' : 's') + ' missing — check the day at reception.' };
+    return Object.assign({ ok: true }, res || {});
+  }
+  return { error: 'The file kept changing while this screen was saving — nothing is confirmed. Try again.' };
 }
 async function readText(path){
   try{
@@ -307,6 +672,8 @@ function todayStr(){
    Left empty, the panel falls back to the setting and the picker on the
    gate, which is how a single shared file still works. */
 const FIXED_CHAIR = '1';
+/* The room this panel can ask about but does not display. */
+const OTHER_CHAIR = '2';
 function myChair(){
   if(FIXED_CHAIR) return FIXED_CHAIR;
   try{ return localStorage.getItem('echo-welcome-chair') || ''; }
@@ -337,6 +704,1105 @@ function inChairNow(visits){
     if(!best || String(at) > bestAt){ best = v; bestAt = String(at); }
   });
   return best;
+}
+/* ================= SEATING, FROM THE CHAIR ============================
+   Reception forgets to move people into a chair, and the person who KNOWS
+   the patient just sat down is standing at this panel. So the panel can do
+   it — but it faces the patient, so no name appears until it is asked for,
+   and the list closes itself.
+
+   Every write re-reads the file first. Two chair panels and the app can all
+   be writing to one day's visits, and a stale copy would silently undo
+   somebody else's change. */
+function waitedMinutes(v){
+  const t = Date.parse(v && v.arrivedAt);
+  if(!Number.isFinite(t)) return null;
+  return Math.max(0, Math.round((Date.now() - t) / 60000));
+}
+function waitedLabel(v){
+  const m = waitedMinutes(v);
+  if(m === null) return '';
+  if(m < 60) return 'waiting ' + m + ' min';
+  const h = Math.floor(m / 60), r = m % 60;
+  return 'waiting ' + h + 'h' + (r ? ' ' + r + 'm' : '');
+}
+/* One status change, written against a FRESH read. Returns the reason it
+   could not happen, or '' on success. */
+/* THIS SCREEN CANNOT FINISH A VISIT (owner's call, Sep 2026). Whether the
+   patient is done for the day is a fact reception owns — it is settled at
+   the desk, by the payment, or by the day ending. The chair only ever says
+   "somebody is in this chair" or "this chair is free". Refused HERE and not
+   only in the buttons, for the same reason the app re-checks the day lock at
+   write time: a screen left open, a stale tab, or a future button must not be
+   able to reach a state the room is not allowed to set. */
+async function applyStatus(visitId, status, chair){
+  if(status === 'done') return 'This screen cannot mark a patient done — reception does that.';
+  const path = 'visits/' + todayStr() + '.json';
+  let apptsNow = null;
+  try{ apptsNow = await readAppointments(); }catch(e){ apptsNow = null; }
+  /* The one change, made on the copy guardedWrite has just read. */
+  let at = '', target = '';
+  const res = await guardedWrite(path, {
+    unreadable: 'That day’s visits file could not be read.',
+    missing: 'That visit is no longer on file.',
+    change: (list) => {
+      if(!Array.isArray(list)) return { error: 'That day’s visits file could not be read.' };
+      collapseDuplicateVisits(list, apptsNow || []);
+      const v = findVisitRow(list, visitId);
+      if(!v) return { error: 'That visit is no longer on file.' };
+      if(v.removedAt) return { error: 'That visit was removed.' };
+      v.status = status;
+      /* The chair belongs to being IN one — the same rule the app follows, and
+         this screen depends on it: a stale chair number would put a patient who
+         has gone home back on a wall. */
+      if(status === 'ongoing'){ if(chair) v.chair = String(chair); }
+      else { delete v.chair; }
+      if(!Array.isArray(v.statusLog)) v.statusLog = [];
+      at = new Date().toISOString(); target = String(v.id);
+      v.statusLog.push(Object.assign({ status, at: at, by: 'chair' + (myChair() || '') },
+                                     v.chair ? { chair: v.chair } : {}));
+      return null;
+    },
+    landed: (list) => {
+      const v = (Array.isArray(list) ? list : []).find(x => x && String(x.id) === target);
+      return !!(v && v.status === status
+        && (v.statusLog || []).some(e => e && e.at === at && e.status === status));
+    }
+  });
+  return res.error || '';
+}
+let sheetTimer = null;
+function closeSheet(){
+  if(sheetTimer){ clearTimeout(sheetTimer); sheetTimer = null; }
+  /* The Today sheet re-reads while it is open. Closed, it must stop: a timer
+     left running would keep reading two files off the share for a panel
+     nobody is standing at. */
+  todayOpen = false;
+  if(todayTimer){ clearInterval(todayTimer); todayTimer = null; }
+  const el = document.getElementById('seatSheet');
+  if(el){ el.classList.add('is-hidden'); el.innerHTML = ''; }
+  try{ filesRelease(); filesFor = ''; }catch(e){}
+}
+/* NOTHING ON THIS SCREEN CLOSES ON A CLOCK ANY MORE (v6.7, owner's call).
+   The seat list used to close itself after twelve seconds, because it
+   carries OTHER patients' names on a screen somebody is lying under. That
+   protection is gone at the owner's request, and the cost should be read
+   plainly: a list left open sits on the wall until a human closes it.
+
+   What still closes it, none of which depends on anybody remembering:
+     - seating somebody (the list has done its job),
+     - the chair changing occupancy — a new patient never inherits the
+       last one's screen,
+     - the chair emptying,
+     - Close, which is on every view.
+
+   armSheetTimer is kept as a no-op rather than deleted: it is called from
+   several places, and a function that quietly does nothing is safer than
+   five call sites to keep in step. */
+function armSheetTimer(){ holdSheetOpen(); }
+/* Cancels any clock still pending from an earlier build or call. */
+function holdSheetOpen(){
+  if(sheetTimer){ clearTimeout(sheetTimer); sheetTimer = null; }
+}
+function esc(t){
+  return String(t == null ? '' : t).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+}
+function fmtId(id){
+  const v = String(id == null ? '' : id).trim().replace(/^(?:\s*EDC\s*\/\s*)+/i, '');
+  return v ? 'EDC/' + v : '';
+}
+function showSeatWarn(html){
+  const w = document.getElementById('seatWarn');
+  if(w){ w.innerHTML = '<div class="warn">' + html + '</div>'; }
+  armSheetTimer();
+}
+function closeSeatWarn(){
+  const w = document.getElementById('seatWarn');
+  if(w) w.innerHTML = '';
+  armSheetTimer();
+}
+/* LEAVING THE CHAIR IS TWO DIFFERENT THINGS. The panel used to guess: the
+   corner control always meant Done, and seating over somebody always meant
+   Waiting. Neither is right every time \u2014 a patient sent away to let an
+   anaesthetic work is not finished \u2014 and the person at the chair is the one
+   who knows which it is. So it asks, in the same two words wherever the
+   question comes up.
+
+   NO FIFTH STATUS (owner's call). A break IS Waiting: the chair is released
+   and they go back into the queue, where they can be seated again. Every
+   count, tile and rule in the app keys off Waiting / in-chair / Done, and a
+   fifth state would mean touching all of them. The cost, stated plainly: a
+   patient on a break reads exactly like one who never sat down. */
+async function finishHere(){
+  const visits = await readJson('visits/' + todayStr() + '.json');
+  const v = inChairNow(visits);
+  if(!v) return;
+  const dirMap = await readJson('settings/patients.json') || {};
+  const name = dirMap[String(v.patientId)] || 'This patient';
+  const el = document.getElementById('seatSheet');
+  if(!el) return;
+  el.innerHTML =
+      '<div class="sheet-h"><div class="sheet-t">' + esc(name) + ' \u2014 leaving the chair</div>'
+    + '<div class="sheet-x" onclick="closeSheet()">Cancel \u2715</div></div>'
+    /* ONE OUTCOME, so this sheet confirms rather than asks. The Done row that
+       used to sit here closed the visit from a screen that cannot know whether
+       the patient is finished for the day, and a wrong Done is invisible
+       afterwards \u2014 the patient simply stops appearing anywhere. */
+    + '<div class="leaverow" onclick="leaveChair(\'' + String(v.id).replace(/'/g, "\\'") + '\')">'
+      + '<span class="leave-k">Free the chair</span>'
+      + '<span class="leave-v">back to waiting \u2014 reception closes the visit</span></div>'
+    + '<div id="seatWarn"></div>'
+    + '<div class="sheet-foot">Nothing changes until you choose</div>';
+  el.classList.remove('is-hidden');
+  armSheetTimer();
+}
+/* One place decides what a break means, so the corner control and the
+   seating clash can never drift apart. */
+async function leaveChair(visitId){
+  armSheetTimer();
+  /* Waiting with the chair released \u2014 and arrivedAt is NOT touched, so
+     the wait clock keeps running from when they actually came. Restarting it
+     would put them behind people who arrived after them. */
+  const err = await applyStatus(visitId, 'waiting');
+  if(err){ showSeatWarn(esc(err)); return; }
+  closeSheet();
+  await tick();
+}
+/* ================= TODAY =============================================
+   THE WHOLE DAY, ON THE PANEL (owner's call, Sep 2026).
+
+   The problem this exists for, in the owner's words: reception sometimes
+   marks the wrong patient into a chair, and sometimes forgets to add the
+   visit at all. The second is the worse one and the panel could not see it —
+   a patient booked for 11:30 who was never marked in has no visit record, so
+   the seat list was empty and this screen sat idle while they were in the
+   room.
+
+   So the sheet reads the day's BOOKINGS as well as its visits, and merges
+   them into one list of people still to be seen. Three bands, in the order
+   the question is asked at a chair: who is in a room, who is waiting, and
+   who was booked and never marked in.
+
+   ONE TAP. Tapping a row means "this person is in my chair now". If there is
+   no visit it makes one. If they are in the other chair it moves them. If
+   they had finished and came back it reopens the visit they already had. If
+   they are waiting it just seats them. Nothing else on this sheet writes
+   except Free — and this screen still cannot mark anybody done.
+
+   WHAT IS NOT IN THE LIST, all by the owner's instruction: no-shows,
+   cancellations and rough slots, anywhere, open or folded. A rough slot
+   could not become a visit in any case — the app promotes it to a real
+   booking first — so a tappable one would be a button that could only fail.
+
+   THE "CHAIR N" BUTTON IS GONE. Both chairs are the first band here, with
+   the same Free control the corner used to carry, so the panel ends with one
+   button fewer than it had, not one more. */
+const CHAIRS = ['1', '2'];
+/* Only while the sheet is open, and never on the wall's own five-second
+   tick: adding a second file to that would double every panel's reading, all
+   day, for a list nobody is looking at. */
+const TODAY_REFRESH_MS = 20000;
+let todayOpen = false;
+let todayTimer = null;
+let todayShowFinished = false;
+
+/* The appointments file, in the shape the app writes it. A missing file is a
+   day with no bookings, which is a real day; null is kept for "could not be
+   read", which the write path refuses on rather than treating as empty. */
+async function readApptFile(){
+  const raw = await readJson('appointments/' + todayStr() + '.json');
+  if(Array.isArray(raw)) return { list: raw, wrap: null };
+  if(raw && Array.isArray(raw.list)) return { list: raw.list, wrap: raw };
+  return null;
+}
+async function readAppointments(){
+  const f = await readApptFile();
+  return f ? f.list : null;
+}
+function jsArg(x){ return String(x == null ? '' : x).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+function apptMins(t){
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t == null ? '' : t));
+  if(!m) return -1;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+function fmtClock(mins){
+  if(!Number.isFinite(mins) || mins < 0) return '';
+  const h24 = Math.floor(mins / 60) % 24, mm = mins % 60;
+  const ap = h24 < 12 ? 'am' : 'pm';
+  const h = (h24 % 12) === 0 ? 12 : (h24 % 12);
+  return h + ':' + String(mm).padStart(2, '0') + ' ' + ap;
+}
+/* 24 hours, because "since 11:04" is a reading off a clock on the wall and
+   not a time anybody is being told. */
+function clockOf(iso){
+  const t = Date.parse(iso);
+  if(!Number.isFinite(t)) return '';
+  const d = new Date(t);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+/* Twelve hours with am/pm, for a time being READ rather than compared —
+   when somebody was finished, which is quoted back in a question. */
+function clock12(iso){
+  const t = Date.parse(iso);
+  if(!Number.isFinite(t)) return '';
+  const d = new Date(t);
+  return fmtClock(d.getHours() * 60 + d.getMinutes());
+}
+function nowMins(){ const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
+/* The last line of its kind on the log, which is the one that is true now:
+   a visit finished, reopened and finished again reads the latest of each. */
+function lastLogAt(v, status){
+  const log = (v && Array.isArray(v.statusLog)) ? v.statusLog : [];
+  for(let i = log.length - 1; i >= 0; i--){
+    if(log[i] && log[i].status === status) return log[i].at || '';
+  }
+  return '';
+}
+function seatedAt(v){ return lastLogAt(v, 'ongoing') || (v && v.arrivedAt) || ''; }
+function finishedAt(v){ return lastLogAt(v, 'done'); }
+function waitedShort(v){
+  const m = waitedMinutes(v);
+  if(m === null) return '';
+  if(m < 60) return m + ' min';
+  const h = Math.floor(m / 60), r = m % 60;
+  return h + 'h' + (r ? ' ' + r + 'm' : '');
+}
+/* Whoever is in a numbered chair. The same rule inChairNow has always used,
+   pulled out so the sheet can ask it about either room. */
+function inChairNumber(visits, n){
+  let best = null, bestAt = '';
+  (visits || []).forEach(v => {
+    if(!v || v.removedAt) return;
+    if(v.status !== 'ongoing') return;
+    if(String(v.chair || '') !== String(n)) return;
+    const at = seatedAt(v);
+    if(!best || String(at) > bestAt){ best = v; bestAt = String(at); }
+  });
+  return best;
+}
+/* Age and sex, in the app's own shorthand: the bare figure and the initial.
+   Only what the record actually holds — a patient with no sex recorded must
+   not read as "65 ·" with a gap after it. */
+function asBit(contacts, patientId){
+  const rec = contacts && contacts[String(patientId)];
+  if(!rec) return '';
+  const bits = [];
+  const a = ageNow(rec);
+  if(a) bits.push(a);
+  const sx = String(rec.sex || '').trim();
+  if(sx) bits.push(sx.charAt(0).toUpperCase());
+  return bits.join(' ');
+}
+
+/* ONE LIVE VISIT PER PATIENT PER DAY - THE SAME FOLD THE APP MAKES (Sep 2026).
+   Reception marks somebody in from a booking; this panel taps "mark in &
+   seat" on the same booking a moment later, having read the file before
+   reception's write landed. Two rows, one patient: waiting AND in a chair.
+   The app folds them - the earlier arrival is the visit; the other row is
+   struck with mergedInto - and this panel applies the identical rule so the
+   two screens agree without talking: earliest arrivedAt, then the row a
+   booking points at, then the lower id. Applied when the day is read, and
+   again before this panel writes, so the file heals from either side. */
+const VISIT_STATUS_RANK = { waiting: 1, ongoing: 2, done: 3 };
+function rowStamp(v){
+  let last = (v && v.arrivedAt) ? Date.parse(v.arrivedAt) : 0;
+  ((v && Array.isArray(v.statusLog)) ? v.statusLog : []).forEach(e => {
+    const t = (e && e.at) ? Date.parse(e.at) : 0;
+    if(Number.isFinite(t) && t > last) last = t;
+  });
+  return Number.isFinite(last) ? last : 0;
+}
+function collapseDuplicateVisits(list, appts){
+  const seen = new Set(), dup = new Set();
+  (list || []).forEach(v => {
+    if(!v || !v.id || v.removedAt) return;
+    const pid = String(v.patientId || '');
+    if(!pid) return;
+    if(seen.has(pid)) dup.add(pid); else seen.add(pid);
+  });
+  if(!dup.size) return list;
+  const linked = new Set();
+  (appts || []).forEach(a => { if(a && a.visitId) linked.add(String(a.visitId)); });
+  const at = new Date().toISOString();
+  dup.forEach(pid => {
+    const rows = list.filter(v => v && v.id && !v.removedAt && String(v.patientId || '') === pid);
+    rows.sort((a, b) => {
+      const ta = Date.parse(a.arrivedAt || '') || 0, tb = Date.parse(b.arrivedAt || '') || 0;
+      if(ta !== tb) return ta - tb;
+      const la = linked.has(String(a.id)) ? 0 : 1, lb = linked.has(String(b.id)) ? 0 : 1;
+      if(la !== lb) return la - lb;
+      return String(a.id) < String(b.id) ? -1 : 1;
+    });
+    const keep = rows[0];
+    rows.slice(1).forEach(other => {
+      const log = (Array.isArray(keep.statusLog) ? keep.statusLog : [])
+        .concat(Array.isArray(other.statusLog) ? other.statusLog : [])
+        .filter(Boolean)
+        .sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+      const kr = VISIT_STATUS_RANK[keep.status] || 0, orr = VISIT_STATUS_RANK[other.status] || 0;
+      const winner = (orr > kr || (orr === kr && rowStamp(other) > rowStamp(keep))) ? other : keep;
+      keep.status = winner.status;
+      if(winner.status === 'ongoing' && winner.chair) keep.chair = String(winner.chair);
+      else if(winner.status !== 'ongoing') delete keep.chair;
+      ['cameFor', 'source'].forEach(k => { if(!keep[k] && other[k]) keep[k] = other[k]; });
+      log.push({ status: keep.status, at: at, by: 'merge', merged: String(other.id) });
+      keep.statusLog = log;
+      other.removedAt = at;
+      other.mergedInto = String(keep.id);
+      other.removedReason = 'Marked in twice - folded into the earlier row';
+    });
+  });
+  return list;
+}
+/* An id that was folded away answers with the row it went into. */
+function findVisitRow(list, id){
+  let v = (list || []).find(x => x && String(x.id) === String(id)) || null;
+  let hops = 0;
+  while(v && v.mergedInto && hops++ < 5){
+    const next = (list || []).find(x => x && String(x.id) === String(v.mergedInto));
+    if(!next) break;
+    v = next;
+  }
+  return v;
+}
+
+/* WHAT TODAY LOOKS LIKE, worked out from the two files and nothing else.
+   Pure, so it can be tested without a clinic folder. */
+function buildToday(visits, appts){
+  const as = (appts || []).filter(a => a && a.id);
+  /* Folded on copies: this is a pure view of the two files, not a write. */
+  const folded = collapseDuplicateVisits((visits || []).filter(Boolean).map(v => Object.assign({}, v)), as);
+  const vs = folded.filter(v => v && !v.removedAt);
+  /* WHOEVER ALREADY HAS A VISIT TODAY IS NOT ALSO "EXPECTED": they came.
+     Without this, a patient marked in from the patient record — which does
+     not always link the booking — would sit in the waiting band AND in the
+     expected band, and could be marked in twice. */
+  const arrived = new Set();
+  vs.forEach(v => arrived.add(String(v.patientId)));
+
+  const chairs = CHAIRS.map(n => ({ chair: n, visit: inChairNumber(vs, n) }));
+  const seated = new Set();
+  chairs.forEach(c => { if(c.visit) seated.add(c.visit.id); });
+
+  /* IN A CHAIR NOBODY NAMED counts as waiting here, deliberately. It is a
+     real state — a visit reconstructed from a payment, or one seated before
+     the two chairs existed — and leaving it out would hide a patient who is
+     demonstrably in the building from the one screen that can place them.
+     Tapping the row seats them properly, which repairs the record. */
+  const waiting = vs.filter(v => v.status === 'waiting'
+      || (v.status === 'ongoing' && !seated.has(v.id)))
+    .sort((a, b) => String(a.arrivedAt || '').localeCompare(String(b.arrivedAt || '')));
+
+  const finished = vs.filter(v => v.status === 'done')
+    .sort((a, b) => String(a.arrivedAt || '').localeCompare(String(b.arrivedAt || '')));
+
+  const expected = as.filter(a => {
+    if(a.rough) return false;
+    if((a.status || 'scheduled') !== 'scheduled') return false;
+    if(a.visitId) return false;
+    if(a.patientId && arrived.has(String(a.patientId))) return false;
+    return true;
+  }).sort((a, b) => apptMins(a.time) - apptMins(b.time));
+
+  return { chairs: chairs, waiting: waiting, expected: expected, finished: finished };
+}
+function todayWaitingCount(visits){
+  try{ return buildToday(visits, []).waiting.length; }catch(e){ return 0; }
+}
+
+/* ---- THE ONE WRITER --------------------------------------------------
+   EVERYTHING THAT PUTS SOMEBODY IN THIS CHAIR COMES THROUGH HERE, in one
+   read and one write of the day's visits file.
+
+   o is { visitId } for somebody already on file, or { patientId } for a
+   booking reception never marked in. Only the second can create a visit, and
+   it follows the app's own rules rather than a simpler copy of them: ONE
+   VISIT A DAY, so a patient who already has a row reopens it instead of
+   getting a second; arrivedAt is never touched, so a wait already served is
+   not thrown away and they do not fall behind people who came after them;
+   and a visit that had been finished is stamped "returned", which is the
+   only mark in the file saying they came back. */
+async function chairSeat(o, force){
+  const chair = myChair();
+  const path = 'visits/' + todayStr() + '.json';
+  if(!(o && (o.visitId || o.patientId))) return { error: 'There is nobody to seat.' };
+  let apptsNow = null;
+  try{ apptsNow = await readAppointments(); }catch(e){ apptsNow = null; }
+  let at = '', seatedId = '';
+  /* Everything below runs on the copy guardedWrite has JUST read, and again
+     on a newer one if the file moves before the write - never on a list
+     read earlier. A missing file is an empty day: the first arrival of the
+     day can be made here. */
+  const res = await guardedWrite(path, {
+    unreadable: 'That day’s visits file could not be read.',
+    emptyIfMissing: () => [],
+    change: (list) => {
+      if(!Array.isArray(list)) return { error: 'That day’s visits file could not be read.' };
+      /* The fold, before anything is decided against this list - so a race
+         already on file is healed by this write rather than carried by it. */
+      collapseDuplicateVisits(list, apptsNow || []);
+
+      let v = null;
+      if(o.visitId){
+        v = findVisitRow(list, o.visitId);
+        if(!v) return { error: 'That visit is no longer on file.' };
+        if(v.removedAt) return { error: 'That visit was removed.' };
+      } else {
+        v = list.find(x => x && !x.removedAt && String(x.patientId) === String(o.patientId)) || null;
+      }
+
+      /* ALREADY SOMEBODY HERE. Warned, never silent — the app can be behind the
+         room — and whoever is sitting there goes back to WAITING. Whether they
+         finished is not a thing this screen can know, and since Sep 2026 not a
+         thing it may say. */
+      const sitting = chair
+        ? list.find(x => x && !x.removedAt && x.status === 'ongoing'
+            && String(x.chair || '') === String(chair) && (!v || x.id !== v.id))
+        : null;
+      if(sitting && !force) return { stop: true, needSeatConfirm: true, sitting: sitting, coming: v };
+
+      at = new Date().toISOString();
+      const by = 'chair' + (chair || '');
+      if(sitting){
+        sitting.status = 'waiting';
+        delete sitting.chair;
+        if(!Array.isArray(sitting.statusLog)) sitting.statusLog = [];
+        sitting.statusLog.push({ status: 'waiting', at: at, by: by });
+      }
+
+      const wasDone = !!(v && v.status === 'done');
+      if(!v){
+        v = { id: makeVisitId(), patientId: String(o.patientId), arrivedAt: at,
+              status: 'waiting', statusLog: [{ status: 'waiting', at: at, by: by }] };
+        /* One reception watched walk in is not the same fact as one worked out
+           from a booking. The app records where a visit came from; so does this. */
+        if(o.source) v.source = String(o.source);
+        if(o.cameFor) v.cameFor = String(o.cameFor);
+        list.push(v);
+      }
+      v.status = 'ongoing';
+      if(chair) v.chair = String(chair); else delete v.chair;
+      if(!Array.isArray(v.statusLog)) v.statusLog = [];
+      v.statusLog.push(Object.assign({ status: 'ongoing', at: at, by: by },
+        chair ? { chair: String(chair) } : {}, wasDone ? { returned: true } : {}));
+      seatedId = String(v.id);
+      return { visit: v };
+    },
+    landed: (list) => {
+      const v = (Array.isArray(list) ? list : []).find(x => x && String(x.id) === seatedId);
+      return !!(v && v.status === 'ongoing' && String(v.chair || '') === String(chair || '')
+        && (v.statusLog || []).some(e => e && e.at === at && e.status === 'ongoing'));
+    }
+  });
+  if(res.needSeatConfirm) return { needSeatConfirm: true, sitting: res.sitting, coming: res.coming };
+  if(res.error) return { error: res.error };
+  return { ok: true, visit: res.visit };
+}
+/* The same shape the app's makeId produces, so ids from the two sources are
+   indistinguishable and neither can collide with the other. */
+function makeVisitId(){
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+/* RE-READ AND CHANGE ONLY THIS ONE BOOKING. Reception books while admin
+   settles, all day, on the same file; writing back the list this sheet was
+   painted from would erase whatever they did in between. So the change is
+   made on the copy guardedWrite reads immediately before writing, and
+   checked after (Build A). */
+function apptListOf(raw){
+  if(Array.isArray(raw)) return raw;
+  return (raw && Array.isArray(raw.list)) ? raw.list : null;
+}
+async function linkBooking(apptId, visitId){
+  const res = await guardedWrite('appointments/' + todayStr() + '.json', {
+    unreadable: 'the appointments file could not be read',
+    missing: 'the booking is no longer on file',
+    change: (raw) => {
+      const list = apptListOf(raw);
+      if(!list) return { error: 'the appointments file could not be read' };
+      const a = list.find(x => x && x.id === apptId);
+      if(!a) return { error: 'the booking is no longer on file' };
+      a.status = 'visited';
+      a.visitId = String(visitId);
+      a.settledAt = new Date().toISOString();
+      return null;
+    },
+    landed: (raw) => {
+      const a = (apptListOf(raw) || []).find(x => x && x.id === apptId);
+      return !!(a && a.status === 'visited' && a.visitId === String(visitId));
+    }
+  });
+  const err = res.error || '';
+  return err ? err.charAt(0).toLowerCase() + err.slice(1) : '';
+}
+
+/* ---- THE TAPS -------------------------------------------------------- */
+async function todaySeatVisit(visitId, force){
+  holdSheetOpen();
+  const res = await chairSeat({ visitId: visitId }, force);
+  if(res.needSeatConfirm){
+    await askSeatOver(res.sitting, 'visit', visitId, res.coming && res.coming.patientId);
+    return;
+  }
+  if(res.error){ showSeatWarn(esc(res.error)); return; }
+  closeSheet();
+  await tick();
+}
+/* THE ONE THE PANEL WAS BUILT FOR: a booking reception never marked in. The
+   visit is written first and the booking second, in that order and for the
+   app's own reason — if the second fails the appointment is wrong in the
+   open, where it can be seen, rather than a live visit nothing points at. */
+async function todayMarkIn(apptId, force){
+  holdSheetOpen();
+  const appts = await readAppointments();
+  if(!Array.isArray(appts)){ showSeatWarn('The appointments file could not be read.'); return; }
+  const a = appts.find(x => x && x.id === apptId);
+  if(!a){ showSeatWarn('That booking is no longer on file.'); return; }
+  if(a.rough){ showSeatWarn('That is a rough slot — confirm it in the app first.'); return; }
+  if(!a.patientId){ showSeatWarn('Register them on the Patients tab first.'); return; }
+  if(a.visitId || (a.status || 'scheduled') !== 'scheduled'){
+    await paintTodaySheet();
+    showSeatWarn('That booking was settled on another machine — the list has been redrawn.');
+    return;
+  }
+  const res = await chairSeat({ patientId: a.patientId, source: 'appointment',
+                                cameFor: a.cameFor || '' }, force);
+  if(res.needSeatConfirm){ await askSeatOver(res.sitting, 'appt', apptId, a.patientId); return; }
+  if(res.error){ showSeatWarn(esc(res.error)); return; }
+  const err = await linkBooking(apptId, res.visit.id);
+  if(err){
+    await paintTodaySheet();
+    showSeatWarn('They are in the chair, but the booking could not be updated — '
+      + esc(err) + '. Mark them in at reception so the diary agrees.');
+    return;
+  }
+  closeSheet();
+  await tick();
+}
+/* A FINISHED PATIENT WHO CAME BACK. This asks, and it is the only tap in the
+   list that does besides seating over somebody: a visit reopened by mistake
+   is invisible afterwards, and the question costs one tap on the rare row.
+   The seating itself is the ordinary path — chairSeat stamps "returned". */
+async function todayBackIn(visitId, confirmed){
+  holdSheetOpen();
+  if(!confirmed){
+    const visits = await readJson('visits/' + todayStr() + '.json') || [];
+    const v = visits.find(x => x && x.id === visitId) || null;
+    const dirMap = await readJson('settings/patients.json') || {};
+    const who = (v && dirMap[String(v.patientId)]) || 'This patient';
+    const t = v ? clock12(finishedAt(v)) : '';
+    showSeatWarn('<b>' + esc(who) + '</b> was finished' + (t ? ' at ' + esc(t) : ' earlier today')
+      + '. Bring them back in? Their visit reopens — no second row.'
+      + '<div class="warnbtns">'
+      + '<button class="wb go" onclick="todayBackIn(\'' + jsArg(visitId) + '\', 1)">Bring them back</button>'
+      + '<button class="wb" onclick="closeSeatWarn()">Cancel</button></div>');
+    return;
+  }
+  await todaySeatVisit(visitId);
+}
+/* BOTH NAMES, never "this patient". The whole question is which of two
+   people ends up in the chair, and a sentence naming only one of them is
+   the sentence somebody taps through without reading. */
+async function askSeatOver(sitting, kind, id, comingPid){
+  const dirMap = await readJson('settings/patients.json') || {};
+  const who = dirMap[String(sitting.patientId)] || 'Someone';
+  const coming = dirMap[String(comingPid)] || 'this patient';
+  const go = (kind === 'appt')
+    ? "todayMarkIn('" + jsArg(id) + "', 1)"
+    : "todaySeatVisit('" + jsArg(id) + "', 1)";
+  showSeatWarn('<b>' + esc(who) + '</b> is in Chair ' + esc(myChair())
+    + '. Seat ' + esc(coming) + ' here? ' + esc(who) + ' goes back to waiting.'
+    + '<div class="warnbtns">'
+    + '<button class="wb go" onclick="' + go + '">Seat them</button>'
+    + '<button class="wb" onclick="closeSeatWarn()">Cancel</button></div>');
+}
+function toggleTodayFinished(){
+  todayShowFinished = !todayShowFinished;
+  paintTodaySheet();
+}
+
+/* ---- THE SHEET ------------------------------------------------------- */
+async function openTodaySheet(){
+  todayOpen = true;
+  todayShowFinished = false;
+  todayPainted = false;
+  await paintTodaySheet();
+  if(todayTimer){ clearInterval(todayTimer); todayTimer = null; }
+  todayTimer = setInterval(() => {
+    if(!todayOpen){ clearInterval(todayTimer); todayTimer = null; return; }
+    /* NEVER UNDER A QUESTION somebody is halfway through answering — a
+       repaint would take the two buttons away mid-reach. */
+    const w = document.getElementById('seatWarn');
+    if(w && w.innerHTML) return;
+    paintTodaySheet();
+  }, TODAY_REFRESH_MS);
+}
+let todayPainted = false;
+async function paintTodaySheet(){
+  const el = document.getElementById('seatSheet');
+  if(!el) return;
+  const vpath = 'visits/' + todayStr() + '.json';
+  const visitsRaw = await readJson(vpath);
+  const apptsRaw = await readAppointments();
+  const visits = visitsRaw || [];
+  const appts = apptsRaw || [];
+  /* A FAILED READ IS NOT AN EMPTY DAY (Build A). It used to repaint the open
+     list as "Nobody is waiting". Now a refresh that cannot read leaves the
+     last good list up for the next one; a first paint that cannot read says
+     so instead of showing an empty clinic. */
+  if(!readOk(vpath, visitsRaw) || !readOk('appointments/' + todayStr() + '.json', apptsRaw)){
+    if(todayPainted && !el.classList.contains('is-hidden')) return;
+    el.innerHTML =
+        '<div class="sheet-h"><div class="sheet-t">Today \u00b7 ' + esc(todayWords()) + '</div>'
+      + '<div class="sheet-x" onclick="closeSheet()">Close \u2715</div></div>'
+      + '<div id="seatWarn"></div>'
+      /* Outside seatWarn, so the 20-second refresh is not held off by it. */
+      + '<div class="warn">The clinic folder could not be read just now \u2014 '
+      + 'the list will appear when it can. Nothing has changed.</div>';
+    el.classList.remove('is-hidden');
+    return;
+  }
+  const dirMap = await readJson('settings/patients.json') || {};
+  const contacts = await readJson('settings/patient-contacts.json') || {};
+  const m = buildToday(visits, appts);
+  const mine = myChair();
+  const now = nowMins();
+
+  const who = (pid, fallback) => esc(dirMap[String(pid)] || fallback || ('ID ' + pid));
+  const bits = (pid) => {
+    const a = asBit(contacts, pid);
+    return (a ? '<span class="tas">' + esc(a) + '</span>' : '')
+      + '<span class="tid">' + esc(fmtId(pid)) + '</span>';
+  };
+  const goPill = (txt) => '<span class="tgo">' + esc(txt) + '</span>';
+
+  const chairRows = m.chairs.map(c => {
+    const isMine = String(c.chair) === String(mine);
+    if(!c.visit){
+      return '<div class="tr tr-dead"><span class="tl tl-k">Chair ' + esc(c.chair) + '</span>'
+        + '<span class="tn tn-none">' + (isMine ? 'this chair is free' : 'nobody') + '</span>'
+        + '<span class="tsp"></span></div>';
+    }
+    const v = c.visit;
+    const since = clockOf(seatedAt(v));
+    return '<div class="tr' + (isMine ? '' : ' tr-go') + '"'
+      + (isMine ? '' : ' onclick="todaySeatVisit(\'' + jsArg(v.id) + '\')"') + '>'
+      + '<span class="tl tl-k">Chair ' + esc(c.chair) + '</span>'
+      + '<span class="tn">' + who(v.patientId) + '</span>' + bits(v.patientId)
+      + '<span class="tsp"></span>'
+      + (since ? '<span class="tsince">since ' + esc(since) + '</span>' : '')
+      + (isMine ? '<span class="there">in this chair</span>'
+                : goPill('→ move to Chair ' + mine))
+      + '<button type="button" class="tfree" onclick="event.stopPropagation();'
+      + 'leaveChair(\'' + jsArg(v.id) + '\')">Free</button>'
+      + '</div>';
+  }).join('');
+
+  const waitRows = m.waiting.map(v =>
+    '<div class="tr tr-go" onclick="todaySeatVisit(\'' + jsArg(v.id) + '\')">'
+    + '<span class="tl">' + esc(waitedShort(v)) + '</span>'
+    + '<span class="tn">' + who(v.patientId) + '</span>' + bits(v.patientId)
+    + '<span class="tsp"></span>' + goPill('→ seat in Chair ' + mine)
+    + '</div>').join('');
+
+  const expRows = m.expected.map(a => {
+    const mins = apptMins(a.time);
+    const late = (mins >= 0 && mins < now);
+    if(!a.patientId){
+      return '<div class="tr tr-dead"><span class="tl">' + esc(fmtClock(mins)) + '</span>'
+        + '<span class="tn">' + esc(a.newName || 'New patient') + '</span>'
+        + '<span class="tn-none">not registered — reception first</span>'
+        + '<span class="tsp"></span></div>';
+    }
+    return '<div class="tr tr-go' + (late ? ' tr-dim' : '') + '"'
+      + ' onclick="todayMarkIn(\'' + jsArg(a.id) + '\')">'
+      + '<span class="tl">' + esc(fmtClock(mins)) + '</span>'
+      + '<span class="tn">' + who(a.patientId, a.newName) + '</span>' + bits(a.patientId)
+      + '<span class="tsp"></span>' + goPill('→ mark in & seat')
+      + '</div>';
+  }).join('');
+
+  const finRows = m.finished.map(v =>
+    '<div class="tr tr-go tr-dim" onclick="todayBackIn(\'' + jsArg(v.id) + '\')">'
+    + '<span class="tl">' + esc(clock12(v.arrivedAt)) + '</span>'
+    + '<span class="tn">' + who(v.patientId) + '</span>' + bits(v.patientId)
+    + '<span class="tchip">Done</span>'
+    + '<span class="tsp"></span>' + goPill('→ back in, seat')
+    + '</div>').join('');
+
+  const band = (title, rows) => rows ? '<div class="tband">' + title + '</div>' + rows : '';
+  const foldFoot = m.finished.length
+    ? (todayShowFinished
+        ? band('Finished today · <span class="tlink" onclick="toggleTodayFinished()">hide</span>', finRows)
+        : '<div class="tfold"><button type="button" class="tfoldbtn" onclick="toggleTodayFinished()">'
+          + 'Finished today · ' + m.finished.length + '</button></div>')
+    : '';
+
+  const body = band('The chairs', chairRows)
+    + band('Waiting · longest first', waitRows)
+    + band('Expected — booked, never marked in', expRows);
+
+  el.innerHTML =
+      '<div class="sheet-h"><div class="sheet-t">Today · ' + esc(todayWords()) + '</div>'
+    + '<div class="sheet-x" onclick="closeSheet()">Close ✕</div></div>'
+    + '<div id="seatWarn"></div>'
+    + body
+    + (waitRows || expRows ? '' : '<div class="sheet-empty">Nobody is waiting, and nothing '
+        + 'is booked that has not been marked in.</div>')
+    + foldFoot;
+  el.classList.remove('is-hidden');
+  todayPainted = true;
+  holdSheetOpen();
+}
+function todayWords(){
+  return new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
+}
+
+/* Whoever is in the OTHER room. One line over inChairNumber now that the
+   sheet asks the same question about both chairs. */
+function inOtherChairNow(visits){ return inChairNumber(visits, OTHER_CHAIR); }
+
+/* ================= PREVIOUS PRESCRIPTIONS ============================
+   Read at the chair, where the question is asked. The panel already knows
+   who is sitting there, so there is no picker and no chance of showing
+   somebody else's records.
+
+   READ-ONLY, deliberately. The panel writes seating and finishing because
+   nothing else in the clinic witnesses those; a prescription is a clinical
+   record and belongs to the app that writes it.
+
+   THE COST, STATED: prescriptions are one file each under prescriptions/,
+   with random ids and no patient in the filename — there is no index. So
+   finding one patient's means reading the folder. Done ONCE per panel
+   session and kept in memory: the first tap of the day waits, every tap
+   after it is instant. If that first wait becomes bad on a big folder, the
+   answer is an index the app maintains, not a cleverer read here. */
+let rxCache = null;          // every prescription in the folder, read once
+let rxCacheAt = 0;
+const RX_CACHE_MS = 10 * 60 * 1000;   // a fresh read now and then, for a panel left up for days
+async function allPrescriptions(){
+  if(rxCache && (Date.now() - rxCacheAt) < RX_CACHE_MS) return rxCache;
+  const out = [];
+  /* A READ THAT FAILED IS NOT "NO PRESCRIPTIONS" (Build A). A share blip used
+     to be kept for ten minutes as an empty list. Now the folder that will not
+     open answers null ("could not be read"), and a round in which any one
+     file could not be read is shown but not kept, so the next tap reads
+     again. A file that reads but will not parse is simply broken and does
+     not stop the list being kept. */
+  let complete = true;
+  try{
+    const rxDir = await dir.getDirectoryHandle('prescriptions');
+    for await (const [name, handle] of rxDir.entries()){
+      if(!name.endsWith('.json') || handle.kind !== 'file') continue;
+      let text = null;
+      try{ text = await (await handle.getFile()).text(); }
+      catch(e){ complete = false; continue; }   /* one unreadable file must not hide the rest */
+      try{
+        const rec = JSON.parse(text);
+        if(rec && rec.id) out.push(rec);
+      }catch(e){}
+    }
+  }catch(e){
+    /* No folder yet is simply no prescriptions - but only when the clinic
+       folder itself answers. A dropped share can say "not found" too. */
+    if(!isAbsent(e)) return null;
+    try{ await dir.getDirectoryHandle('settings'); }catch(e2){ return null; }
+  }
+  if(complete){ rxCache = out; rxCacheAt = Date.now(); }
+  return out;
+}
+/* Newest first, and struck ones left out — the same rule the app's own
+   visit pop-up follows, so the two lists cannot disagree. */
+async function prescriptionsFor(patientId){
+  const all = await allPrescriptions();
+  if(!all) return null;                  // could not be read - not "none"
+  return all
+    .filter(r => String(r.patientId) === String(patientId) && !r.struckAt)
+    .sort((a, b) => String(b.createdAt || b.date || '').localeCompare(
+                    String(a.createdAt || a.date || '')));
+}
+function rxDayLabel(rec){
+  const d = String((rec && (rec.date || rec.createdAt)) || '').slice(0, 10);
+  const [y, m, dd] = d.split('-').map(Number);
+  if(!y || !m || !dd) return '\u2014';
+  return new Date(y, m - 1, dd).toLocaleDateString('en-GB',
+    { day:'2-digit', month:'short', year:'numeric' });
+}
+/* WHAT WAS DONE, in the app's own words and order: the treatment leads, the
+   advice if none was recorded, the medicines only when there is neither. */
+function rxWhat(rec){
+  const said = String((rec && rec.treatment) || '').trim()
+            || String((rec && rec.advice) || '').trim();
+  if(said) return said;
+  const meds = ((rec && rec.medicines) || []).map(m => m && m.name).filter(Boolean);
+  if(meds.length) return meds.join(', ');
+  return String((rec && rec.complaints) || '').trim() || 'Consultation';
+}
+function medCount(rec){
+  const n = ((rec && rec.medicines) || []).filter(m => m && m.name).length;
+  return n ? (n + (n === 1 ? ' medicine' : ' medicines')) : 'no medicines';
+}
+/* ---------- THE KIVI HISTORY (v6.9) ----------------------------------
+   The clinic's records from before Nexus, imported once in September 2026.
+   They are NOT prescriptions and are not in the prescriptions folder: they
+   sit in two files of their own, because one file per record made the admin
+   Mac unusable reading them over the share.
+
+     kivi-patients.json   ~15KB, just which patients have any. Read when the
+                          list is painted, so the button below it can say
+                          whether there is anything older without touching
+                          the big file.
+     kivi-records.json    ~1.7MB, every record. Read ONLY when somebody taps
+                          the button, then kept for the panel session.
+
+   A panel left up all day therefore reads it at most once, and only if
+   somebody asked. */
+let kiviIdsCache = null;
+let kiviRecsCache = null;
+async function kiviPatientIds(){
+  if(kiviIdsCache) return kiviIdsCache;
+  const parsed = await readJson('settings/kivi-patients.json');
+  const ids = (parsed && Array.isArray(parsed.ids)) ? parsed.ids.map(String) : [];
+  /* A failed read is NOT kept as "nobody has any" (Build A): kept, it said
+     "No older records" to every patient until the panel reloaded. */
+  if(!readOk('settings/kivi-patients.json', parsed)) throw new Error('kivi-patients.json could not be read');
+  kiviIdsCache = new Set(ids);
+  return kiviIdsCache;
+}
+/* true, false, or null for "could not tell" - which offers the button, and
+   the button says plainly if the records then cannot be read. */
+async function kiviHasAny(patientId){
+  try{ return (await kiviPatientIds()).has(String(patientId)); }
+  catch(e){ return null; }
+}
+/* null means COULD NOT READ, which is not the same as "none" and must not be
+   shown as none. */
+async function kiviAll(){
+  if(kiviRecsCache) return kiviRecsCache;
+  const parsed = await readJson('settings/kivi-records.json');
+  if(!parsed || !Array.isArray(parsed.list)) return null;
+  kiviRecsCache = parsed.list;
+  return kiviRecsCache;
+}
+function kiviFor(patientId){
+  if(!kiviRecsCache) return [];
+  return kiviRecsCache
+    .filter(r => r && String(r.patientId) === String(patientId))
+    .sort((a, b) => String(b.kiviAt || b.date || '').localeCompare(
+                    String(a.kiviAt || a.date || '')));
+}
+/* The first real line under the first heading - what the row shows at a
+   glance. The headings themselves are furniture. */
+function kiviLine(rec){
+  const lines = String((rec && rec.body) || '').split('\n');
+  for(let i = 0; i < lines.length; i++){
+    const t = lines[i].trim();
+    if(!t) continue;
+    if(t === 'Complaints' || t === 'H & E' || t === 'Advice'
+       || t === 'Medicines' || t === 'Tests') continue;
+    return t;
+  }
+  return 'KIVI record';
+}
+/* Whose old records have been unfolded on this panel. Per patient, so one
+   patient's history does not open the next one's. */
+let kiviShownFor = null;
+async function showKiviHere(){
+  holdSheetOpen();
+  const pid = rxListFor;
+  if(!pid) return;
+  const foot = document.getElementById('kiviFootBtn');
+  if(foot){ foot.textContent = 'Reading\u2026'; foot.disabled = true; }
+  const list = await kiviAll();
+  if(rxListFor !== pid) return;          // the chair changed while we read
+  if(!list){
+    if(foot){ foot.textContent = '\u211e Get old records'; foot.disabled = false; }
+    alert('The old records could not be read from the clinic folder.');
+    return;
+  }
+  kiviShownFor = String(pid);
+  paintRxList(kiviPaintName, await prescriptionsFor(pid));
+}
+let kiviPaintName = '';
+
+let rxListFor = null;        // whose list is open, so a stale read cannot paint it
+async function openRxSheet(){
+  const el = document.getElementById('seatSheet');
+  if(!el) return;
+  const visits = await readJson('visits/' + todayStr() + '.json');
+  const v = inChairNow(visits);
+  if(!v) return;
+  const dirMap = await readJson('settings/patients.json') || {};
+  const name = dirMap[String(v.patientId)] || 'This patient';
+  rxListFor = String(v.patientId);
+  kiviPaintName = name;
+  /* A DIFFERENT PATIENT IS A CLOSED HISTORY AGAIN. Without this, sitting the
+     next patient down would show them the fold already open - and, for a
+     moment before the repaint, somebody else's records. */
+  if(kiviShownFor && kiviShownFor !== String(v.patientId)) kiviShownFor = null;
+  el.innerHTML =
+      '<div class="sheet-h"><div class="sheet-t">' + esc(name) + ' \u2014 previous prescriptions</div>'
+    + '<div class="sheet-x" onclick="closeSheet()">Close \u2715</div></div>'
+    + '<div class="rxloading">Reading the clinic folder\u2026</div>';
+  el.classList.remove('is-hidden');
+  holdSheetOpen();
+  const list = await prescriptionsFor(v.patientId);
+  /* They closed it, or the chair changed under us, while the folder was
+     being read. */
+  if(rxListFor !== String(v.patientId) || el.classList.contains('is-hidden')) return;
+  paintRxList(name, list);
+}
+function paintRxList(name, list){
+  const el = document.getElementById('seatSheet');
+  if(!el) return;
+  /* ONE LIST, TWO SOURCES. The KIVI records join the bottom, which is where
+     they belong: the list is newest first and these are all older than
+     anything Nexus wrote. They are marked KIVI on every row rather than
+     blending in, because they were not written here. */
+  const olds = (kiviShownFor === String(rxListFor)) ? kiviFor(rxListFor) : [];
+  const unread = !Array.isArray(list);
+  if(unread) list = [];
+  rxShown = list.concat(olds);
+  const rows = list.map((r, i) =>
+    '<div class="rxrow" onclick="openRxOne(' + i + ')">'
+    + '<span class="rxdate">' + esc(rxDayLabel(r)) + '</span>'
+    + '<span class="rxwhat">' + esc(rxWhat(r)) + '</span>'
+    + '<span class="rxmeds">' + esc(medCount(r)) + '</span>'
+    + '</div>').join('');
+  const oldRows = olds.map((r, i) =>
+    '<div class="rxrow rxrow-kivi" onclick="openRxOne(' + (list.length + i) + ')">'
+    + '<span class="rxdate">' + esc(rxDayLabel(r)) + '</span>'
+    + '<span class="rxwhat">' + esc(kiviLine(r)) + '</span>'
+    + '<span class="rxmeds rxkivi-tag">KIVI</span>'
+    + '</div>').join('');
+  el.innerHTML =
+      '<div class="sheet-h"><div class="sheet-t">' + esc(name) + ' \u2014 previous prescriptions</div>'
+    + '<div class="sheet-x" onclick="closeSheet()">Close \u2715</div></div>'
+    + (unread ? '<div class="warn">The prescriptions could not be read from the clinic folder just now \u2014 close and try again in a moment.</div>'
+       : (rows || (olds.length ? '' : '<div class="sheet-empty">No prescriptions on record yet.</div>')))
+    + oldRows
+    + '<div class="kivi-foot" id="kiviFoot"></div>'
+    + '<div class="sheet-foot">Newest first \u00b7 tap one to read it</div>';
+  holdSheetOpen();
+  paintKiviFoot();
+}
+/* THE WORDS CHANGE, NOT JUST THE SHADE. A greyed button and a live one are
+   the same button to somebody who is not looking for it, and "does this
+   patient have history before Nexus" is not a question to answer with a
+   shade of grey at the chair. Once the records are on the list the foot
+   goes: it would be offering what the reader is already looking at. */
+async function paintKiviFoot(){
+  const foot = document.getElementById('kiviFoot');
+  if(!foot) return;
+  if(kiviShownFor === String(rxListFor)){ foot.innerHTML = ''; return; }
+  let has = null;
+  try{ has = await kiviHasAny(rxListFor); }catch(e){ has = null; }
+  foot.innerHTML = (has !== false)
+    ? '<button type="button" class="kivi-btn" id="kiviFootBtn" onclick="showKiviHere()">'
+      + '\u211e Get old records</button>'
+    : '<button type="button" class="kivi-btn" id="kiviFootBtn" disabled>No older records</button>';
+  holdSheetOpen();
+}
+let rxShown = [];
+function openKiviOne(rec){
+  const el = document.getElementById('seatSheet');
+  if(!el) return;
+  el.innerHTML =
+      '<div class="sheet-h"><div class="sheet-t">' + esc(kiviPaintName)
+    +   ' \u2014 KIVI record</div>'
+    + '<div class="sheet-x" onclick="backToRxList()">\u2190 Back</div></div>'
+    + '<div class="kivi-meta">' + esc(rxDayLabel(rec))
+    +   ' \u00b7 imported from KIVI \u00b7 read only</div>'
+    + '<div class="kivi-text">' + esc(String(rec.body || '')) + '</div>';
+  holdSheetOpen();
+}
+async function backToRxList(){
+  holdSheetOpen();
+  if(!rxListFor) return;
+  paintRxList(kiviPaintName, await prescriptionsFor(rxListFor));
+}
+/* READS LIKE THE APP'S SHEET (v6.8, owner's call). Same label rail in the
+   same blue, same numbered medicines table with the salt beneath the name,
+   same advice block — so one prescription does not describe itself
+   differently depending on which screen somebody is standing at.
+
+   MATCHED, NOT COPIED, and deliberately. These panels share no code with
+   the app: they are separate files reading the same JSON. Porting the app's
+   builder would have meant a SECOND renderer for one document, and a
+   document with two renderers drifts the first time one of them is edited.
+   What is copied here is the LOOK — a handful of CSS rules — while the
+   markup stays this file's own and small. If the app's sheet changes
+   shape, this will not follow by itself; that is the trade, and it is the
+   cheaper of the two to notice and fix. */
+function openRxOne(i){
+  holdSheetOpen();
+  const rec = rxShown[i];
+  if(!rec) return;
+  const el = document.getElementById('seatSheet');
+  if(!el) return;
+  /* A KIVI record has none of the fields below - no medicines array, no
+     treatment, no advice. It is one block of text under KIVI's own headings
+     and it is shown as exactly that. Running it through the prescription
+     sheet would have drawn an empty document on the clinic's own letterhead
+     for a record the clinic never issued. */
+  if(rec.source === 'kivi'){ openKiviOne(rec); return; }
+  /* A section with nothing to READ is not shown — a heading with nothing
+     under it looks like something failed. Whitespace does not count. */
+  const has = (v) => String(v == null ? '' : v).trim().length > 0;
+  const row = (k, v) => has(v)
+    ? '<div class="rxs-ra"><div class="rxs-ra-l">' + k + '</div>'
+      + '<div class="rxs-ra-b">' + esc(v) + '</div></div>'
+    : '';
+  const meds = ((rec.medicines) || []).filter(m => m && m.name);
+  /* The salt comes out of the name at the FIRST bracket, exactly as the app
+     splits it, so the brand leads and the composition sits under it. */
+  const splitName = (n) => {
+    const t = String(n || '');
+    const i2 = t.indexOf('(');
+    return i2 === -1 ? [t.trim(), ''] : [t.slice(0, i2).trim(), t.slice(i2).trim()];
+  };
+  const table = meds.length
+    /* THE \u211e SITS IN THE HEADER CELL, not floating over it. Absolutely
+       positioned it landed on top of the word MEDICINE \u2014 the app can
+       afford that only because its own first column reserves 44px for it. */
+    ? '<div class="rxs-rx">'
+      + '<table class="rxs-meds"><thead><tr>'
+        + '<th class="rxs-n rxs-rx-mark">\u211e</th><th>Medicine</th>'
+        + '<th class="rxs-c">Dosage</th><th class="rxs-c">Duration</th><th class="rxs-c">When</th>'
+      + '</tr></thead><tbody>'
+      + meds.map((m, n) => {
+          const parts = splitName(m.name);
+          const sos = String(m.days || '').trim().toLowerCase() === 'sos';
+          return '<tr><td class="rxs-n">' + (n + 1) + '</td>'
+            + '<td><div class="rxs-mn">' + esc(parts[0])
+              + (m.type ? ' <span class="rxs-type">\u00b7 ' + esc(m.type) + '</span>' : '') + '</div>'
+              + (parts[1] ? '<div class="rxs-salt">' + esc(parts[1]) + '</div>' : '') + '</td>'
+            + '<td class="rxs-c">' + esc(sos ? 'SOS' : (m.dose || '\u2014')) + '</td>'
+            + '<td class="rxs-c">' + esc(sos ? 'As needed'
+                : (m.days ? m.days + ' days' : '\u2014')) + '</td>'
+            + '<td class="rxs-c">' + esc(m.food ? m.food + ' food' : '\u2014') + '</td></tr>';
+        }).join('')
+      + '</tbody></table></div>'
+    : '';
+  const advice = has(rec.advice)
+    ? '<div class="rxs-advice"><div class="rxs-advice-l">Treatment advised</div>'
+      + '<div class="rxs-advice-b">' + esc(rec.advice) + '</div></div>'
+    : '';
+  const tests = ((rec.investigations) || []).filter(Boolean).join(', ');
+  const body = row('Complaints', rec.complaints)
+    + row('Examination', rec.history)
+    + row('Tests', tests)
+    + row('Treatment done', rec.treatment)
+    + table
+    + advice;
+  el.innerHTML =
+      '<div class="sheet-h"><div class="sheet-t">' + esc(rxDayLabel(rec)) + '</div>'
+    + '<div><span class="rxback" onclick="openRxSheet()">\u2190 All prescriptions</span>'
+      + '<span class="sheet-x" style="margin-left:1.2em;" onclick="closeSheet()">Close \u2715</span></div></div>'
+    + '<div class="rxs-sheet">'
+      + (body || '<div class="sheet-empty">Nothing was recorded on this prescription.</div>')
+    + '</div>'
+    + '<div class="sheet-foot">Read only \u00b7 to change anything, use the app</div>';
 }
 /* Age is stored as it was typed, against the date it was recorded \u2014 so it is
    carried forward by the years since, exactly as the app does it. */
@@ -371,26 +1837,241 @@ function longDate(){
 }
 
 let lastShown = '';
-async function tick(){
-  const screen = document.getElementById('screen');
+/* A PAINT MADE ON A FAILED READ is retried, but not on every tick (Build A
+   review): each retry re-reads two files and redraws the face, and every
+   five seconds for a whole sitting is a flicker in front of the patient. */
+const SHOWN_RETRY_MS = 30000;
+let shownRetryAt = 0;          // 0: what is on the wall is complete
+/* The patient's photo, as the desk files it: settings/photo-index.json names
+   the current photo, patient-photos/<id>/<photo>-t.jpg is its thumbnail. The
+   index is read when the patient changes and once a minute otherwise, so a
+   photo taken while they sit there appears within a minute. */
+let faceIdx = null, faceIdxAt = 0, faceUrl = '', faceUrlId = '';
+async function chairFacePhotoId(pid){
+  if(!faceIdx || Date.now() - faceIdxAt > 60000){
+    const got = await readJson('settings/photo-index.json');
+    /* A failed read keeps the index already held and is tried again next
+       tick (Build A) - read as "no photos" it took the face off for a minute. */
+    if(readOk('settings/photo-index.json', got)){ faceIdx = got || {}; faceIdxAt = Date.now(); }
+    else if(!faceIdx) return '';
+  }
+  const ph = faceIdx[String(pid)];
+  return (ph && typeof ph.id === 'string' && /^pp-[A-Za-z0-9-]{6,60}$/.test(ph.id)) ? ph.id : '';
+}
+async function chairFaceHtml(pid, photoId){
+  if(!photoId) return '';
+  if(faceUrlId !== photoId){
+    let url = '';
+    try{
+      const pd = await (await dir.getDirectoryHandle('patient-photos')).getDirectoryHandle(String(pid));
+      const f = await (await pd.getFileHandle(photoId + '-t.jpg')).getFile();
+      url = URL.createObjectURL(f);
+    }catch(e){ url = ''; }
+    if(faceUrl){ try{ URL.revokeObjectURL(faceUrl); }catch(e){} }
+    faceUrl = url; faceUrlId = url ? photoId : '';
+  }
+  return faceUrl ? '<div class="fact-face"><img alt="" src="' + faceUrl + '"></div>' : '';
+}
+/* ONE CONTROL, ONE CORNER. Idle it seats; occupied it finishes. Two buttons
+   would be two things for a patient to look at and one more to tap by
+   accident. */
+let lastOccupied = null;
+let lastSitting = '';
+function paintSeatBtn(occupied, waitingCount){
+  const b = document.getElementById('seatBtn');
+  /* FINISHED ONLY WHILE SOMEBODY IS IN THE CHAIR. With the chair empty it
+     had nothing to act on, and "Seat a patient" - which is what it used to
+     say - is now Today's job. */
+  if(b){
+    b.textContent = 'Finished';
+    b.className = 'seatbtn done' + (occupied ? '' : ' is-hidden');
+    b.onclick = finishHere;
+  }
+  const t = document.getElementById('todayBtn');
+  if(t){
+    const n = Number(waitingCount) || 0;
+    t.innerHTML = 'Today' + (n ? ' \u00b7 <em>' + n + ' waiting</em>' : '');
+    t.onclick = openTodaySheet;
+  }
+  /* ONLY WHEN THE CHAIR ACTUALLY CHANGES. This ran on every tick — once
+     every five seconds — so anything open on top of the screen was torn
+     down within five seconds of being opened. The seat list survived it
+     because you close that yourself in a second or two; a prescription
+     being read did not. A chair that has not changed is not a reason to
+     take something off the screen. */
+  const changed = (lastOccupied !== null && lastOccupied !== occupied);
+  lastOccupied = occupied;
+  if(changed) closeSheet();
+  /* THE OPPOSITE CORNER, so it is never under the thumb reaching for
+     Finished — and only while somebody is sitting there: with an empty
+     chair there is no patient whose prescriptions these would be. */
+  const rx = document.getElementById('rxBtn');
+  if(rx) rx.classList.toggle('is-hidden', !occupied);
+  if(!occupied){ const fb = document.getElementById('filesBtn'); if(fb) fb.classList.add('is-hidden'); }
+}
+/* PATIENT FILES (Nexus v11.78). A small button beside the patient's details,
+   only while somebody is in the chair and only when they have files; nothing
+   opens until it is tapped - the patient is looking at this screen. Read
+   from the clinic folder: settings/files-index.json lists them (once a
+   minute), patient-files/<id>/<file>/ holds them. Looking only - adding and
+   removing is the desk's and the phones'. */
+let filesIdx = null, filesIdxAt = 0, filesFor = '', filesUrls = [];
+async function chairFilesOf(pid){
+  if(!filesIdx || Date.now() - filesIdxAt > 60000){
+    const got = await readJson('settings/files-index.json');
+    /* Same rule as the face (Build A): a failed read is not "no files". */
+    if(readOk('settings/files-index.json', got)){
+      filesIdx = (got && typeof got === 'object' && !Array.isArray(got)) ? got : {};
+      filesIdxAt = Date.now();
+    } else if(!filesIdx) return [];
+  }
+  return Object.keys(filesIdx).filter(id => /^pf-[A-Za-z0-9-]{6,60}$/.test(id) && filesIdx[id] && String(filesIdx[id].pid) === String(pid) && !filesIdx[id].gone)
+    .map(id => Object.assign({ id: id }, filesIdx[id]))
+    .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+}
+async function paintFilesBtn(pid){
+  const b = document.getElementById('filesBtn');
+  if(!b) return;
+  let n = 0;
+  try{ n = pid ? (await chairFilesOf(pid)).filter(r => !r.struck).length : 0; }catch(e){ n = 0; }
+  b.innerHTML = '&#128206; Files' + (n ? ' \u00b7 ' + n : '');
+  b.classList.toggle('is-hidden', !n);
+}
+function filesRelease(){ filesUrls.forEach(u => { try{ URL.revokeObjectURL(u); }catch(e){} }); filesUrls = []; }
+async function filesItemDir(pid, id){
+  return await (await (await dir.getDirectoryHandle('patient-files')).getDirectoryHandle(String(pid))).getDirectoryHandle(String(id));
+}
+async function openFilesSheet(){
+  const el = document.getElementById('seatSheet');
+  if(!el) return;
   const visits = await readJson('visits/' + todayStr() + '.json');
   const v = inChairNow(visits);
+  if(!v) return;
+  const dirMap = await readJson('settings/patients.json') || {};
+  const name = dirMap[String(v.patientId)] || 'This patient';
+  filesFor = String(v.patientId);
+  filesIdxAt = 0;
+  let list = [];
+  try{ list = await chairFilesOf(v.patientId); }catch(e){ list = []; }
+  filesRelease();
+  const cards = [];
+  for(const r of list){
+    let th = esc(r.kind === 'folder' ? 'FOLDER' : r.kind === 'pages' ? 'PHOTO' : String((r.files && r.files[0] && r.files[0].name) || '').split('.').pop().toUpperCase().slice(0, 5));
+    if(r.thumb){
+      try{
+        const f = await (await (await filesItemDir(v.patientId, r.id)).getFileHandle('t.jpg')).getFile();
+        const u = URL.createObjectURL(f); filesUrls.push(u);
+        th = '<img alt="" src="' + u + '">';
+      }catch(e){}
+    }
+    cards.push('<div class="pfcard' + (r.struck ? ' struck' : '') + '" onclick="openFileOne(' + esc(JSON.stringify(r.id)) + ')">'
+      + '<div class="pfth">' + th + '</div><div class="pfmeta"><b>' + esc(r.remark || r.folderName || r.typeLabel || 'File') + '</b>'
+      + '<span>' + esc((r.typeLabel || '') + ' \u00b7 ' + String(r.at || '').slice(0, 10) + (r.count > 1 ? ' \u00b7 ' + r.count + (r.kind === 'pages' ? ' pages' : ' files') : '')) + '</span>'
+      + (r.struck ? '<span> \u00b7 struck</span>' : '') + '</div></div>');
+  }
+  if(filesFor !== String(v.patientId)) return;
+  el.innerHTML = '<div class="sheet-h"><div class="sheet-t">' + esc(name) + ' \u2014 files</div>'
+    + '<div class="sheet-x" onclick="closeSheet()">Close \u2715</div></div>'
+    + (cards.length ? '<div class="pfgrid">' + cards.join('') + '</div>' : '<div class="sheet-empty">No files yet.</div>');
+  el.classList.remove('is-hidden');
+  holdSheetOpen();
+}
+async function openFileOne(id){
+  const el = document.getElementById('seatSheet');
+  const r = filesIdx && filesIdx[id];
+  if(!el || !r || String(r.pid) !== filesFor) return;
+  filesRelease();
+  let body = '';
+  if(r.kind === 'folder'){
+    body = '<div class="pfnote">A folder of ' + (r.count || 0) + ' files \u2014 open it at the desk (patient-files\\' + esc(r.pid) + '\\' + esc(id) + ').</div>';
+  } else {
+    let d = null;
+    try{ d = await filesItemDir(r.pid, id); }catch(e){ d = null; }
+    if(!d) body = '<div class="pfnote">Not in the clinic folder on this computer yet.</div>';
+    else {
+      for(const f of (Array.isArray(r.files) ? r.files : [])){
+        let file = null;
+        try{ file = await (await d.getFileHandle(f.name)).getFile(); }catch(e){ file = null; }
+        if(!file){ body += '<div class="pfnote">' + esc(f.name) + ' \u2014 not here yet.</div>'; continue; }
+        const u = URL.createObjectURL(file); filesUrls.push(u);
+        if(/\.(jpe?g|png|gif|webp|bmp)$/i.test(f.name)) body += '<img alt="" src="' + u + '">';
+        else body += '<div><a class="pflink" href="' + u + '" target="_blank" rel="noopener">' + esc(f.name) + (/\.pdf$/i.test(f.name) ? ' \u2014 open' : ' \u2014 download') + '</a></div>';
+      }
+    }
+  }
+  el.innerHTML = '<div class="sheet-h"><div class="sheet-t">' + esc(r.remark || r.folderName || r.typeLabel || 'File') + '</div>'
+    + '<div class="sheet-x" onclick="openFilesSheet()">\u2039 Back</div></div>'
+    + '<div class="pfview">' + body + '</div>';
+  holdSheetOpen();
+}
+/* A READ THAT FAILS IS NOT AN EMPTY CHAIR (Build A, 26 Sep 2026). The
+   share drops for a few seconds now and then. That used to read as "nobody
+   here": the idle screen came up over the patient, open sheets closed, and
+   the 30-second reload fired in their face. Now a failed read changes
+   nothing - the screen keeps its last good read and looks again on the next
+   tick. Only if the folder stays out of reach for a minute does a small
+   note appear in the corner, for staff, so a panel quietly showing an old
+   picture is not mistaken for a working one. */
+const FOLDER_WARN_AFTER_MS = 60000;
+let folderFailingSince = 0;
+function paintFolderWarn(){
+  const w = document.getElementById('folderWarn');
+  if(!w) return;
+  const out = !!folderFailingSince && (Date.now() - folderFailingSince) >= FOLDER_WARN_AFTER_MS;
+  w.textContent = out ? 'Clinic folder not reachable' : '';
+  w.classList.toggle('is-hidden', !out);
+}
+async function tick(){
+  const screen = document.getElementById('screen');
+  const vpath = 'visits/' + todayStr() + '.json';
+  const visits = await readJson(vpath);
+  if(!readOk(vpath, visits)){
+    if(!folderFailingSince) folderFailingSince = Date.now();
+    paintFolderWarn();
+    return;
+  }
+  folderFailingSince = 0;
+  paintFolderWarn();
+  const v = inChairNow(visits);
 
+  /* paintSeatBtn closes the sheet when occupancy CHANGES, in either
+     direction — including the chair emptying. It must not be done again
+     here: this branch runs on every tick while the chair is empty, and the
+     seat list is opened precisely when the chair IS empty, so closing here
+     tore it off the screen five seconds after it opened. */
+  paintSeatBtn(!!v, todayWaitingCount(visits));
+  /* A DIFFERENT PATIENT IN THE SAME CHAIR (v11.78). The chair never went
+     empty, so the rule above does not fire - but whatever was open was the
+     last patient's: their files, their prescriptions. It goes. */
+  const sitting = v ? String(v.id) + '|' + String(v.patientId || '') : '';
+  if(v && lastSitting && sitting !== lastSitting) closeSheet();
+  lastSitting = sitting;
   if(!v){
     screen.classList.add('idle');
     document.getElementById('foot').textContent = longDate();
     lastShown = '';
+    shownRetryAt = 0;
     return;
   }
   /* Nothing is redrawn while the same patient is in the chair: a screen that
      flickers every few seconds in front of somebody lying under it is worse
      than one that is a few seconds stale. */
-  const key = v.id + '|' + v.patientId;
+  let photoId = '';
+  try{ if(v.patientId) photoId = await chairFacePhotoId(v.patientId); }catch(e){ photoId = ''; }
+  try{ await paintFilesBtn(v.patientId); }catch(e){}
+  const key = v.id + '|' + v.patientId + '|' + photoId;
   document.getElementById('foot').textContent = longDate();
-  if(key === lastShown){ screen.classList.remove('idle'); return; }
+  if(key === lastShown && !(shownRetryAt && Date.now() >= shownRetryAt)){ screen.classList.remove('idle'); return; }
 
-  const dirMap = await readJson('settings/patients.json') || {};
-  const contacts = await readJson('settings/patient-contacts.json') || {};
+  const dirRaw = await readJson('settings/patients.json');
+  const conRaw = await readJson('settings/patient-contacts.json');
+  const dirMap = dirRaw || {}, contacts = conRaw || {};
+  /* COMPLETE, OR PAINTED AGAIN IN HALF A MINUTE (Build A). A directory that
+     failed to read left "Welcome" with no name for the whole sitting,
+     because the patient was marked as shown and never repainted. A
+     directory that READ and simply has no name for them is complete: the
+     nameless paint stands, as it always did. */
+  const complete = readOk('settings/patients.json', dirRaw) && readOk('settings/patient-contacts.json', conRaw);
   const rec = contacts[String(v.patientId)] || null;
   const name = dirMap[String(v.patientId)] || '';
   const age = ageNow(rec);
@@ -406,10 +2087,13 @@ async function tick(){
   const bits = [ field('Patient', 'EDC/' + String(v.patientId)) ];
   if(age) bits.push(field('Age', age));
   if(sex) bits.push(field('Sex', sex));
-  document.getElementById('facts').innerHTML = bits.join('');
+  let face = '';
+  try{ face = await chairFaceHtml(v.patientId, photoId); }catch(e){ face = ''; }
+  document.getElementById('facts').innerHTML = face + bits.join('');
 
   screen.classList.remove('idle');
   lastShown = key;
+  shownRetryAt = complete ? 0 : Date.now() + SHOWN_RETRY_MS;
 }
 function escapeHtml(t){
   return String(t == null ? '' : t)
@@ -452,7 +2136,14 @@ function startReloadWatch(){
        be up to five seconds old, and reloading over somebody who has just
        sat down is exactly what this avoids. */
     let busy = false;
-    try{ busy = !!inChairNow(await readJson('visits/' + todayStr() + '.json')); }
+    const vpath = 'visits/' + todayStr() + '.json';
+    try{
+      const got = await readJson(vpath);
+      busy = !!inChairNow(got);
+      /* A read that failed says nothing about the chair (Build A): it used to
+         come back as "empty" and reload over the patient. */
+      if(!readOk(vpath, got)) busy = true;
+    }
     catch(e){ busy = true; }   /* cannot tell: assume occupied and wait */
     if(busy) return;
     location.reload();
@@ -488,22 +2179,48 @@ async function start(handle){
   setInterval(tick, 5000);
   startReloadWatch();
 }
+/* ASK FOR THE FOLDER WE ALREADY HAVE, before offering to pick one again
+   (v6.4). The handle survives a restart — it is kept in IndexedDB — but the
+   PERMISSION does not, and this button used to answer that by throwing the
+   handle away and opening the picker. That is the wrong door: calling
+   requestPermission() on a stored handle is what makes Chrome offer
+   "Allow on every visit", which grants access indefinitely and stops the
+   asking for good. Re-picking never offers it, so the panel asked every
+   single morning.
+
+   The picker stays as the fallback — first run, a moved folder, a refused
+   prompt — so nothing is lost if the permission route fails. */
 document.getElementById('pickBtn').onclick = async () => {
+  const err = document.getElementById('gateErr');
+  err.textContent = '';
   try{
-    const h = await window.showDirectoryPicker({ mode:'read' });
+    const saved = await loadHandle();
+    if(saved){
+      /* From a real tap, which this is: requestPermission needs a user
+         gesture, and calling it on load would be refused outright. */
+      const perm = await saved.requestPermission({ mode:'readwrite' });
+      if(perm === 'granted'){ await start(saved); return; }
+      /* Refused, or the folder is gone — fall through to picking one. */
+    }
+  }catch(e){ /* a stale handle just means picking again */ }
+  try{
+    /* READWRITE since v6.2: the panel can seat a patient now, and a
+       read-only handle cannot. */
+    const h = await window.showDirectoryPicker({ mode:'readwrite' });
     await saveHandle(h);
     await start(h);
   }catch(e){
-    document.getElementById('gateErr').textContent = 'That folder could not be opened.';
+    err.textContent = 'That folder could not be opened.';
   }
 };
 (async () => {
   const saved = await loadHandle();
   if(saved){
-    const perm = await saved.queryPermission({ mode:'read' });
+    const perm = await saved.queryPermission({ mode:'readwrite' });
     if(perm === 'granted'){ await start(saved); return; }
-    /* Chrome forgets permission across a restart; the button asks again and
-       the folder is already remembered, so it is one click. */
+    /* Chrome forgets the PERMISSION across a restart even though the folder
+       itself is remembered. The button re-requests it on the stored handle
+       — one tap, and "Allow on every visit" ends the asking. */
   }
   document.getElementById('gate').classList.remove('is-hidden');
   paintChairUi();

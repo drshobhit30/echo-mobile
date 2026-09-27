@@ -896,7 +896,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.71';
+const LITE_VERSION = '4.73';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -910,7 +910,7 @@ const RECEPTION = true;
    the side, and a patient or a booking opening in a panel on the right.
    Staff key only - no money, no admin. */
 const IPAD = false;
-const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
+const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name', K_KEYBAD = 'echoLite_keyBad';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
 function todayStr(){ const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
@@ -972,6 +972,7 @@ function relayRequestUrl(params){
 }
 async function relayViaGoogle(params){
   const url = relayRequestUrl(params);
+  const usedKey = relayKey();
   /* ONE RETRY (4.14). Google sometimes answers with an error page instead of
      data for a moment (just after a deployment, or when busy): that read as
      "unreadable" and the phone gave up at once. */
@@ -1000,9 +1001,10 @@ async function relayViaGoogle(params){
   }
   if(body === null) throw new RelayError(lastErr);
   if(!body || !body.ok){
-    if(body && body.error === 'bad key') keyRejected();
+    if(body && body.error === 'bad key') keyRejected(usedKey);
     throw new RelayError((body && body.error) || 'relay', body);
   }
+  keyAccepted(usedKey);
   return body;
 }
 /* ==== THE RECEPTION PC, DIRECTLY, ON THE CLINIC WI-FI (4.60, owner's call) ====
@@ -1374,12 +1376,31 @@ async function relay(params){
   return relayViaGoogle(params);
 }
 function lanAdminLevel(){ return false; }
-function keyRejected(){
+function keyRejected(k){
   /* A changed key is not a fault to retry: the phone needs the new link. */
+  keyBadKeep(keyFingerprint(k === undefined ? relayKey() : k));
   document.getElementById('setupMsg').textContent =
     'This phone\u2019s link is no longer valid. Open the new setup link you were sent.';
   showSetup();
 }
+/* A REFUSED KEY STOPS THE SENDING, NEVER THE ITEMS (4.72, audit H16). The
+   key the relay turned down is remembered - a fingerprint, not the key - and
+   while it is the one on this phone nothing is sent at all: the setup screen
+   is up, and the bookings, photos and documents waiting here stay. The new
+   setup link brings a different key and they go by themselves; the relay
+   taking this same key again (a key put back) lifts it too. */
+function keyFingerprint(k){ k = String(k || ''); return k ? k.length + ':' + k.slice(-6) : ''; }
+let keyBadMemo = null;
+function keyBadHeld(){
+  if(keyBadMemo === null){ try{ keyBadMemo = localStorage.getItem(K_KEYBAD) || ''; }catch(e){ keyBadMemo = ''; } }
+  return keyBadMemo;
+}
+function keyBadKeep(v){
+  keyBadMemo = v || '';
+  try{ if(v) localStorage.setItem(K_KEYBAD, v); else localStorage.removeItem(K_KEYBAD); }catch(e){}
+}
+function keyAccepted(k){ if(keyBadHeld() && keyBadHeld() === keyFingerprint(k)) keyBadKeep(''); }
+function sendsAllowed(){ return isSetUp() && keyBadHeld() !== keyFingerprint(relayKey()); }
 
 /* ------------------------------------------------------------ the store -- */
 /* IndexedDB, so weeks of days fit (localStorage holds ~5 MB and blocks the
@@ -2107,7 +2128,8 @@ function rowsFor(day){
   bkPendingFor(day).forEach(a => {
     rows.push({ kind: 'appt', id: a.id, visitId: '', patientId: a.patientId || '', name: a.patientId ? (nameOf(a.patientId) || ('ID ' + a.patientId)) : (a.newName || 'no name yet'),
       mins: minsOf(a.time), len: Number(a.mins) || 15, doctor: a.doctor || '', reason: a.cameFor || '',
-      status: a.rough ? 'rough' : 'booked', struck: false, rough: !!a.rough, bookedAt: '', pending: !a.filedAt, sent: !!a.sent });
+      status: a.rough ? 'rough' : 'booked', struck: false, rough: !!a.rough, bookedAt: '', pending: !a.filedAt, sent: !!a.sent,
+      waitWhy: a.sent ? '' : (sendsAllowed() ? (a.waitWhy || 'Waiting for signal') : 'Waiting \u2014 the phone needs setting up again') });
   });
   visits.forEach(v => {
     if(used[String(v.id)]) return;
@@ -2176,7 +2198,7 @@ function rowHtml(r, day){
       + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span><span>'
         + (r.pending
             ? '<span class="ka-pend">\u23F3 ' + (r.notFiled ? 'Not at the desk yet'
-                : (r.sent ? 'Sent to desk' : 'Waiting for signal')) + '</span>'
+                : (r.sent ? 'Sent to desk' : escapeHtml(r.waitWhy || 'Waiting for signal'))) + '</span>'
             : '<span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>')
       + '</span></div>'
       /* THE TWO MARKS THE DIARY CARRIES (4.33): new to the clinic, and
@@ -2951,7 +2973,7 @@ async function bkSubmit(){
   if(!bk.time){ bk.msg = 'Pick a time.'; return bkRender(); }
   const rec = { id: bkId(), date: bk.date, time: bk.time, mins: bk.mins, patientId: bk.pid, newName: rough && !bk.pid ? String(bk.q || '').trim() : '',
     doctor: bk.doctor, cameFor: bk.reason, rough, bookedBy: bkWho() || (typeof ADMIN_VERSION !== 'undefined' ? 'admin phone' : 'lite phone'),
-    status: 'scheduled', pending: true, sent: false };
+    status: 'scheduled', pending: true, sent: false, madeAt: Date.now() };
   bkPending.push(rec); bkSave();
   bkClose();
   toast(rough ? 'Rough slot added \u00b7 sending to the desk' : 'Booked \u00b7 sending to the desk');
@@ -2986,7 +3008,12 @@ function bkEditOpen(id){
   bkRender();
 }
 function bkDeskHasIt(e){ return !!(e && e.body && e.body.filed); }
-function bkRelayFault(e){ return !(e && e.body && e.body.error && !/^relay error/i.test(e.body.error)); }
+function bkRelayFault(e){
+  const why = String((e && e.body && e.body.error) || '');
+  /* 4.72: a changed key, an ended session or the PC's own trouble is not a
+     rule either - nothing was changed, and it says so. */
+  return !why || /^(relay error|desk:)/i.test(why) || why === 'bad key' || why === 'session ended';
+}
 async function bkAmend(){
   const p = bkMine(bk.editId);
   if(!bkEditable(p)){ bk.msg = 'The desk already has it — change it there.'; return bkRender(); }
@@ -3012,7 +3039,9 @@ async function bkAmend(){
   }catch(e){
     if(bkDeskHasIt(e)){ p.filedAt = p.filedAt || Date.now(); bkSave(); bk.msg = 'The desk already has it — change it there.'; return bkRender(); }
     if(e && e.body && e.body.gone){ bkPending = bkPending.filter(x => x.id !== p.id); bkSave(); bkClose(); toast('That rough slot is no longer waiting'); renderCalendar(); return; }
-    bk.msg = bkRelayFault(e) ? 'Could not reach the desk just now — nothing was changed. Try again.' : e.body.error;
+    bk.msg = !bkRelayFault(e) ? e.body.error
+      : (e.body && e.body.error === 'bad key') ? 'This phone needs setting up again — nothing was changed.'
+      : 'Could not reach the desk just now — nothing was changed. Try again.';
     bkRender();
   }
 }
@@ -3032,7 +3061,9 @@ async function bkRemove(id){
     gone();
   }catch(e){
     if(bkDeskHasIt(e)){ p.filedAt = p.filedAt || Date.now(); bkSave(); alert('The desk already has it — remove it there.'); return; }
-    alert(bkRelayFault(e) ? 'Could not reach the desk just now — nothing was removed. Try again.' : e.body.error);
+    alert(!bkRelayFault(e) ? e.body.error
+      : (e.body && e.body.error === 'bad key') ? 'This phone needs setting up again — nothing was removed.'
+      : 'Could not reach the desk just now — nothing was removed. Try again.');
   }
 }
 /* Where the desk filed it, on any day this phone holds. */
@@ -3062,22 +3093,101 @@ function bkCheckAmended(){
   });
   if(changed) bkSave();
 }
+/* ==== KEPT UNTIL IT CAN NEVER BE TAKEN (4.72, audit H16) ==================
+   A booking, photo or document this phone has not handed over is let go ONLY
+   when the relay or the desk PC refuses it by a rule no retry can change: a
+   day gone by, a time or length not on the list, a picture it could not
+   read. That is the list below - every such answer in echo-relay.gs and
+   DeskServer.cs. Anything else keeps it, says so calmly on the item, and it
+   is tried again: "bad key" (the staff key was changed), "session ended", a
+   Drive or PC fault, a timeout, an answer this list does not know. 26 Sep
+   audit: changing the staff key made every phone delete what it had not sent.
+
+   Two refusals get time first. An unknown patient waits three days - the
+   list on Drive trails the desk, and a patient registered a minute ago is
+   not on it yet. An unknown doctor waits half an hour - the relay and the PC
+   read a doctors list they could not open as an empty one.
+
+   A kept item is tried on the usual timers, less often the more it fails
+   (up to ten minutes apart); a tap on Try again, or the app opening, sends
+   at once. */
+const SEND_PATIENT_GRACE_MS = 3 * 24 * 3600 * 1000;
+const SEND_DOCTOR_GRACE_MS = 30 * 60 * 1000;
+const SEND_BACKOFF_MAX_MS = 10 * 60 * 1000;
+function sendErrorOf(e){ return String((e && e.body && e.body.error) || ''); }
+function sendRuleRefusal(why){
+  return [
+    /* bookings - book_ / validateBooking_ (relay), Book / Validate (PC) */
+    /^Booking could not be read$/, /^Booking has no id$/, /^No date$/,
+    /^Bookings can only be made from today onwards$/, /^Pick a time from the list$/,
+    /^Pick a length from the list$/, /^Choose a patient from the list/, /^Choose a doctor$/,
+    /^That time has already passed$/,
+    /* photos and the declined note - photo_ / photoDecline_ */
+    /^The photo has no id$/, /^The photo could not be read$/, /^The note has no id$/,
+    /* documents - fileAdd_ */
+    /^The file has no id$/, /^Pick a type$/, /^A document is one to \d+ pages$/,
+    /^Page \d+ could not be read$/, /^Too large to send from a phone$/, /^The preview could not be read$/
+  ].some(re => re.test(String(why || '')));
+}
+/* 'refused' (let it go, and say so) or 'keep'. madeAt is when the item was
+   made on this phone, for the unknown patient's three days. */
+function sendVerdict(e, p, madeAt){
+  const why = sendErrorOf(e), now = Date.now();
+  if(sendRuleRefusal(why)) return 'refused';
+  if(/^That patient is not in the directory$/.test(why)){
+    if(!Number.isFinite(madeAt)){ p.pidRefusedAt = p.pidRefusedAt || now; madeAt = p.pidRefusedAt; }
+    if(now - madeAt >= SEND_PATIENT_GRACE_MS) return 'refused';
+  }
+  if(/^That doctor is not on the list$/.test(why)){
+    p.docRefusedAt = p.docRefusedAt || now;
+    if(now - p.docRefusedAt >= SEND_DOCTOR_GRACE_MS) return 'refused';
+  } else delete p.docRefusedAt;
+  /* No signal is not the relay's fault and costs it nothing: not counted. */
+  if(e && e.message === 'offline'){ p.nextTry = 0; }
+  else {
+    p.fails = (p.fails || 0) + 1;
+    p.nextTry = now + (p.fails < 2 ? 0 : Math.min(SEND_BACKOFF_MAX_MS, 30000 * Math.pow(2, p.fails - 1)));
+  }
+  return 'keep';
+}
+/* What a kept item says about itself. */
+function sendWaitText(e){
+  if(!sendsAllowed() || sendErrorOf(e) === 'bad key') return 'Waiting — the phone needs setting up again';
+  if(e && e.message === 'offline') return 'Waiting for signal';
+  return 'Waiting to send';
+}
+/* A timer's turn: not before the item's own next try. */
+function sendDue(p, byTimer){ return !byTimer || !p.nextTry || Date.now() >= p.nextTry - 2000; }
+function sendDone(p){ delete p.fails; delete p.nextTry; delete p.waitWhy; delete p.pidRefusedAt; delete p.docRefusedAt; }
+/* ================================================================ end kept == */
 let bkSending = false;
-async function bkSend(){
-  if(bkSending) return;
+/* When a booking was made here: its own stamp, or the time in its id. */
+function bkMadeAt(p){
+  if(p && p.madeAt) return Number(p.madeAt);
+  const m = /^ph-([a-z0-9]+)-/.exec(String((p && p.id) || ''));
+  return m ? parseInt(m[1], 36) : NaN;
+}
+async function bkSend(byTimer){
+  if(bkSending || !sendsAllowed()) return;
   bkSending = true;
   try{
     for(const p of bkPending.filter(x => !x.sent)){
+      if(!sendsAllowed()) break;
+      if(!sendDue(p, byTimer)) continue;
       try{
         await relay({ action: 'book', booking: JSON.stringify(p) });
-        p.sent = true; p.sentAt = Date.now(); bkSave();
+        p.sent = true; p.sentAt = Date.now(); sendDone(p); bkSave();
       }catch(e){
-        /* 4.16 audit: a relay FAULT ("relay error: ...", a Drive blip) is not a
-           refusal - the booking stays and is retried. Only a rule ("that
-           patient is not in the directory") removes it, with the reason. */
-        if(e && e.message !== 'offline' && e.message !== 'unreadable' && e.body && e.body.error && !/^relay error/i.test(e.body.error)){
+        /* 4.16 audit: a relay FAULT is not a refusal. 4.72 (H16): nor is
+           anything else but a rule no retry can change - see "KEPT UNTIL IT
+           CAN NEVER BE TAKEN". A real refusal is said once, with what it was. */
+        if(sendVerdict(e, p, bkMadeAt(p)) === 'refused'){
           bkPending = bkPending.filter(x => x.id !== p.id); bkSave();
-          alert('Not booked: ' + e.body.error);
+          alert('Not booked: ' + sendErrorOf(e) + '\n\n'
+            + (p.patientId ? (nameOf(p.patientId) || ('ID ' + p.patientId)) : (p.newName || 'Rough slot'))
+            + ' \u00b7 ' + dayTitle(p.date) + ' ' + clock(minsOf(p.time)) + (p.doctor ? ' \u00b7 ' + p.doctor : ''));
+        } else {
+          p.waitWhy = sendWaitText(e); bkSave();
         }
       }
     }
@@ -3091,7 +3201,7 @@ function toast(t){
   clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 3500);
 }
 window.addEventListener('online', () => bkSend());
-setInterval(() => { if(bkPending.some(p => !p.sent)) bkSend(); }, 30000);
+setInterval(() => { if(bkPending.some(p => !p.sent)) bkSend(true); }, 30000);
 
 /* FASTER HAND-OFF, WITHOUT HAMMERING DRIVE (4.12). A booking that did not
    go through is retried every 5 seconds for its first minute, and when the
@@ -3120,7 +3230,7 @@ async function bkFreshDay(day){
 }
 let bkWatchBusy = false;
 async function bkWatch(){
-  if(bkWatchBusy) return;
+  if(bkWatchBusy || !sendsAllowed()) return;
   const sent = bkPending.filter(p => p.sent);
   if(!sent.length) return;
   bkWatchBusy = true;
@@ -3158,7 +3268,7 @@ async function bkWatch(){
   if(tabShown('calendar')) renderCalendar();
 }
 setInterval(bkWatch, 20000);
-document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ if(bkPending.some(p => !p.sent)) bkSend(); bkWatch(); } });
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ if(bkPending.some(p => !p.sent)) bkSend(true); bkWatch(); } });
 
 
 /* ==== PATIENT PHOTOS (4.38, owner's call) ====================================
@@ -3493,6 +3603,7 @@ async function relayPost(params, body, ms){
 }
 async function relayPostViaGoogle(params, body, ms){
   const url = relayRequestUrl(params);
+  const usedKey = relayKey();
   const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms || 45000) : null;
   let res, j, text = '';
@@ -3509,36 +3620,38 @@ async function relayPostViaGoogle(params, body, ms){
        r4.5 has no door for a POST at all (4.39). */
     throw new RelayError(/doPost/i.test(text) ? 'no-post' : 'unreadable');
   }
-  if(!j || !j.ok) throw new RelayError((j && j.error) || 'relay', j);
+  if(!j || !j.ok){
+    /* 4.72: a changed key said here too, as the reads say it. */
+    if(j && j.error === 'bad key') keyRejected(usedKey);
+    throw new RelayError((j && j.error) || 'relay', j);
+  }
+  keyAccepted(usedKey);
   return j;
 }
 let photoSending = false;
-async function photoSend(){
-  if(photoSending) return;
+async function photoSend(byTimer){
+  if(photoSending || !sendsAllowed()) return;
   photoSending = true;
   try{
     for(const p of photoPending.filter(x => !x.sent)){
+      if(!sendsAllowed()) break;
+      if(!sendDue(p, byTimer)) continue;
       try{
         await relayPost({ action: 'photo' }, { id: p.id, pid: p.pid, at: p.at, by: p.by, img: p.img, thumb: p.thumb });
-        p.sent = true; p.sentAt = Date.now();
+        p.sent = true; p.sentAt = Date.now(); sendDone(p);
         delete p.img;                       // the desk has it; the thumbnail stays for this phone
         photoSave();
       }catch(e){
-        /* A refusal by rule (not a fault) drops it, said out loud. */
-        const why = e && e.body && e.body.error;
-        /* A PATIENT REGISTERED A MINUTE AGO (4.42). The notification can
-           reach this phone before the desk's patient list has reached Drive,
-           and the relay checks against that list. Kept and retried for two
-           hours rather than thrown away. */
-        const young = Date.now() - Date.parse(p.at || '') < 2 * 3600 * 1000;
-        if(why && /not in the directory/i.test(why) && young){
-          p.lastError = 'This patient has not reached the clinic list on Drive yet \u2014 it goes by itself in a minute or two.';
-          p.lastTry = Date.now(); photoSave();
-          continue;
-        }
-        if(why && !/^relay error/i.test(why) && e.message !== 'offline' && e.message !== 'unreadable'){
+        /* Only a rule no retry can change drops it, said out loud (4.72,
+           H16 - "bad key" dropped it too). A PATIENT REGISTERED A MINUTE
+           AGO (4.42) is not on Drive's list yet: kept, three days now. */
+        const why = sendErrorOf(e);
+        if(sendVerdict(e, p, Date.parse(p.at || '')) === 'refused'){
           photoPending = photoPending.filter(x => x.id !== p.id); photoSave();
-          toast('Photo not saved: ' + why);
+          toast('Photo not saved: ' + why + ' \u2014 ' + (photoNameOf(p.pid) || ('ID ' + p.pid)));
+        } else if(/not in the directory/i.test(why)){
+          p.lastError = 'This patient has not reached the clinic list on Drive yet \u2014 it goes by itself once it has.';
+          p.lastTry = Date.now(); photoSave();
         } else {
           /* KEPT, AND SAID WHY (4.39). A photo that cannot go looked exactly
              like one that had gone; on 25 Sep that hid a relay that could
@@ -3549,11 +3662,11 @@ async function photoSend(){
     }
   }finally{ photoSending = false; }
 }
-setInterval(() => { if(photoPending.some(p => !p.sent)) photoSend(); }, 30000);
+setInterval(() => { if(photoPending.some(p => !p.sent)) photoSend(true); }, 30000);
 setInterval(() => { photoRefresh(false); }, 60000);
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible'){
-    if(photoPending.some(p => !p.sent)) photoSend();
+    if(photoPending.some(p => !p.sent)) photoSend(true);
     photoRefresh(false);
     photoArrivalsLoad().then(ch => { if(ch){ try{ repaint(); }catch(e){} } }, () => {});
   }
@@ -3563,6 +3676,8 @@ function photoWhy(e){
   const m = (e && e.message) || '';
   const err = String((e && e.body && e.body.error) || '');
   if(m === 'offline') return 'No signal \u2014 it goes by itself when the phone is back online.';
+  if(err === 'bad key' || !sendsAllowed()) return 'Waiting \u2014 the phone needs setting up again. It goes by itself once the new setup link is opened.';
+  if(err === 'session ended') return 'Waiting to send \u2014 it goes by itself.';
   if(m === 'no-post') return 'The relay cannot take photos yet \u2014 it needs updating to r4.5.';
   if(/photo-inbox|access|permission|denied|create/i.test(err))
     return 'The relay could not write to photo-inbox \u2014 the folder must exist and be shared with the relay\u2019s account as Editor.';
@@ -3635,6 +3750,7 @@ async function photoDecline(pid){
     const err = String((e && e.body && e.body.error) || '');
     toast('Not saved \u2014 ' + (e && e.message === 'offline' ? 'no signal. Try again when the phone is back online.'
       : (/unknown action/i.test(err) || (e && e.message === 'no-post')) ? 'the relay needs updating to r4.6.'
+      : err === 'bad key' ? 'this phone needs setting up again.'
       : photoWhy(e)));
     return false;
   }
@@ -3782,7 +3898,7 @@ async function pfFilesAsk(pids, force){
     if(p.sent && !p.pages && Date.now() - (p.sentAt || 0) > 86400000) return false;   // from an older version, pages already gone
     return true;
   });
-  if(pfPending.some(p => !p.sent)) setTimeout(() => { pfSend(); }, 1000);
+  if(pfPending.some(p => !p.sent)) setTimeout(() => { pfSend(true); }, 1000);
   if(pfPending.length !== before || resent){ pfSavePending(); changed = true; }
   if(changed){ pfSaveFiles(); pfRepaint(); }
   else if(pfSheetPid && want.indexOf(pfSheetPid) !== -1){ try{ pfSheetPaint(); }catch(e){} }
@@ -4065,29 +4181,31 @@ async function pfShotSave(){
   if(!rec.sent) toast('Not sent yet \u2014 ' + (rec.lastError || 'it will keep trying'));
   pfRepaint();
 }
-async function pfSend(){
-  if(pfSending) return;
+async function pfSend(byTimer){
+  if(pfSending || !sendsAllowed()) return;
   pfSending = true;
   try{
     for(const p of pfPending.filter(x => !x.sent)){
+      if(!sendsAllowed()) break;
+      if(!sendDue(p, byTimer)) continue;
       try{
         await relayPost({ action: 'fileAdd' }, { id: p.id, pid: p.pid, type: p.type, typeLabel: p.typeLabel, remark: p.remark,
           at: p.at, by: p.by, pages: p.pages, thumb: p.thumb }, 120000);
-        p.sent = true; p.sentAt = Date.now(); p.lastError = '';
+        p.sent = true; p.sentAt = Date.now(); p.lastError = ''; sendDone(p);
         /* THE PAGES STAY until the desk LISTS it - not merely until it was
            received. Anything that goes wrong between the two is sent again
            from here. */
         pfSavePending();
       }catch(e){
-        const why = e && e.body && e.body.error;
-        const young = Date.now() - Date.parse(p.at || '') < 2 * 3600 * 1000;
-        if(why && /not in the directory/i.test(why) && young){
-          p.lastError = 'this patient has not reached the clinic list on Drive yet \u2014 it goes by itself in a minute or two';
-        } else if(why && !/^(relay error|desk:)/i.test(why) && !/unknown action/i.test(why) && e.message !== 'offline' && e.message !== 'unreadable'){
-          /* A refusal by rule (a patient not on the list for hours, a
-             page the relay could not read) is final, and said out loud. */
+        /* Only a rule no retry can change (a page the relay could not read,
+           a patient not on the list for three days) is final, and said out
+           loud - 4.72, H16: "bad key" was final too. */
+        const why = sendErrorOf(e);
+        if(sendVerdict(e, p, Date.parse(p.at || '')) === 'refused'){
           pfPending = pfPending.filter(x => x.id !== p.id);
-          toast('Document not saved: ' + why);
+          toast('Document not saved: ' + why + ' \u2014 ' + (p.typeLabel || 'document') + ' for ' + (nameOf(p.pid) || ('ID ' + p.pid)));
+        } else if(/not in the directory/i.test(why)){
+          p.lastError = 'this patient has not reached the clinic list on Drive yet \u2014 it goes by itself once it has';
         } else {
           p.lastError = pfWhy(e);
         }
@@ -4100,6 +4218,8 @@ function pfWhy(e){
   const m = (e && e.message) || '';
   const err = String((e && e.body && e.body.error) || '');
   if(m === 'offline') return 'no signal \u2014 it goes by itself when the phone is back online';
+  if(err === 'bad key' || !sendsAllowed()) return 'waiting \u2014 the phone needs setting up again; it goes by itself once the new setup link is opened';
+  if(err === 'session ended') return 'waiting to send \u2014 it goes by itself';
   if(m === 'no-post' || /unknown action/i.test(err)) return 'the relay needs updating to r4.12';
   if(/file-inbox|access|permission|denied|create/i.test(err)) return 'the relay could not write to file-inbox \u2014 the folder must exist and be shared with the relay\u2019s account as Editor';
   if(err) return err.replace(/^relay error:\s*/i, 'the relay said: ');
@@ -4203,9 +4323,9 @@ function pfViewClose(){
   const w = document.getElementById('pfView');
   if(w){ w.classList.add('hidden'); w.innerHTML = ''; }
 }
-setInterval(() => { if(pfPending.some(p => !p.sent)) pfSend(); }, 30000);
+setInterval(() => { if(pfPending.some(p => !p.sent)) pfSend(true); }, 30000);
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'visible' && pfPending.some(p => !p.sent)) pfSend();
+  if(document.visibilityState === 'visible' && pfPending.some(p => !p.sent)) pfSend(true);
 });
 window.addEventListener('online', () => { if(pfPending.some(p => !p.sent)) pfSend(); });
 /* ================================================= end patient files == */

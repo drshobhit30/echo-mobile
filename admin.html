@@ -216,6 +216,9 @@ body{ padding-bottom:28px; }
 .tot-k{ font-size:0.66rem; letter-spacing:0.09em; text-transform:uppercase;
   color:var(--muted); margin-top:3px; }
 .tot-chev{ font-size:1.2rem; color:var(--gold-deep); width:16px; text-align:center; }
+/* 4.73: how current the figure above is; red when the last check failed. */
+.money-asof{ font-size:0.72rem; color:var(--muted); margin:3px 2px 8px; }
+.money-asof.stale{ color:var(--danger); font-weight:700; }
 .tot-split{ display:flex; flex-wrap:wrap; gap:14px 22px; margin-top:12px; padding-top:11px;
   border-top:1px solid var(--gold-light); }
 .tot-s{ display:flex; flex-direction:column; }
@@ -1762,7 +1765,7 @@ function rxMedCount(rec){
   const n = ((rec && rec.medicines) || []).filter(m => m && m.name).length;
   return n ? (n + (n === 1 ? ' medicine' : ' medicines')) : 'no medicines';
 }
-function rxDayLabel(rec){ const d = String((rec && (rec.date || rec.createdAt)) || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? shortDate(d, true) : '\u2014'; }
+function rxDayLabel(rec){ const d = localDayOf(rec && (rec.date || rec.createdAt)); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? shortDate(d, true) : '\u2014'; }
 function agoWords(dateStr){
   const d = String(dateStr || '').slice(0, 10);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return '';
@@ -1866,7 +1869,8 @@ function rowsFor(day){
   bkPendingFor(day).forEach(a => {
     rows.push({ kind: 'appt', id: a.id, visitId: '', patientId: a.patientId || '', name: a.patientId ? (nameOf(a.patientId) || ('ID ' + a.patientId)) : (a.newName || 'no name yet'),
       mins: minsOf(a.time), len: Number(a.mins) || 15, doctor: a.doctor || '', reason: a.cameFor || '',
-      status: a.rough ? 'rough' : 'booked', struck: false, rough: !!a.rough, bookedAt: '', pending: !a.filedAt, sent: !!a.sent });
+      status: a.rough ? 'rough' : 'booked', struck: false, rough: !!a.rough, bookedAt: '', pending: !a.filedAt, sent: !!a.sent,
+      waitWhy: a.sent ? '' : (sendsAllowed() ? (a.waitWhy || 'Waiting for signal') : 'Waiting \u2014 the phone needs setting up again') });
   });
   visits.forEach(v => {
     if(used[String(v.id)]) return;
@@ -1941,7 +1945,7 @@ function rowHtml(r, day){
       + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span><span>'
         + (r.pending
             ? '<span class="ka-pend">\u23F3 ' + (r.notFiled ? 'Not at the desk yet'
-                : (r.sent ? 'Sent to desk' : 'Waiting for signal')) + '</span>'
+                : (r.sent ? 'Sent to desk' : escapeHtml(r.waitWhy || 'Waiting for signal'))) + '</span>'
             : '<span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>')
       + '</span></div>'
       /* THE TWO MARKS THE DIARY CARRIES (4.33): new to the clinic, and
@@ -2220,7 +2224,7 @@ function historyHtml(pid, openIdx, toggleCall, backCall){
   }
   let month = '';
   mine.forEach((r, i) => {
-    const d = String(r.date || r.createdAt || '').slice(0, 10);
+    const d = localDayOf(r.date || r.createdAt);
     const m = /^\d{4}-\d{2}/.test(d) ? dateOf(d).toLocaleDateString('en-IN', { month:'long', year:'numeric' }).toUpperCase() : 'UNDATED';
     if(m !== month){ if(month) h += '</div>'; month = m; h += '<div class="hs-month">' + escapeHtml(m) + '</div><div class="hs-line">'; }
     const open = i === openIdx;
@@ -2481,7 +2485,7 @@ function openDrawer(day, kind, id){
        are chips two lines above; repeating them here was half the table. */
     const row = (k, v) => v ? '<div class="dr-row"><span>' + escapeHtml(k) + '</span><b>' + v + '</b></div>' : '';
     const ends = (Number.isFinite(r.mins) && r.len) ? clock(r.mins + r.len) : '';
-    const bookedOn = r.bookedAt ? String(r.bookedAt).slice(0, 10) : '';
+    const bookedOn = r.bookedAt ? localDayOf(r.bookedAt) : '';
     h += '<div class="dr-card"><div class="dr-card-h"><b>This appointment</b>'
       + '<span>' + escapeHtml(r.len ? r.len + ' min' : '') + '</span></div>'
       + '<div class="dr-card-b">'
@@ -2709,7 +2713,7 @@ async function bkSubmit(){
   if(!bk.time){ bk.msg = 'Pick a time.'; return bkRender(); }
   const rec = { id: bkId(), date: bk.date, time: bk.time, mins: bk.mins, patientId: bk.pid, newName: rough && !bk.pid ? String(bk.q || '').trim() : '',
     doctor: bk.doctor, cameFor: bk.reason, rough, bookedBy: bkWho() || (typeof ADMIN_VERSION !== 'undefined' ? 'admin phone' : 'lite phone'),
-    status: 'scheduled', pending: true, sent: false };
+    status: 'scheduled', pending: true, sent: false, madeAt: Date.now() };
   bkPending.push(rec); bkSave();
   bkClose();
   toast(rough ? 'Rough slot added \u00b7 sending to the desk' : 'Booked \u00b7 sending to the desk');
@@ -2744,7 +2748,12 @@ function bkEditOpen(id){
   bkRender();
 }
 function bkDeskHasIt(e){ return !!(e && e.body && e.body.filed); }
-function bkRelayFault(e){ return !(e && e.body && e.body.error && !/^relay error/i.test(e.body.error)); }
+function bkRelayFault(e){
+  const why = String((e && e.body && e.body.error) || '');
+  /* 4.72: a changed key, an ended session or the PC's own trouble is not a
+     rule either - nothing was changed, and it says so. */
+  return !why || /^(relay error|desk:)/i.test(why) || why === 'bad key' || why === 'session ended';
+}
 async function bkAmend(){
   const p = bkMine(bk.editId);
   if(!bkEditable(p)){ bk.msg = 'The desk already has it — change it there.'; return bkRender(); }
@@ -2770,7 +2779,9 @@ async function bkAmend(){
   }catch(e){
     if(bkDeskHasIt(e)){ p.filedAt = p.filedAt || Date.now(); bkSave(); bk.msg = 'The desk already has it — change it there.'; return bkRender(); }
     if(e && e.body && e.body.gone){ bkPending = bkPending.filter(x => x.id !== p.id); bkSave(); bkClose(); toast('That rough slot is no longer waiting'); renderCalendar(); return; }
-    bk.msg = bkRelayFault(e) ? 'Could not reach the desk just now — nothing was changed. Try again.' : e.body.error;
+    bk.msg = !bkRelayFault(e) ? e.body.error
+      : (e.body && e.body.error === 'bad key') ? 'This phone needs setting up again — nothing was changed.'
+      : 'Could not reach the desk just now — nothing was changed. Try again.';
     bkRender();
   }
 }
@@ -2790,7 +2801,9 @@ async function bkRemove(id){
     gone();
   }catch(e){
     if(bkDeskHasIt(e)){ p.filedAt = p.filedAt || Date.now(); bkSave(); alert('The desk already has it — remove it there.'); return; }
-    alert(bkRelayFault(e) ? 'Could not reach the desk just now — nothing was removed. Try again.' : e.body.error);
+    alert(!bkRelayFault(e) ? e.body.error
+      : (e.body && e.body.error === 'bad key') ? 'This phone needs setting up again — nothing was removed.'
+      : 'Could not reach the desk just now — nothing was removed. Try again.');
   }
 }
 /* Where the desk filed it, on any day this phone holds. */
@@ -2820,22 +2833,101 @@ function bkCheckAmended(){
   });
   if(changed) bkSave();
 }
+/* ==== KEPT UNTIL IT CAN NEVER BE TAKEN (4.72, audit H16) ==================
+   A booking, photo or document this phone has not handed over is let go ONLY
+   when the relay or the desk PC refuses it by a rule no retry can change: a
+   day gone by, a time or length not on the list, a picture it could not
+   read. That is the list below - every such answer in echo-relay.gs and
+   DeskServer.cs. Anything else keeps it, says so calmly on the item, and it
+   is tried again: "bad key" (the staff key was changed), "session ended", a
+   Drive or PC fault, a timeout, an answer this list does not know. 26 Sep
+   audit: changing the staff key made every phone delete what it had not sent.
+
+   Two refusals get time first. An unknown patient waits three days - the
+   list on Drive trails the desk, and a patient registered a minute ago is
+   not on it yet. An unknown doctor waits half an hour - the relay and the PC
+   read a doctors list they could not open as an empty one.
+
+   A kept item is tried on the usual timers, less often the more it fails
+   (up to ten minutes apart); a tap on Try again, or the app opening, sends
+   at once. */
+const SEND_PATIENT_GRACE_MS = 3 * 24 * 3600 * 1000;
+const SEND_DOCTOR_GRACE_MS = 30 * 60 * 1000;
+const SEND_BACKOFF_MAX_MS = 10 * 60 * 1000;
+function sendErrorOf(e){ return String((e && e.body && e.body.error) || ''); }
+function sendRuleRefusal(why){
+  return [
+    /* bookings - book_ / validateBooking_ (relay), Book / Validate (PC) */
+    /^Booking could not be read$/, /^Booking has no id$/, /^No date$/,
+    /^Bookings can only be made from today onwards$/, /^Pick a time from the list$/,
+    /^Pick a length from the list$/, /^Choose a patient from the list/, /^Choose a doctor$/,
+    /^That time has already passed$/,
+    /* photos and the declined note - photo_ / photoDecline_ */
+    /^The photo has no id$/, /^The photo could not be read$/, /^The note has no id$/,
+    /* documents - fileAdd_ */
+    /^The file has no id$/, /^Pick a type$/, /^A document is one to \d+ pages$/,
+    /^Page \d+ could not be read$/, /^Too large to send from a phone$/, /^The preview could not be read$/
+  ].some(re => re.test(String(why || '')));
+}
+/* 'refused' (let it go, and say so) or 'keep'. madeAt is when the item was
+   made on this phone, for the unknown patient's three days. */
+function sendVerdict(e, p, madeAt){
+  const why = sendErrorOf(e), now = Date.now();
+  if(sendRuleRefusal(why)) return 'refused';
+  if(/^That patient is not in the directory$/.test(why)){
+    if(!Number.isFinite(madeAt)){ p.pidRefusedAt = p.pidRefusedAt || now; madeAt = p.pidRefusedAt; }
+    if(now - madeAt >= SEND_PATIENT_GRACE_MS) return 'refused';
+  }
+  if(/^That doctor is not on the list$/.test(why)){
+    p.docRefusedAt = p.docRefusedAt || now;
+    if(now - p.docRefusedAt >= SEND_DOCTOR_GRACE_MS) return 'refused';
+  } else delete p.docRefusedAt;
+  /* No signal is not the relay's fault and costs it nothing: not counted. */
+  if(e && e.message === 'offline'){ p.nextTry = 0; }
+  else {
+    p.fails = (p.fails || 0) + 1;
+    p.nextTry = now + (p.fails < 2 ? 0 : Math.min(SEND_BACKOFF_MAX_MS, 30000 * Math.pow(2, p.fails - 1)));
+  }
+  return 'keep';
+}
+/* What a kept item says about itself. */
+function sendWaitText(e){
+  if(!sendsAllowed() || sendErrorOf(e) === 'bad key') return 'Waiting — the phone needs setting up again';
+  if(e && e.message === 'offline') return 'Waiting for signal';
+  return 'Waiting to send';
+}
+/* A timer's turn: not before the item's own next try. */
+function sendDue(p, byTimer){ return !byTimer || !p.nextTry || Date.now() >= p.nextTry - 2000; }
+function sendDone(p){ delete p.fails; delete p.nextTry; delete p.waitWhy; delete p.pidRefusedAt; delete p.docRefusedAt; }
+/* ================================================================ end kept == */
 let bkSending = false;
-async function bkSend(){
-  if(bkSending) return;
+/* When a booking was made here: its own stamp, or the time in its id. */
+function bkMadeAt(p){
+  if(p && p.madeAt) return Number(p.madeAt);
+  const m = /^ph-([a-z0-9]+)-/.exec(String((p && p.id) || ''));
+  return m ? parseInt(m[1], 36) : NaN;
+}
+async function bkSend(byTimer){
+  if(bkSending || !sendsAllowed()) return;
   bkSending = true;
   try{
     for(const p of bkPending.filter(x => !x.sent)){
+      if(!sendsAllowed()) break;
+      if(!sendDue(p, byTimer)) continue;
       try{
         await relay({ action: 'book', booking: JSON.stringify(p) });
-        p.sent = true; p.sentAt = Date.now(); bkSave();
+        p.sent = true; p.sentAt = Date.now(); sendDone(p); bkSave();
       }catch(e){
-        /* 4.16 audit: a relay FAULT ("relay error: ...", a Drive blip) is not a
-           refusal - the booking stays and is retried. Only a rule ("that
-           patient is not in the directory") removes it, with the reason. */
-        if(e && e.message !== 'offline' && e.message !== 'unreadable' && e.body && e.body.error && !/^relay error/i.test(e.body.error)){
+        /* 4.16 audit: a relay FAULT is not a refusal. 4.72 (H16): nor is
+           anything else but a rule no retry can change - see "KEPT UNTIL IT
+           CAN NEVER BE TAKEN". A real refusal is said once, with what it was. */
+        if(sendVerdict(e, p, bkMadeAt(p)) === 'refused'){
           bkPending = bkPending.filter(x => x.id !== p.id); bkSave();
-          alert('Not booked: ' + e.body.error);
+          alert('Not booked: ' + sendErrorOf(e) + '\n\n'
+            + (p.patientId ? (nameOf(p.patientId) || ('ID ' + p.patientId)) : (p.newName || 'Rough slot'))
+            + ' \u00b7 ' + dayTitle(p.date) + ' ' + clock(minsOf(p.time)) + (p.doctor ? ' \u00b7 ' + p.doctor : ''));
+        } else {
+          p.waitWhy = sendWaitText(e); bkSave();
         }
       }
     }
@@ -2849,7 +2941,7 @@ function toast(t){
   clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 3500);
 }
 window.addEventListener('online', () => bkSend());
-setInterval(() => { if(bkPending.some(p => !p.sent)) bkSend(); }, 30000);
+setInterval(() => { if(bkPending.some(p => !p.sent)) bkSend(true); }, 30000);
 
 /* FASTER HAND-OFF, WITHOUT HAMMERING DRIVE (4.12). A booking that did not
    go through is retried every 5 seconds for its first minute, and when the
@@ -2878,7 +2970,7 @@ async function bkFreshDay(day){
 }
 let bkWatchBusy = false;
 async function bkWatch(){
-  if(bkWatchBusy) return;
+  if(bkWatchBusy || !sendsAllowed()) return;
   const sent = bkPending.filter(p => p.sent);
   if(!sent.length) return;
   bkWatchBusy = true;
@@ -2916,7 +3008,7 @@ async function bkWatch(){
   if(currentTab === 'calendar') renderCalendar();
 }
 setInterval(bkWatch, 20000);
-document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ if(bkPending.some(p => !p.sent)) bkSend(); bkWatch(); } });
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ if(bkPending.some(p => !p.sent)) bkSend(true); bkWatch(); } });
 
 
 /* ==== PATIENT PHOTOS (4.38, owner's call) ====================================
@@ -3251,6 +3343,7 @@ async function relayPost(params, body, ms){
 }
 async function relayPostViaGoogle(params, body, ms){
   const url = relayRequestUrl(params);
+  const usedKey = relayKey();
   const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms || 45000) : null;
   let res, j, text = '';
@@ -3267,36 +3360,38 @@ async function relayPostViaGoogle(params, body, ms){
        r4.5 has no door for a POST at all (4.39). */
     throw new RelayError(/doPost/i.test(text) ? 'no-post' : 'unreadable');
   }
-  if(!j || !j.ok) throw new RelayError((j && j.error) || 'relay', j);
+  if(!j || !j.ok){
+    /* 4.72: a changed key said here too, as the reads say it. */
+    if(j && j.error === 'bad key') keyRejected(usedKey);
+    throw new RelayError((j && j.error) || 'relay', j);
+  }
+  keyAccepted(usedKey);
   return j;
 }
 let photoSending = false;
-async function photoSend(){
-  if(photoSending) return;
+async function photoSend(byTimer){
+  if(photoSending || !sendsAllowed()) return;
   photoSending = true;
   try{
     for(const p of photoPending.filter(x => !x.sent)){
+      if(!sendsAllowed()) break;
+      if(!sendDue(p, byTimer)) continue;
       try{
         await relayPost({ action: 'photo' }, { id: p.id, pid: p.pid, at: p.at, by: p.by, img: p.img, thumb: p.thumb });
-        p.sent = true; p.sentAt = Date.now();
+        p.sent = true; p.sentAt = Date.now(); sendDone(p);
         delete p.img;                       // the desk has it; the thumbnail stays for this phone
         photoSave();
       }catch(e){
-        /* A refusal by rule (not a fault) drops it, said out loud. */
-        const why = e && e.body && e.body.error;
-        /* A PATIENT REGISTERED A MINUTE AGO (4.42). The notification can
-           reach this phone before the desk's patient list has reached Drive,
-           and the relay checks against that list. Kept and retried for two
-           hours rather than thrown away. */
-        const young = Date.now() - Date.parse(p.at || '') < 2 * 3600 * 1000;
-        if(why && /not in the directory/i.test(why) && young){
-          p.lastError = 'This patient has not reached the clinic list on Drive yet \u2014 it goes by itself in a minute or two.';
-          p.lastTry = Date.now(); photoSave();
-          continue;
-        }
-        if(why && !/^relay error/i.test(why) && e.message !== 'offline' && e.message !== 'unreadable'){
+        /* Only a rule no retry can change drops it, said out loud (4.72,
+           H16 - "bad key" dropped it too). A PATIENT REGISTERED A MINUTE
+           AGO (4.42) is not on Drive's list yet: kept, three days now. */
+        const why = sendErrorOf(e);
+        if(sendVerdict(e, p, Date.parse(p.at || '')) === 'refused'){
           photoPending = photoPending.filter(x => x.id !== p.id); photoSave();
-          toast('Photo not saved: ' + why);
+          toast('Photo not saved: ' + why + ' \u2014 ' + (photoNameOf(p.pid) || ('ID ' + p.pid)));
+        } else if(/not in the directory/i.test(why)){
+          p.lastError = 'This patient has not reached the clinic list on Drive yet \u2014 it goes by itself once it has.';
+          p.lastTry = Date.now(); photoSave();
         } else {
           /* KEPT, AND SAID WHY (4.39). A photo that cannot go looked exactly
              like one that had gone; on 25 Sep that hid a relay that could
@@ -3307,11 +3402,11 @@ async function photoSend(){
     }
   }finally{ photoSending = false; }
 }
-setInterval(() => { if(photoPending.some(p => !p.sent)) photoSend(); }, 30000);
+setInterval(() => { if(photoPending.some(p => !p.sent)) photoSend(true); }, 30000);
 setInterval(() => { photoRefresh(false); }, 60000);
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible'){
-    if(photoPending.some(p => !p.sent)) photoSend();
+    if(photoPending.some(p => !p.sent)) photoSend(true);
     photoRefresh(false);
     photoArrivalsLoad().then(ch => { if(ch){ try{ repaint(); }catch(e){} } }, () => {});
   }
@@ -3321,6 +3416,8 @@ function photoWhy(e){
   const m = (e && e.message) || '';
   const err = String((e && e.body && e.body.error) || '');
   if(m === 'offline') return 'No signal \u2014 it goes by itself when the phone is back online.';
+  if(err === 'bad key' || !sendsAllowed()) return 'Waiting \u2014 the phone needs setting up again. It goes by itself once the new setup link is opened.';
+  if(err === 'session ended') return 'Waiting to send \u2014 it goes by itself.';
   if(m === 'no-post') return 'The relay cannot take photos yet \u2014 it needs updating to r4.5.';
   if(/photo-inbox|access|permission|denied|create/i.test(err))
     return 'The relay could not write to photo-inbox \u2014 the folder must exist and be shared with the relay\u2019s account as Editor.';
@@ -3393,6 +3490,7 @@ async function photoDecline(pid){
     const err = String((e && e.body && e.body.error) || '');
     toast('Not saved \u2014 ' + (e && e.message === 'offline' ? 'no signal. Try again when the phone is back online.'
       : (/unknown action/i.test(err) || (e && e.message === 'no-post')) ? 'the relay needs updating to r4.6.'
+      : err === 'bad key' ? 'this phone needs setting up again.'
       : photoWhy(e)));
     return false;
   }
@@ -3540,7 +3638,7 @@ async function pfFilesAsk(pids, force){
     if(p.sent && !p.pages && Date.now() - (p.sentAt || 0) > 86400000) return false;   // from an older version, pages already gone
     return true;
   });
-  if(pfPending.some(p => !p.sent)) setTimeout(() => { pfSend(); }, 1000);
+  if(pfPending.some(p => !p.sent)) setTimeout(() => { pfSend(true); }, 1000);
   if(pfPending.length !== before || resent){ pfSavePending(); changed = true; }
   if(changed){ pfSaveFiles(); pfRepaint(); }
   else if(pfSheetPid && want.indexOf(pfSheetPid) !== -1){ try{ pfSheetPaint(); }catch(e){} }
@@ -3823,29 +3921,31 @@ async function pfShotSave(){
   if(!rec.sent) toast('Not sent yet \u2014 ' + (rec.lastError || 'it will keep trying'));
   pfRepaint();
 }
-async function pfSend(){
-  if(pfSending) return;
+async function pfSend(byTimer){
+  if(pfSending || !sendsAllowed()) return;
   pfSending = true;
   try{
     for(const p of pfPending.filter(x => !x.sent)){
+      if(!sendsAllowed()) break;
+      if(!sendDue(p, byTimer)) continue;
       try{
         await relayPost({ action: 'fileAdd' }, { id: p.id, pid: p.pid, type: p.type, typeLabel: p.typeLabel, remark: p.remark,
           at: p.at, by: p.by, pages: p.pages, thumb: p.thumb }, 120000);
-        p.sent = true; p.sentAt = Date.now(); p.lastError = '';
+        p.sent = true; p.sentAt = Date.now(); p.lastError = ''; sendDone(p);
         /* THE PAGES STAY until the desk LISTS it - not merely until it was
            received. Anything that goes wrong between the two is sent again
            from here. */
         pfSavePending();
       }catch(e){
-        const why = e && e.body && e.body.error;
-        const young = Date.now() - Date.parse(p.at || '') < 2 * 3600 * 1000;
-        if(why && /not in the directory/i.test(why) && young){
-          p.lastError = 'this patient has not reached the clinic list on Drive yet \u2014 it goes by itself in a minute or two';
-        } else if(why && !/^(relay error|desk:)/i.test(why) && !/unknown action/i.test(why) && e.message !== 'offline' && e.message !== 'unreadable'){
-          /* A refusal by rule (a patient not on the list for hours, a
-             page the relay could not read) is final, and said out loud. */
+        /* Only a rule no retry can change (a page the relay could not read,
+           a patient not on the list for three days) is final, and said out
+           loud - 4.72, H16: "bad key" was final too. */
+        const why = sendErrorOf(e);
+        if(sendVerdict(e, p, Date.parse(p.at || '')) === 'refused'){
           pfPending = pfPending.filter(x => x.id !== p.id);
-          toast('Document not saved: ' + why);
+          toast('Document not saved: ' + why + ' \u2014 ' + (p.typeLabel || 'document') + ' for ' + (nameOf(p.pid) || ('ID ' + p.pid)));
+        } else if(/not in the directory/i.test(why)){
+          p.lastError = 'this patient has not reached the clinic list on Drive yet \u2014 it goes by itself once it has';
         } else {
           p.lastError = pfWhy(e);
         }
@@ -3858,6 +3958,8 @@ function pfWhy(e){
   const m = (e && e.message) || '';
   const err = String((e && e.body && e.body.error) || '');
   if(m === 'offline') return 'no signal \u2014 it goes by itself when the phone is back online';
+  if(err === 'bad key' || !sendsAllowed()) return 'waiting \u2014 the phone needs setting up again; it goes by itself once the new setup link is opened';
+  if(err === 'session ended') return 'waiting to send \u2014 it goes by itself';
   if(m === 'no-post' || /unknown action/i.test(err)) return 'the relay needs updating to r4.12';
   if(/file-inbox|access|permission|denied|create/i.test(err)) return 'the relay could not write to file-inbox \u2014 the folder must exist and be shared with the relay\u2019s account as Editor';
   if(err) return err.replace(/^relay error:\s*/i, 'the relay said: ');
@@ -3961,9 +4063,9 @@ function pfViewClose(){
   const w = document.getElementById('pfView');
   if(w){ w.classList.add('hidden'); w.innerHTML = ''; }
 }
-setInterval(() => { if(pfPending.some(p => !p.sent)) pfSend(); }, 30000);
+setInterval(() => { if(pfPending.some(p => !p.sent)) pfSend(true); }, 30000);
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'visible' && pfPending.some(p => !p.sent)) pfSend();
+  if(document.visibilityState === 'visible' && pfPending.some(p => !p.sent)) pfSend(true);
 });
 window.addEventListener('online', () => { if(pfPending.some(p => !p.sent)) pfSend(); });
 /* ================================================= end patient files == */
@@ -4141,10 +4243,12 @@ function renderPatients(){
 /* -------------------------------------------------- admin-only extras -- */
 const hooks = { adminOn: () => false, money: null, fullHistory: null };
 function fmtRs(n){ return '\u20b9' + Math.round(Number(n) || 0).toLocaleString('en-IN'); }
-async function fillMoney(pid, day){
+let moneyAsked = null;              // 4.73: the drawer's pair, to redraw when the money moves
+async function fillMoney(pid, day, again){
   if(!hooks.money) return;
+  moneyAsked = { pid, day };
   let m = null;
-  try{ m = await hooks.money(pid, day); }catch(e){ m = null; }
+  try{ m = await hooks.money(pid, day, again); }catch(e){ m = null; }
   const bill = document.getElementById('drBill'), pend = document.getElementById('drPending');
   if(!bill || !pend || !drawerCtx || String(drawerCtx.patientId) !== String(pid)) return;
   if(!m){ bill.innerHTML = '<div class="rxs-k">Bill</div><div class="muted">Could not read</div>'; pend.innerHTML = '<div class="rxs-k">Pending</div><div class="muted">\u2014</div>'; return; }
@@ -4153,7 +4257,13 @@ async function fillMoney(pid, day){
   const owes = m.pending > 0.5, adv = m.pending < -0.5;
   pend.classList.toggle('dr-owes', owes);
   pend.innerHTML = '<div class="rxs-k">' + (adv ? 'In advance' : 'Pending') + '</div>'
-    + '<div class="dr-amt">' + (owes || adv ? fmtRs(Math.abs(m.pending)) : 'Settled') + '</div>';
+    + '<div class="dr-amt">' + (owes || adv ? fmtRs(Math.abs(m.pending)) : 'Settled') + '</div>'
+    + (m.stamp || '');
+}
+function refillMoney(){
+  if(!moneyAsked || !drawerCtx || String(drawerCtx.patientId) !== String(moneyAsked.pid)) return;
+  if(!document.getElementById('drPending')) return;
+  fillMoney(moneyAsked.pid, moneyAsked.day, true);
 }
 /* Unsettled bookings from the last fortnight, read once per open. */
 let unsettledAsked = false;
@@ -4203,7 +4313,7 @@ return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHr
   pfLoad, pfSheetOpen, pfSheetClose, pfFaceBig, pfFaceClose, pfShoot, pfPickType, pfPageDrop, pfShotCancel, pfShotSave, pfRetry, pfOpenFile, pfViewGo, pfViewClose, pfTodayHtml, pfBadgeHtml, pfListOf, pfCountOf, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS, idleWork, ptRowHtml,
-  resetFresh: () => { settingsFreshThisOpen = false; } };
+  resetFresh: () => { settingsFreshThisOpen = false; }, refillMoney };
 })();
 
 /* ---------------- RELAY AND LOCK (4.0) ----------------
@@ -4211,7 +4321,7 @@ return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHr
    its setup link carried. It opens LOCKED - the lite view, which is all the
    relay gives this key without a session. Admin + the 4-digit PIN (set in
    Nexus) opens a session; closing the app or locking the phone drops it. */
-const K_RELAY = 'echoAdmin_relay', K_KEY = 'echoAdmin_key';
+const K_RELAY = 'echoAdmin_relay', K_KEY = 'echoAdmin_key', K_KEYBAD = 'echoAdmin_keyBad';
 let accessToken = 'relay';          // the lifted loaders test this as "can read"
 let driveFolderId = 'root';
 let currentDate = todayStr();
@@ -4281,6 +4391,31 @@ function takeSetupFromLink(){
 function relayUrl(){ try{ return localStorage.getItem(K_RELAY) || ''; }catch(e){ return ''; } }
 function relayKey(){ try{ return localStorage.getItem(K_KEY) || ''; }catch(e){ return ''; } }
 function isSetUp(){ return !!(relayUrl() && relayKey()); }
+/* A REFUSED KEY STOPS THE SENDING, NEVER THE ITEMS (4.72, audit H16). The
+   key the relay turned down is remembered - a fingerprint, not the key - and
+   while it is the one on this phone nothing is sent at all: the setup screen
+   is up, and the bookings, photos and documents waiting here stay. The new
+   setup link brings a different key and they go by themselves; the relay
+   taking this same key again (a key put back) lifts it too. It was also
+   missing here, so the calendar's settings read that met a changed key
+   stopped on an error instead of showing the setup screen. */
+function keyRejected(k){
+  keyBadKeep(keyFingerprint(k === undefined ? relayKey() : k));
+  document.getElementById('setupMsg').textContent = 'This phone\u2019s link is no longer valid. Open the new admin setup link.';
+  showSetup();
+}
+function keyFingerprint(k){ k = String(k || ''); return k ? k.length + ':' + k.slice(-6) : ''; }
+let keyBadMemo = null;
+function keyBadHeld(){
+  if(keyBadMemo === null){ try{ keyBadMemo = localStorage.getItem(K_KEYBAD) || ''; }catch(e){ keyBadMemo = ''; } }
+  return keyBadMemo;
+}
+function keyBadKeep(v){
+  keyBadMemo = v || '';
+  try{ if(v) localStorage.setItem(K_KEYBAD, v); else localStorage.removeItem(K_KEYBAD); }catch(e){}
+}
+function keyAccepted(k){ if(keyBadHeld() && keyBadHeld() === keyFingerprint(k)) keyBadKeep(''); }
+function sendsAllowed(){ return isSetUp() && keyBadHeld() !== keyFingerprint(relayKey()); }
 const RELAY_TIMEOUT_MS = 25000;
 function RelayError(msg, body){ this.name = 'RelayError'; this.message = msg; this.body = body || {}; }
 RelayError.prototype = Object.create(Error.prototype);
@@ -4302,6 +4437,7 @@ function relayRequestUrl(params){
 }
 async function relayViaGoogle(params){
   const url = relayRequestUrl(params);
+  const usedKey = relayKey();
   /* ONE RETRY (4.14). Google sometimes answers with an error page instead of
      data for a moment (just after a deployment, or when busy): that read as
      "unreadable" and the phone gave up at once. */
@@ -4331,15 +4467,13 @@ async function relayViaGoogle(params){
   }
   if(body === null) throw new RelayError(lastErr);
   if(!body || !body.ok){
-    if(body && body.error === 'bad key'){
-      document.getElementById('setupMsg').textContent = 'This phone\u2019s link is no longer valid. Open the new admin setup link.';
-      showSetup();
-    }
+    if(body && body.error === 'bad key') keyRejected(usedKey);
     /* 4.66: the relay's session ending is not the end of admin while the
        PC's session lives - only the relay's half is let go. */
     if(body && body.error === 'session ended'){ if(pcSession){ adminSession = null; keepSession(null); } else lockAdmin(); }
     throw new RelayError((body && body.error) || 'relay', body);
   }
+  keyAccepted(usedKey);
   return body;
 }
 /* ==== THE RECEPTION PC, DIRECTLY, ON THE CLINIC WI-FI (4.60, owner's call) ====
@@ -4812,7 +4946,10 @@ async function driveReadJson(fileId, opts){
   const isDay = /^\d{4}-\d{2}-\d{2}\.json$/.test(name) && ['data', 'visits', 'appointments'].indexOf(folder) !== -1;
   if(held && isDay){
     const day = name.slice(0, 10);
-    if(day < todayStr() || (held.at && Date.now() - held.at < 45000)) return held.value;
+    /* 4.73 (audit H17): yesterday's day book is still live until noon - late
+       entries land in it - so it is re-asked like today, not kept for good. */
+    const final = day < todayStr() && !(folder === 'data' && moneyLiveDays().indexOf(day) !== -1);
+    if(final || (held.at && Date.now() - held.at < 45000)) return held.value;
   }
   const item = folder === 'settings' ? { t: 'set', n: name }
     : (['data', 'visits', 'appointments'].indexOf(folder) !== -1 && /^\d{4}-\d{2}-\d{2}\.json$/.test(name))
@@ -4821,10 +4958,18 @@ async function driveReadJson(fileId, opts){
   if(held && held.modified) item.s = held.modified;
   /* SLIM (4.28 / relay r4.1): the bills index without each bill's lines. */
   if(opts && opts.slim) item.slim = 1;
-  const r = await batchAsk(item, key);
+  /* A money file's answer - or its failure - is noted, so the screen can say
+     how current its figure is (4.73). */
+  const money = moneyKeyWatched(key);
+  if(money) moneyInFlight++;
+  let r;
+  try{ r = await batchAsk(item, key); }
+  catch(e){ if(money) moneyNote(key, false); throw e; }
+  finally{ if(money) moneyDone(); }
+  if(money) moneyNote(key, true);
   if(r.notModified && held){ held.at = Date.now(); return held.value; }
   relayHeld[key] = { modified: r.modified || null, value: r.value, at: Date.now() };
-  if(r.value !== undefined && r.value !== null) adbSet('held:' + key, { modified: r.modified || null, value: r.value });
+  if(r.value !== undefined && r.value !== null) adbSet('held:' + key, { modified: r.modified || null, value: r.value, at: Date.now() });
   return r.value;
 }
 
@@ -4954,6 +5099,8 @@ async function readJsonHeld(fileId, opts){
     const saved = await adbGet('held:' + key);
     if(saved && saved.value !== undefined && saved.value !== null){
       relayHeld[key] = { modified: saved.modified || null, value: saved.value, at: 0 };
+      /* The copy's own age (4.73): what "as of" says until the check lands. */
+      if(moneyKeyWatched(key) && !moneyFresh[key]) moneyFresh[key] = { at: Number(saved.at) || 0, failed: false };
     }
   }
   const held = relayHeld[key];
@@ -4977,6 +5124,7 @@ function heldRevalidate(fileId, key, opts){
     heldBusy[key] = false;
     const after = (relayHeld[key] || {}).modified || '';
     if(after !== before){
+      if(moneyKeyWatched(key)) moneyChanged = true;
       const reset = HELD_RESETS[key];
       if(reset) try{ reset(); }catch(e){}
       try{ repaint(); }catch(e){}
@@ -5133,6 +5281,8 @@ document.addEventListener('visibilitychange', () => {
   if(adminOn() && sessionIdleMs() > ADMIN_IDLE_MS){ lockAdmin(); }
   else { lastTouch = 0; touchSession(); }
   if(isSetUp()){ Cal.resetFresh(); Cal.refreshSettings(false); Cal.ensureWeek(Cal.getViewDay(), false); }
+  /* Back in front of somebody: the money on screen is checked again (4.73). */
+  moneyResume();
 });
 /* And while it is open in front of you, the same window applies. */
 setInterval(() => {
@@ -5282,10 +5432,15 @@ async function loadBills(){
 
    Now the figure is drawn from what is held and the recent days are fetched
    behind it; when they land the screen redraws itself, exactly as the
-   calendar does. The days already fetched are kept for the session, so this
-   happens once, not on every visit to the tab. */
+   calendar does. A day that is over is kept for the session once fetched.
+   TODAY IS NOT (4.73, audit H17): it was kept like a finished day, so at
+   18:00 Payment showed the 10:00 takings - or "Nothing taken" all day if it
+   was first opened before the first payment. Today, and yesterday until
+   noon, are asked again whenever they are due (see MONEY, AS OF NOW). */
 const dayBooks = {};              // date -> that day's book, once fetched
+const dayBooksAt = {};            // date -> when that answer came (0 = due again)
 let entriesCatchUp = null;
+let entriesRecentDays = [];       // the days the last walk read one by one
 async function loadAllEntries(){
   /* The `if(!accessToken)` copy that used to live here could never be read -
      accessToken has been the string 'relay' since the relay took over - and
@@ -5294,7 +5449,6 @@ async function loadAllEntries(){
   const out = idx ? Object.keys(idx).map(d => idx[d]) : [];
   const have = new Set(out.filter(Boolean).map(e => e.date));
   const today = todayStr();
-
   /* Walk back from today until the index takes over, so the newest days -
      the ones that matter most - are always fetched first. */
   const missing = [];
@@ -5304,11 +5458,14 @@ async function loadAllEntries(){
     missing.push(cursor);
     cursor = addDays(cursor, -1);
   }
+  entriesRecentDays = missing;
+  const live = moneyLiveDays();
   const wanted = [];
   missing.forEach(d => {
-    if(Object.prototype.hasOwnProperty.call(dayBooks, d)){
-      if(dayBooks[d]) out.push(dayBooks[d]);
-    } else wanted.push(d);
+    const kept = Object.prototype.hasOwnProperty.call(dayBooks, d);
+    if(kept && dayBooks[d]) out.push(dayBooks[d]);
+    /* What is held is shown now; a live day that is due is asked behind it. */
+    if(!kept || (live.indexOf(d) !== -1 && moneyDayDue(d))) wanted.push(d);
   });
   if(wanted.length) catchUpDays(wanted);
   return out.filter(Boolean);
@@ -5335,14 +5492,137 @@ function catchUpDays(days){
       }));
       got.forEach(([d, v]) => {
         if(v === undefined) return;
+        /* A re-read that brought the same book is not news (4.73): the
+           screen stays as it is and only its "as of" moves. */
+        const had = Object.prototype.hasOwnProperty.call(dayBooks, d);
+        if(!had ? !!v : JSON.stringify(dayBooks[d]) !== JSON.stringify(v)) gained = true;
         dayBooks[d] = v;
-        if(v) gained = true;
+        dayBooksAt[d] = Date.now();
       });
     }catch(e){}
     entriesCatchUp = null;
-    if(gained){ try{ repaint(); }catch(e){} }
+    if(gained){ moneyChanged = true; try{ repaint(); }catch(e){} }
   })();
   return entriesCatchUp;
+}
+
+/* ======================= MONEY, AS OF NOW (4.73, audit H17) ==============
+   Every money figure on this phone says when the desk last confirmed it, and
+   is re-checked:
+     - on every visit to a money screen, and on pull-to-refresh
+     - when the app comes back to the front (unlocked phone, switched back)
+     - every two minutes while a money screen is showing
+   Cheaply: each check sends the modified stamp the phone already holds, and
+   an unchanged file comes back as "not modified" with no data.
+   When a check fails the figure stays, but it says so - "could not refresh -
+   showing 14:05" - rather than passing an old number off as the current one. */
+const MONEY_FRESH_MS = 2 * 60 * 1000;
+const moneyFresh = {};            // file key -> { at: last answer, failed: last try failed }
+let moneyInFlight = 0;
+let moneyChanged = false;
+let moneyLastAsk = 0;
+function moneyKeyWatched(key){
+  return key === 'settings/bills-index.json' || key === 'settings/entries-index.json'
+    || /^data\/\d{4}-\d{2}-\d{2}\.json$/.test(String(key || ''));
+}
+/* Today, and yesterday until noon: late entries land in yesterday's book. */
+function moneyLiveDays(){
+  const t = todayStr();
+  return new Date().getHours() < 12 ? [t, addDays(t, -1)] : [t];
+}
+function moneyDayDue(d){ return !dayBooksAt[d] || Date.now() - dayBooksAt[d] >= MONEY_FRESH_MS; }
+function moneyNote(key, ok){
+  const f = moneyFresh[key] || (moneyFresh[key] = { at: 0, failed: false });
+  if(ok){ f.at = Date.now(); f.failed = false; } else f.failed = true;
+}
+function moneyDone(){
+  moneyInFlight = Math.max(0, moneyInFlight - 1);
+  if(!moneyInFlight) setTimeout(moneySettled, 0);
+}
+/* Everything asked has answered: the stamps move. A figure that changed has
+   already been redrawn by repaint(); the drawer's pair is redrawn here. */
+function moneySettled(){
+  if(moneyInFlight) return;
+  paintMoneyAsOf();
+  if(moneyChanged){ moneyChanged = false; try{ Cal.refillMoney(); }catch(e){} }
+}
+/* Mark the money due. `force` also skips the 45-second memo, for a visit, a
+   pull or a return to the app - somebody is looking now. */
+function moneyRefresh(force){
+  moneyLastAsk = Date.now();
+  billsRevalidate = true; entriesRevalidate = true;
+  moneyLiveDays().forEach(d => { dayBooksAt[d] = 0; });
+  if(force) Object.keys(relayHeld).forEach(k => { if(moneyKeyWatched(k) && relayHeld[k]) relayHeld[k].at = 0; });
+}
+function moneyScreenShowing(){
+  if(!adminOn()) return false;
+  if(currentTab === 'payment' || currentTab === 'billing') return true;
+  if(currentTab === 'patients') return !!ptOpen || ptSub === 'pending' || ptSub === 'advance';
+  /* The calendar's drawer, open on a visit, shows a bill and a balance. */
+  const wrap = document.getElementById('drawerWrap');
+  return !!(wrap && !wrap.classList.contains('hidden') && document.getElementById('drPending'));
+}
+/* Ask behind the screen without redrawing it: the loaders redraw only when
+   something changed, and the stamps move when the answers are in. */
+function moneyPoke(){
+  const wantsBills = currentTab === 'billing' || currentTab === 'patients' || currentTab === 'calendar';
+  const wantsDays = !(currentTab === 'billing' && billSub === 'bills');
+  if(wantsDays) loadAllEntries().catch(() => {});
+  if(wantsBills) loadBills().catch(() => {});
+  setTimeout(moneySettled, 0);
+}
+function moneyResume(){
+  if(!moneyScreenShowing()) return;
+  moneyRefresh(true);
+  moneyPoke();
+}
+setInterval(() => {
+  if(document.visibilityState !== 'visible' || !moneyScreenShowing()) return;
+  if(Date.now() - moneyLastAsk < MONEY_FRESH_MS) return;
+  moneyRefresh(false);
+  moneyPoke();
+}, 30000);
+window.addEventListener('pageshow', (e) => { if(e && e.persisted) moneyResume(); });
+window.addEventListener('online', () => moneyResume());
+/* The keys a figure was made from: the index, and the days read one by one
+   that fall in what is shown. */
+function moneyEntryKeys(inShown){
+  return ['settings/entries-index.json'].concat(
+    entriesRecentDays.filter(d => !inShown || inShown(d)).map(d => 'data/' + d + '.json'));
+}
+function moneyClock(ms){
+  const d = new Date(ms);
+  const hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  return localDateOf(d.toISOString()) === todayStr() ? hm
+    : d.toLocaleDateString('en-IN', { day:'numeric', month:'short' }) + ' ' + hm;
+}
+function moneyAsOfState(keys){
+  const live = moneyLiveDays();
+  let oldest = Infinity, failed = false, unknown = false;
+  (keys || []).forEach(k => {
+    const f = moneyFresh[k];
+    if(f && f.failed) failed = true;
+    /* A finished day, once read, is read: it does not age the figure. */
+    const m = /^data\/(\d{4}-\d{2}-\d{2})\.json$/.exec(k);
+    if(m && live.indexOf(m[1]) === -1 && Object.prototype.hasOwnProperty.call(dayBooks, m[1])) return;
+    if(!f || !f.at) unknown = true; else if(f.at < oldest) oldest = f.at;
+  });
+  const shown = (!unknown && oldest !== Infinity) ? moneyClock(oldest) : '';
+  if(failed) return { stale: true, text: 'Could not refresh — showing ' + (shown || 'the copy on this phone') };
+  if(!shown) return { stale: false, text: 'Checking with the desk…' };
+  return { stale: false, text: 'As of ' + shown };
+}
+function moneyAsOfHtml(keys){
+  const s = moneyAsOfState(keys);
+  return '<div class="money-asof' + (s.stale ? ' stale' : '') + '" data-keys="' + escapeHtml((keys || []).join('|')) + '">'
+    + escapeHtml(s.text) + '</div>';
+}
+function paintMoneyAsOf(){
+  document.querySelectorAll('.money-asof[data-keys]').forEach(el => {
+    const s = moneyAsOfState(String(el.getAttribute('data-keys') || '').split('|').filter(Boolean));
+    if(el.textContent !== s.text) el.textContent = s.text;
+    el.classList.toggle('stale', s.stale);
+  });
 }
 
 async function loadLabCases(){
@@ -5406,6 +5686,15 @@ function localDateOf(iso){
   const d = new Date(iso);
   if(isNaN(d.getTime())) return null;
   return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+/* THE CLINIC'S DAY, NOT GREENWICH'S (4.73, audit L9). The desk stamps times
+   as 2026-09-26T20:30:00.000Z - which is 27 Sep, 2 am, at the clinic - and
+   the first ten characters of that say the 26th. A plain date is already a
+   day and is taken as it is. */
+function localDayOf(v){
+  const s = String(v || '');
+  if(!/T\d/.test(s)) return s.slice(0, 10);
+  return localDateOf(s) || s.slice(0, 10);
 }
 function reversalExcludesFromDayTotals(it){
   if(!it || !it.reversal) return false;
@@ -5741,7 +6030,7 @@ function shortDateMobile(dateStr){
 }
 function rxIsStruck(rec){ return !!(rec && rec.struckAt); }
 function rxDayLabel(rec){
-  const d = String((rec && (rec.date || rec.createdAt)) || '').slice(0, 10);
+  const d = localDayOf(rec && (rec.date || rec.createdAt));
   const [y, m, dd] = d.split('-').map(Number);
   if(!y || !m || !dd) return '\u2014';
   return new Date(y, m - 1, dd).toLocaleDateString('en-IN',
@@ -5987,7 +6276,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.71';
+const ADMIN_VERSION = '4.73';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -6449,6 +6738,9 @@ async function doRefresh(){
        localStorage.removeItem('echoAdmin_entries'); }catch(e){}
   billsRevalidate = true; entriesRevalidate = true;
   relayHeldClear();
+  /* Today's book too (4.73, audit H17): it was the one thing a pull never
+     asked for again. */
+  moneyRefresh(true);
   try{ await Promise.all([Cal.refreshSettings(true), Cal.ensureWeek(Cal.getViewDay(), true)]); }catch(e){}
   setTab(currentTab);
   await new Promise(r => setTimeout(r, 400));
@@ -6509,6 +6801,8 @@ function setTab(t){
   Object.keys(ADMIN_VIEWS).forEach(k =>
     document.getElementById(ADMIN_VIEWS[k]).classList.toggle('hidden', k !== t));
   closeRx();
+  /* Every visit to a money screen asks again (4.73, audit H17). */
+  if(moneyScreenShowing()) moneyRefresh(true);
   renderCurrent();
 }
 /* NOTHING IS READ FOR A TAB THAT IS NOT OPEN (a2.0). The bills and payments
@@ -6839,7 +7133,8 @@ async function renderPayment(){
   /* Every method, not the top three: a split that hides one of its own parts
      does not add up to the figure above it. */
   document.getElementById('moneyTotals').innerHTML = totalBlock('collected', fmtINR(total),
-    ['cash','upi','card','bank'].map(m => [m, byMode[m] ? fmtINR(byMode[m]) : '']), '');
+    ['cash','upi','card','bank'].map(m => [m, byMode[m] ? fmtINR(byMode[m]) : '']), '')
+    + moneyAsOfHtml(moneyEntryKeys(inPeriod));
   rollOrSet('payCount', rows.length);
   if(!rows.length){
     /* A day can carry a total without carrying the payments that made it —
@@ -6869,7 +7164,7 @@ function rollOrSet(id, n){ const el = document.getElementById(id); if(el) el.tex
 
 /* ---------------------------- BILLING ---------------------------------- */
 let billSub = 'bills';                 // bills | moved
-function setBillSub(k){ billSub = k; openBill = null; splitOpen = false; renderCurrent(); }
+function setBillSub(k){ billSub = k; openBill = null; splitOpen = false; moneyRefresh(true); renderCurrent(); }
 async function renderBilling(){
   const sub = document.getElementById('billSubRow');
   if(sub) sub.innerHTML = [['bills','Bills'],['moved','Money moved']].map(x =>
@@ -6897,7 +7192,8 @@ async function renderBilling(){
   document.getElementById('billTotals').innerHTML = totalBlock('billed', fmtINR(billed - credited),
     [['raised', fmtINR(billed)],
      ['credited', credited ? fmtINR(credited) : ''],
-     ['bills', String(mine.filter(b => !isCreditNote(b)).length)]], '');
+     ['bills', String(mine.filter(b => !isCreditNote(b)).length)]], '')
+    + moneyAsOfHtml(['settings/bills-index.json']);
   rollOrSet('billCount', mine.length);
   if(!mine.length){ list.innerHTML = '<div class="empty-state">Nothing billed</div>'; return; }
   mine.sort((a, b) => String(b.date).localeCompare(String(a.date)));
@@ -7039,7 +7335,8 @@ async function renderMoneyMoved(){
   rows.forEach(r => { byKind[r.kind] = (byKind[r.kind] || 0) + 1; });
   document.getElementById('billTotals').innerHTML = totalBlock('taken out of the books',
     fmtINR(total), Object.keys(byKind).map(k2 => [k2, String(byKind[k2])]),
-    off ? fmtINR(off) + ' written off' : '');
+    off ? fmtINR(off) + ' written off' : '')
+    + moneyAsOfHtml(['settings/bills-index.json'].concat(moneyEntryKeys(inPeriod)));
   rollOrSet('billCount', rows.length);
   if(!rows.length){ list.innerHTML = '<div class="empty-state">Nothing was taken out</div>'; return; }
   list.innerHTML = rows.slice(0, 200).map(r =>
@@ -7199,7 +7496,7 @@ async function renderFollowups(){
      visible. Ordered as the desk orders it: by priority, then by who has
      been waiting longest. */
   const active = (all || [])
-    .filter(f => f && (!fuDef(f).resolved || String(f.updatedAt || '').slice(0, 10) === today))
+    .filter(f => f && (!fuDef(f).resolved || localDayOf(f.updatedAt) === today))
     .sort((a, b) => {
       const ra = fuDef(a).resolved, rb = fuDef(b).resolved;
       if(ra !== rb) return ra ? 1 : -1;
@@ -7262,6 +7559,7 @@ function setPtSub(k){
   ptSub = k; ptOpen = null; ptQuery = '';
   const b = document.getElementById('ptBody');
   if(b) b.innerHTML = '';           // the box belongs to Search alone
+  if(moneyScreenShowing()) moneyRefresh(true);     // 4.73: what is owed, asked again
   renderPatientsTab();
 }
 function ptSearch(v){
@@ -7273,6 +7571,7 @@ function openPt(pid){
   ptOpen = String(pid); expandedType = null; ptRowOpen = null;
   const b = document.getElementById('ptBody');
   if(b) b.innerHTML = '';
+  moneyRefresh(true);               // 4.73: their balance, asked again
   renderPatientsTab();
 }
 let ptReturnToCalendar = null;
@@ -7382,7 +7681,8 @@ async function renderPtMoneyList(body, which){
     .sort((a, b) => which === 'pending' ? b.pending - a.pending : a.pending - b.pending);
   const total = rows.reduce((t, r) => t + Math.abs(r.pending), 0);
   const head = totalBlock(which === 'pending' ? 'pending' : 'held in advance', fmtINR(total),
-    [['patients', String(rows.length)]], '');
+    [['patients', String(rows.length)]], '')
+    + moneyAsOfHtml(['settings/bills-index.json'].concat(moneyEntryKeys()));
   if(!rows.length){
     body.innerHTML = head + '<div class="empty-state">'
       + (which === 'pending' ? 'Nothing outstanding' : 'Nothing held in advance') + '</div>';
@@ -7484,7 +7784,7 @@ async function renderPtRecord(body, pid){
      .e164; the readable form is what fmtPhoneMobile makes of it. */
   const phoneRec = primaryNumber(con, P);
   const phone = phoneRec && phoneRec.e164 ? String(phoneRec.e164) : '';
-  const madeOn = created && created[P] ? String(created[P]).slice(0, 10) : '';
+  const madeOn = created && created[P] ? localDayOf(created[P]) : '';
   const crmRow = (crm && crm[P]) || {};
   const chips = [];
   if(ortho && ortho.has && ortho.has(P)) chips.push(['ortho', 'Long treatment']);
@@ -7523,6 +7823,7 @@ async function renderPtRecord(body, pid){
         + '<div class="ptr-m"><b>' + fmtINR(bal.totalPayments) + '</b><span>paid</span></div>'
         + (madeOn ? '<div class="ptr-m"><b>' + escapeHtml(shortDateMobile(madeOn)) + '</b><span>on record</span></div>' : '')
       + '</div>'
+      + moneyAsOfHtml(['settings/bills-index.json'].concat(moneyEntryKeys()))
     + '</div>';
 
   /* ---- everything this patient has, as typed events ---- */
@@ -7531,7 +7832,7 @@ async function renderPtRecord(body, pid){
      prescriptions have been loaded shows all of them here too, and the
      header count is the true one either way. */
   Cal.rxFor(P).forEach(r =>
-    mine.prescription.push({ when:String(r.date || r.createdAt || '').slice(0,10),
+    mine.prescription.push({ when:localDayOf(r.date || r.createdAt),
       what: rxWhat(r), struck: rxIsStruck(r), body: () => rxDetailHtml(r) }));
   const rxOlder = Cal.rxCount(P) - mine.prescription.length;
   if(rxOlder > 0) mine.prescription.push({ when:'', what: rxOlder + ' older not loaded \u2014 open Previous \u211e from the calendar',
@@ -7559,7 +7860,7 @@ async function renderPtRecord(body, pid){
     mine.followup.push({ when:String(f.sourceDate || '').slice(0,10),
       what: fuDef(f).label + (f.reason ? ' \u00b7 ' + f.reason : ''), struck: fuDef(f).resolved }));
   (notes || []).filter(n => n && String(n.patientId) === P).forEach(n =>
-    mine.note.push({ when:String(n.date || n.createdAt || '').slice(0,10),
+    mine.note.push({ when:localDayOf(n.date || n.createdAt),
       what: String(n.text || n.note || ''), struck: !!n.struckAt }));
 
   /* Visits come from the index, which holds only the dates. */
@@ -7625,12 +7926,15 @@ async function boot(){
   notifTakeHash();
   setTimeout(notifRefresh, 2500);   // after the day is on screen
   Cal.hooks.adminOn = adminOn;
-  Cal.hooks.money = async (pid, day) => {
+  Cal.hooks.money = async (pid, day, again) => {
+    /* 4.73: opening the drawer asks again; a redraw after the answer does not. */
+    if(!again) moneyRefresh(true);
     const [bills, entries] = await Promise.all([loadBills(), loadAllEntries()]);
     const mine = (bills || []).filter(b => billCountsAsMoney(b) && String(b.patientId) === String(pid));
     const billToday = mine.filter(b => String(b.date || '').slice(0, 10) === day).reduce((t, b) => t + (Number(b.grandTotal) || 0), 0);
     const map = computePendingFromData(bills || [], entries || []);
-    return { billToday, pending: (map[String(pid)] || {}).pending || 0 };
+    return { billToday, pending: (map[String(pid)] || {}).pending || 0,
+             stamp: moneyAsOfHtml(['settings/bills-index.json'].concat(moneyEntryKeys())) };
   };
   Cal.hooks.fullHistory = (pid, back) => {
     ptReturnToCalendar = back || null;
