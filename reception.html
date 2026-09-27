@@ -896,7 +896,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.70';
+const LITE_VERSION = '4.71';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -904,6 +904,12 @@ const LITE_VERSION = '4.70';
    prescriptions; nothing heavy is downloaded; and its only notification is
    "Photo needed". lite itself is told about visits only. */
 const RECEPTION = true;
+/* THE CLINIC iPAD (4.71, owner's call). ipad.html is this file too, made by
+   tools/build_ipad.py with RECEPTION and this set to true and the iPad
+   layout added: the diary as one column per doctor, today's patients down
+   the side, and a patient or a booking opening in a panel on the right.
+   Staff key only - no money, no admin. */
+const IPAD = false;
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -1206,7 +1212,11 @@ async function lanProbeNow(){
      opened afresh - and said so in the bell sheet meanwhile. */
   if(lanSecretMissing()){ lanSecretAsk(); lanMarkDown(); return false; }
   if(!lanInfo || !lanInfo.key || !lanInfo.skey || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
-  const bases = lanInfo.ips.slice(0, 4).map(ip => 'http://' + ip + ':' + (lanInfo.port || 8765));
+  /* THE SECURE DOOR (4.71). An iPad or iPhone may only talk to https from an
+     https page, so it uses the desk server's secure port when the PC has one
+     (desk server 1.9, relay r4.13). Every other phone keeps the plain door. */
+  const tls = lanUseTls();
+  const bases = lanInfo.ips.slice(0, 4).map(ip => tls ? 'https://' + ip + ':' + lanInfo.sport : 'http://' + ip + ':' + (lanInfo.port || 8765));
   const one = (b) => lanFetch(lanUrl(b, 'ping'), LAN_PROBE_MS).then(j => {
     if(j.echo === 'echo-nexus-desk' && j.id === lanInfo.id) return b;
     throw new Error('not this clinic');
@@ -1214,12 +1224,20 @@ async function lanProbeNow(){
   let got = '';
   try{ got = await lanFirst(bases.map(one)); }catch(e){ got = ''; }
   if(got){ lanBase = got; lanState = 'up'; lanCheckedAt = Date.now(); lanPaint(); return true; }
-  lanNote('the PC did not answer at ' + bases.map(b => b.replace('http://', '')).join(', '));
+  lanNote('the PC did not answer at ' + bases.map(b => b.replace(/^https?:\/\//, '')).join(', ')
+    + (tls ? ' (secure door - is the clinic certificate installed on this iPad?)' : ''));
   lanMarkDown();
   /* The PC may have a new address, or a new card: ask the relay, behind. */
   lanInfoRefresh(false);
   return false;
 }
+function lanIsApple(){
+  try{
+    const ua = String(navigator.userAgent || '');
+    return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+  }catch(e){ return false; }
+}
+function lanUseTls(){ return !!(lanInfo && Number(lanInfo.sport) > 0 && (IPAD || lanIsApple())); }
 function lanEnsure(){
   if(lanState === 'up' && lanBase) return Promise.resolve(true);
   if(lanState === 'down' && Date.now() - lanCheckedAt < LAN_RECHECK_MS) return Promise.resolve(false);
@@ -1306,7 +1324,7 @@ function lanViewDay(){ try{ return (typeof Cal !== 'undefined' && Cal.getViewDay
 function lanWeek(day){ return (typeof Cal !== 'undefined' && Cal.ensureWeek) ? Cal.ensureWeek(day, true) : ensureWeek(day, true); }
 function lanPhotos(){ return (typeof Cal !== 'undefined' && Cal.photoRefresh) ? Cal.photoRefresh(true) : photoRefresh(true); }
 function lanAfterChange(){
-  try{ if(typeof renderPatients === 'function' && currentTab === 'patients' && !selectedPatient) renderPatients(); }catch(e){}
+  try{ if(typeof renderPatients === 'function' && tabShown('patients') && !selectedPatient) renderPatients(); }catch(e){}
 }
 async function lanStampTick(){
   if(lanStampBusy || lanStampOff || lanState !== 'up' || !lanBase || lanAdminLevel()) return;
@@ -1832,7 +1850,7 @@ async function ensureWeek(anyDay, force){
     lastWeekError = e.message || 'offline';
     setFreshness('failed');
   }
-  if(currentTab === 'calendar') renderCalendar();
+  if(tabShown('calendar')) renderCalendar();
 }
 
 let freshness = '';
@@ -2411,7 +2429,7 @@ function hsHeadHtml(pid, backCall){
 function historyHtml(pid, openIdx, toggleCall, backCall){
   /* RECEPTION: the person and the ways to reach them - no prescriptions. */
   if(RECEPTION){
-    withContacts(() => { if(currentTab === 'patients') repaint(); });
+    withContacts(() => { if(tabShown('patients')) repaint(); });
     return hsHeadHtml(pid, backCall);
   }
   /* The list is fetched from the store on first need (4.27); say so rather
@@ -2420,7 +2438,7 @@ function historyHtml(pid, openIdx, toggleCall, backCall){
     ensureRx();
     return hsHeadHtml(pid, backCall) + '<div class="empty-state">Reading\u2026</div>';
   }
-  withContacts(() => { if(currentTab === 'patients' || prevPid) repaint(); });
+  withContacts(() => { if(tabShown('patients') || prevPid) repaint(); });
   const mine = rxFor(pid).slice().sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')));
   const n = rxCount(pid);
   /* The count belongs to the list, not to the person: it was said in the bar
@@ -2621,12 +2639,18 @@ function renderCalendar(){
     const doneCount = people.filter(isDone).length;
     const doneHint = (!def && foldDone && doneCount)
       ? '<button type="button" class="kv-done-hint" onclick="setStatusFilter(\'done\')">' + doneCount + ' done \u00b7 tap Done to see them</button>' : '';
+    if(IPAD && typeof ipadDiaryHtml === 'function'){
+      /* The iPad: the day as one column per doctor, everyone on it. A chip
+         still narrows it; nothing is folded away. */
+      list.innerHTML = ipadDiaryHtml(def ? all.filter(r => (r.kind === 'appt' || r.kind === 'walkin') ? def[2](r) : true) : all, viewDay,
+        def ? 'Nobody ' + def[1].toLowerCase() : '');
+    } else
     list.innerHTML = (shown.length ? shown.map(r => rowHtml(r, viewDay)).join('')
       : '<div class="empty-state">' + (def ? 'Nobody ' + def[1].toLowerCase() : (foldDone && doneCount ? 'Everyone is done' : (viewDay < today ? 'Nobody booked or came' : 'Nothing booked yet'))) + '</div>') + doneHint;
   }
   paintFreshness();
   if(typeof paintAdminExtras === 'function') paintAdminExtras();
-  { const fab = document.getElementById('bkFab'); if(fab) fab.style.display = (currentTabName() === 'calendar') ? '' : 'none'; }
+  { const fab = document.getElementById('bkFab'); if(fab) fab.style.display = (currentTabName() === 'calendar' || (IPAD && ipadWideNow())) ? '' : 'none'; }
 }
 function goDay(d){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d || ''))) return;
@@ -2662,6 +2686,7 @@ let drawerCtx = null;
 function openDrawer(day, kind, id){
   const r = (rowsFor(day) || []).find(x => x.kind === kind && String(x.id) === String(id));
   if(!r) return;
+  if(IPAD && typeof ipadPanel === 'function') ipadPanel('drawer');
   drawerCtx = { day, kind, id, patientId: r.patientId };
   /* Call and WhatsApp need the numbers, which are read on demand (4.27). */
   withContacts(() => { if(drawerCtx && drawerCtx.day === day && String(drawerCtx.id) === String(id)) openDrawer(day, kind, id); });
@@ -3057,7 +3082,7 @@ async function bkSend(){
       }
     }
   }finally{ bkSending = false; }
-  if(currentTab === 'calendar') renderCalendar();
+  if(tabShown('calendar')) renderCalendar();
 }
 function toast(t){
   let el = document.getElementById('bkToast');
@@ -3130,7 +3155,7 @@ async function bkWatch(){
       bkSave();
     }
   }finally{ bkWatchBusy = false; }
-  if(currentTab === 'calendar') renderCalendar();
+  if(tabShown('calendar')) renderCalendar();
 }
 setInterval(bkWatch, 20000);
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ if(bkPending.some(p => !p.sent)) bkSend(); bkWatch(); } });
@@ -4364,6 +4389,10 @@ function renderPatients(){
 
 /* --------------------------------------------------------------- shell -- */
 function currentTabName(){ return currentTab; }
+/* Whether a tab's view is on the screen: its own tab, or both at once on the
+   iPad held sideways (where there are no tabs to pick). */
+function tabShown(t){ return currentTab === t || ipadWideNow(); }
+function ipadWideNow(){ try{ return IPAD && document.body.classList.contains('ipad-wide'); }catch(e){ return false; } }
 function setTab(t){
   { const fab = document.getElementById('bkFab'); if(fab) fab.style.display = (t === 'calendar' ? '' : 'none'); }
   currentTab = t;
@@ -4374,7 +4403,10 @@ function setTab(t){
   repaint();
 }
 function repaint(){
-  if(currentTab === 'calendar') renderCalendar(); else renderPatients();
+  /* The iPad held sideways shows both at once - its layer draws Patients
+     beside the diary every time the diary is drawn. */
+  if(IPAD && ipadWideNow()) renderCalendar();
+  else if(tabShown('calendar')) renderCalendar(); else renderPatients();
   if(drawerCtx) openDrawer(drawerCtx.day, drawerCtx.kind, drawerCtx.id);
 }
 function greetingWord(){ const h = new Date().getHours(); return h < 12 ? 'Good morning,' : h < 17 ? 'Good afternoon,' : 'Good evening,'; }
@@ -4757,11 +4789,11 @@ async function notifGoPhoto(pid){
     const lit = String(pid || '').replace(/"/g, '');
     if(lit){
       photoLit = { pid: lit, until: Date.now() + 6000 };
-      setTimeout(() => { if(photoLit.pid === lit){ photoLit = { pid: '', until: 0 }; try{ if(currentTab === 'patients' && !selectedPatient) renderPatients(); }catch(e){} } }, 6100);
+      setTimeout(() => { if(photoLit.pid === lit){ photoLit = { pid: '', until: 0 }; try{ if(tabShown('patients') && !selectedPatient) renderPatients(); }catch(e){} } }, 6100);
     }
     setTab('patients');
     /* And the day's own copy, fetched fresh behind it. */
-    try{ ensureWeek(todayStr(), true).then(() => { if(currentTab === 'patients') renderPatients(); }, () => {}); }catch(e){}
+    try{ ensureWeek(todayStr(), true).then(() => { if(tabShown('patients')) renderPatients(); }, () => {}); }catch(e){}
     if(!pid) return;
     const want = String(pid).replace(/"/g, '');
     let tries = 0;
@@ -4785,7 +4817,7 @@ if('serviceWorker' in navigator){
     if(d && d.type === 'openVisit') notifGoTo(d.date, d.pid);
     if(d && d.type === 'openPhoto') notifGoPhoto(d.pid);
     /* A buzz with the app open: the row appears on its own. */
-    if(d && d.type === 'photoArrival' && photoArrivalAdd(d.arrival) && currentTab === 'patients' && !selectedPatient){ try{ renderPatients(); }catch(e){} }
+    if(d && d.type === 'photoArrival' && photoArrivalAdd(d.arrival) && tabShown('patients') && !selectedPatient){ try{ renderPatients(); }catch(e){} }
   });
 }
 /* READ AT LOAD, NOT AT BOOT (4.20). takeSetupFromLink clears the address bar

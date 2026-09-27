@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Echo Nexus Lite</title>
-<link rel="manifest" href="lite.webmanifest">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Echo iPad</title>
+<link rel="manifest" href="ipad.webmanifest">
 <meta name="theme-color" content="#FDFAF3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Echo Lite">
+<meta name="apple-mobile-web-app-title" content="Echo iPad">
 <link rel="apple-touch-icon" href="icon-192.png"><style>:root{
     --gold-deep:#8A5F26;
     --gold:#AF7933;
@@ -790,6 +790,73 @@ body{ background:#FAF7F2 !important; }
 .ptr-acts{ display:flex; gap:8px; flex-wrap:wrap; margin-top:9px; }
 
 
+/* ==== THE CLINIC iPAD (4.71, owner's call) - made into ipad.html by
+   tools/build_ipad.py; lite.html and reception.html never carry this. ==== */
+#hdBell{ display:none !important; }            /* the iPad has no notifications at all */
+.wrap{ max-width:1180px; }
+
+/* The day, one column per doctor and one for walk-ins, on a time grid. */
+.ipd{ background:#fff; border:1px solid var(--line); border-radius:14px; overflow:auto; position:relative; margin:8px 0 6px; -webkit-overflow-scrolling:touch; max-height:70vh; }
+.ipd-grid{ display:grid; grid-template-columns:50px repeat(var(--n), minmax(150px, 1fr)); min-width:calc(50px + var(--n) * 150px); }
+.ipd-h{ position:sticky; top:0; z-index:6; background:#FBF7EF; border-bottom:1px solid var(--line); border-left:1px solid #F1E9DA; padding:7px 6px 6px; font-weight:700; font-size:0.8rem; text-align:center; color:#3B2A1A; border-top:3px solid var(--kbd, transparent); }
+.ipd-h small{ display:block; font-weight:600; color:var(--muted); font-size:0.66rem; margin-top:1px; }
+.ipd-h0{ border-left:0; border-top-color:transparent; }
+.ipd-any{ display:flex; flex-wrap:wrap; gap:4px; justify-content:center; margin-top:5px; }
+.ipd-any button{ border:1px dashed #C9A56B; background:#FFF8EA; color:#5A4630; border-radius:99px; padding:2px 8px; font-size:0.66rem; font-weight:700; cursor:pointer; }
+.ipd-times, .ipd-col{ position:relative; height:var(--h); }
+.ipd-col{ border-left:1px solid #F1E9DA; background-image:repeating-linear-gradient(to bottom, #EFE6D6 0, #EFE6D6 1px, transparent 1px, transparent var(--hr)); background-position:0 var(--h0); }
+.ipd-t{ position:absolute; right:6px; font-size:0.66rem; color:var(--muted); transform:translateY(-50%); white-space:nowrap; }
+.ipd-t:first-child{ transform:none; }
+.ipd-cd{ position:absolute; box-sizing:border-box; border-radius:8px; padding:3px 6px 2px; font-size:0.72rem; line-height:1.22; overflow:hidden; border-left:4px solid; cursor:pointer; z-index:2; box-shadow:0 1px 2px rgba(46,36,25,0.08); }
+.ipd-cd b{ display:block; font-size:0.76rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ipd-cd i{ font-style:normal; display:block; color:rgba(46,36,25,0.66); font-size:0.64rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ipd-cd .ipd-when{ display:block; font-weight:700; font-size:0.64rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ipd-b{ background:#EAF1FB; border-color:#3B6FA8; }
+.ipd-c{ background:#E1F2EA; border-color:#146B4F; }
+.ipd-w{ background:#FFF0D6; border-color:#B7791F; }
+.ipd-d{ background:#F1ECE2; border-color:#B3A289; color:#7d6e58; }
+.ipd-x{ background:#F8EAEA; border-color:#B55A5A; color:#8B4A4A; }
+.ipd-x b{ text-decoration:line-through; }
+.ipd-cd.is-rough{ background:#FFFBF1; border:1.5px dashed #C9A56B; border-left:4px dashed #C9A56B; }
+.ipd-cd.is-pending{ outline:1.5px dashed #B7791F; outline-offset:-1px; }
+.ipd-cd.is-struck b{ text-decoration:line-through; }
+.ipd-cd.is-nf{ cursor:default; opacity:0.8; }
+.ipd-band{ position:absolute; left:0; right:0; z-index:1; background:repeating-linear-gradient(45deg, rgba(140,122,99,0.16) 0 8px, rgba(140,122,99,0.06) 8px 16px); border-top:1px solid rgba(140,122,99,0.4); border-bottom:1px solid rgba(140,122,99,0.4); font-size:0.66rem; color:#6B5A44; padding:2px 6px; pointer-events:none; overflow:hidden; white-space:nowrap; }
+.ipd-now{ position:absolute; left:0; right:0; height:2px; background:#C0392B; z-index:4; pointer-events:none; }
+.ipd-times .ipd-now::before{ content:''; position:absolute; right:-4px; top:-3px; width:8px; height:8px; border-radius:50%; background:#C0392B; }
+.ipd-banner{ background:#F3ECDF; border:1px solid #E2D6C2; border-radius:10px; padding:6px 10px; margin:8px 0 0; font-size:0.78rem; color:#5A4630; }
+.ipd-banner b{ margin-right:6px; }
+
+/* Anything that opens for one patient - their files, a booking - comes in
+   from the right. Held sideways, it sits beside the diary and the diary
+   stays live; upright, it lies over it. */
+.drawer-wrap{ align-items:stretch !important; justify-content:flex-end; }
+.drawer{ width:400px !important; max-width:92vw !important; margin:0 !important; border-radius:18px 0 0 18px !important; max-height:none !important; height:100%; box-sizing:border-box; padding-top:14px !important; box-shadow:-10px 0 24px rgba(46,36,25,0.18); }
+.pf-wrap{ align-items:stretch !important; justify-content:flex-end !important; }
+.pf-sheet{ width:400px !important; max-width:92vw !important; border-radius:18px 0 0 18px !important; max-height:none !important; height:100%; box-sizing:border-box; box-shadow:-10px 0 24px rgba(46,36,25,0.18); }
+/* Booking and the camera sheets are a card in the middle. */
+.bk-wrap{ align-items:center !important; justify-content:center; }
+.bk-sheet{ max-width:620px !important; border-radius:20px !important; max-height:88vh !important; }
+.photo-wrap:not(.pf-wrap){ align-items:center !important; }
+.photo-wrap:not(.pf-wrap) .photo-sheet{ border-radius:18px !important; max-width:560px; max-height:88vh; overflow-y:auto; }
+
+/* HELD SIDEWAYS: today's patients down the left, the diary beside them, the
+   panel on the right. No tabs - everything is already on the screen. */
+body.ipad-wide{ padding-bottom:16px !important; }
+body.ipad-wide .tabbar{ display:none !important; }
+body.ipad-wide .wrap{ max-width:none; padding:0 14px 16px; }
+body.ipad-wide #appScreen:not(.hidden){ display:grid; grid-template-columns:320px minmax(0, 1fr); gap:14px; align-items:start; transition:margin-right .18s ease; }
+body.ipad-wide #viewPatients, body.ipad-wide #viewPatients.hidden,
+body.ipad-wide #viewCalendar, body.ipad-wide #viewCalendar.hidden{ display:block !important; }
+body.ipad-wide #viewPatients{ grid-column:1; grid-row:1; position:sticky; top:8px; max-height:calc(100vh - 16px); overflow-y:auto; -webkit-overflow-scrolling:touch; }
+body.ipad-wide #viewCalendar{ grid-column:2; grid-row:1; min-width:0; }
+body.ipad-wide .cal-sticky{ position:static; margin:0; border-radius:14px; }
+body.ipad-wide .bk-fab{ bottom:22px; right:22px; }
+body.ipad-wide.ipad-panel #appScreen{ margin-right:400px; }
+body.ipad-wide.ipad-panel .ipd-grid{ grid-template-columns:50px repeat(var(--n), minmax(110px, 1fr)); min-width:calc(50px + var(--n) * 110px); }
+body.ipad-wide.ipad-panel .bk-fab{ right:422px; }
+body.ipad-wide .drawer-wrap, body.ipad-wide .pf-wrap{ background:transparent !important; pointer-events:none; }
+body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-radius:0 !important; border-left:1px solid var(--line); }
 </style></head><body>
 <div class="topbar">
   <!-- The greeting leads and the mark sits quietly beside it: this is her app
@@ -811,7 +878,7 @@ body{ background:#FAF7F2 !important; }
          why it read as empty. -->
     <div class="hd-mark">
       <button type="button" class="hd-bell" id="hdBell" onclick="notifOpen()" aria-label="Notifications">🔔</button>
-      <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version">Nexus <b>L</b> &middot; <span id="appVer"></span><span id="lanMark" class="lan-mark"></span></div>
+      <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version"><b>iPad</b> &middot; <span id="appVer"></span><span id="lanMark" class="lan-mark"></span></div>
     </div>
   </div>
   <div class="tabbar">
@@ -840,7 +907,7 @@ body{ background:#FAF7F2 !important; }
 </div>
 <div class="wrap">
   <div id="setupScreen" class="gate hidden">
-    <h1>Echo Nexus Lite</h1>
+    <h1>Echo iPad</h1>
     <p id="setupMsg">This phone is not set up yet. Open the setup link the clinic sent you, on this phone.</p>
     <input type="text" class="search-input" id="setupPaste" placeholder="Paste the setup link here" autocomplete="off" style="margin-top:6px;">
     <button type="button" class="btn" style="margin-top:10px;" onclick="pasteSetupLink()">Set up this phone</button>
@@ -903,13 +970,13 @@ const LITE_VERSION = '4.71';
    here; a patient opens on their photo, numbers, Call and WhatsApp with no
    prescriptions; nothing heavy is downloaded; and its only notification is
    "Photo needed". lite itself is told about visits only. */
-const RECEPTION = false;
+const RECEPTION = true;
 /* THE CLINIC iPAD (4.71, owner's call). ipad.html is this file too, made by
    tools/build_ipad.py with RECEPTION and this set to true and the iPad
    layout added: the diary as one column per doctor, today's patients down
    the side, and a patient or a booking opening in a panel on the right.
    Staff key only - no money, no admin. */
-const IPAD = false;
+const IPAD = true;
 const K_RELAY = 'echoLite_relay', K_KEY = 'echoLite_key', K_NAME = 'echoLite_name';
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -4926,6 +4993,218 @@ async function boot(){
   idleWork();               // prescriptions, contacts, names - once the day is on screen
   bkSend();
 }
+/* ==========================================================================
+   THE CLINIC iPAD (4.71, owner's call). Put into ipad.html by
+   tools/build_ipad.py - everything else in ipad.html is lite.html, word for
+   word, with RECEPTION and IPAD switched on. Staff key only: no money, no
+   admin, and no notifications at all.
+
+   Held sideways (1000px and wider): today's patients down the left, the day
+   as one column per doctor in the middle, and whatever is opened for one
+   patient - their files, a booking - in a panel on the right, with the diary
+   still live beside it. Upright: the usual two tabs, the same diary, and the
+   panel lying over it.
+   ========================================================================== */
+const IPD_PPM = 1.4;                // pixels per minute - an hour is 84px
+const IPD_MIN_H = 30;               // the shortest card still shows a name
+const IPD_FROM = 9 * 60, IPD_TO = 21 * 60;   // the grid always covers 9 am - 9 pm
+let ipdKeep = null, ipdScrolledFor = '';
+
+function ipadIsWideScreen(){
+  try{ return window.innerWidth >= 1000 && window.innerWidth > window.innerHeight; }catch(e){ return false; }
+}
+function ipadLayout(){
+  const b = document.body;
+  if(!b) return;
+  b.classList.add('ipad');
+  const want = ipadIsWideScreen(), was = b.classList.contains('ipad-wide');
+  b.classList.toggle('ipad-wide', want);
+  /* Turned round: drawn again for the new shape, and the date strip
+     centred on the day again (its width changed). Not before the app is on
+     the screen - a strip laid out while hidden has nowhere to scroll to. */
+  const shown = document.getElementById('appScreen');
+  if(want !== was && shown && !shown.classList.contains('hidden')){
+    try{ repaint(); }catch(e){}
+    const mark = () => { try{ markStrip(false); }catch(e){} };
+    if(typeof requestAnimationFrame === 'function') requestAnimationFrame(mark); else mark();
+  }
+  ipadPanelWatch();
+}
+let ipadResizeT = 0;
+function ipadOnResize(){ clearTimeout(ipadResizeT); ipadResizeT = setTimeout(ipadLayout, 150); }
+
+/* One thing open on the right at a time. */
+function ipadPanel(which){
+  if(which === 'drawer'){ if(pfSheetPid){ try{ pfSheetClose(); }catch(e){} } }
+  else if(which === 'files'){ if(drawerCtx){ try{ closeDrawer(); }catch(e){} } }
+  ipadPanelWatch();
+}
+const ipadPfSheetOpen0 = pfSheetOpen;
+pfSheetOpen = function(pid){ ipadPanel('files'); const r = ipadPfSheetOpen0(pid); ipadPanelWatch(); return r; };
+/* Whether the panel is open decides whether the diary makes room for it. A
+   look every third of a second, rather than a hook in every place that opens
+   or closes one - so no way of closing it can leave the diary squeezed. */
+function ipadPanelWatch(){
+  try{
+    const d = document.getElementById('drawerWrap'), p = document.getElementById('pfSheet');
+    const open = !!((d && !d.classList.contains('hidden')) || (p && !p.classList.contains('hidden')));
+    document.body.classList.toggle('ipad-panel', open);
+  }catch(e){}
+}
+
+function ipdStatusClass(r){
+  if(r.status === 'ongoing') return 'ipd-c';
+  if(r.status === 'waiting') return 'ipd-w';
+  if(r.status === 'done' || r.status === 'came') return 'ipd-d';
+  if(r.status === 'noshow') return 'ipd-x';
+  return 'ipd-b';
+}
+/* Side by side when two overlap in one column, full width when alone. */
+function ipdLanes(items){
+  items.sort((a, b) => a.s - b.s || b.e - a.e);
+  let cluster = [], lanes = [], end = -Infinity;
+  const flush = () => { cluster.forEach(it => { it.n = lanes.length; }); cluster = []; lanes = []; end = -Infinity; };
+  items.forEach(it => {
+    if(cluster.length && it.s >= end) flush();
+    let lane = lanes.findIndex(x => x <= it.s);
+    if(lane === -1){ lane = lanes.length; lanes.push(it.e); } else lanes[lane] = it.e;
+    it.lane = lane; cluster.push(it); end = Math.max(end, it.e);
+  });
+  flush();
+  return items;
+}
+function ipdCardHtml(r, it, day, from){
+  const top = Math.round((it.s - from) * IPD_PPM), h = Math.max(IPD_MIN_H, Math.round((it.len) * IPD_PPM) - 2);
+  const w = 100 / it.n;
+  const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
+  const when = (r.kind === 'walkin' ? 'walk-in · ' : '') + clock(r.mins) + (r.len && !r.rough && r.kind !== 'walkin' && it.n === 1 ? ' – ' + clock(r.mins + r.len) : '');   // side by side: the start only; the height says how long
+  const name = r.rough ? (r.name || 'Rough slot') : (r.name || (r.patientId ? 'ID ' + r.patientId : 'Patient'));
+  const cls = 'ipd-cd ' + ipdStatusClass(r) + (r.rough ? ' is-rough' : '') + (r.pending ? ' is-pending' : '') + (r.struck ? ' is-struck' : '') + (r.notFiled ? ' is-nf' : '');
+  return '<div class="' + cls + '"' + (r.patientId ? ' data-pid="' + escapeHtml(String(r.patientId)) + '"' : '')
+    + (r.notFiled ? '' : ' onclick="openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')"')
+    + ' style="top:' + top + 'px; height:' + h + 'px; left:calc(' + (it.lane * w) + '% + 3px); width:calc(' + w + '% - 6px);">'
+    /* Side by side, the name comes first - it is what is looked for. */
+    + (it.n > 1 ? '<b>' + escapeHtml(name) + '</b>' : '')
+    + '<span class="ipd-when">' + escapeHtml(when) + (r.pending ? ' · ⏳' + (r.notFiled ? ' not at the desk yet' : '') : '') + '</span>'
+    + (it.n > 1 ? '' : '<b>' + escapeHtml(name) + '</b>')
+    + (h >= 44 ? '<i>' + escapeHtml([chip[0], r.reason].filter(Boolean).join(' · ')) + '</i>' : '')
+    + '</div>';
+}
+function ipadDiaryHtml(rows, day, emptyWord){
+  const old = document.querySelector('#calList .ipd');
+  ipdKeep = old ? { day: old.getAttribute('data-day'), top: old.scrollTop, left: old.scrollLeft } : null;
+  queueMicrotask(ipadAfterPaint);
+  rows = rows || [];
+  const people = rows.filter(r => r.kind === 'appt' || r.kind === 'walkin');
+  const events = rows.filter(r => r.kind === 'block' || r.kind === 'leave');
+  const timed = r => Number.isFinite(r.mins);
+  const lenOf = r => (r.kind === 'walkin' ? 20 : (Number(r.len) > 0 ? Number(r.len) : 15));
+  /* Columns: each doctor on the day, then anyone not yet given a doctor,
+     then the walk-ins. */
+  const docKey = r => (r.doctor && r.doctor !== 'NEW') ? String(r.doctor) : '';
+  const docs = [];
+  people.filter(r => r.kind === 'appt').forEach(r => { const k = docKey(r); if(k && docs.indexOf(k) === -1) docs.push(k); });
+  /* In the clinic's own order of doctors (as in Settings), anyone else after. */
+  let order = [];
+  try{ const l = S('doctors.json') || []; order = (Array.isArray(l) ? l : []).map(x => x && (x.name || x)).filter(Boolean).map(String); }catch(e){}
+  const at = k => { const i = order.indexOf(k); return i === -1 ? 999 : i; };
+  docs.sort((a, b) => (at(a) - at(b)) || a.localeCompare(b));
+  const cols = docs.map(k => ({ key: 'd:' + k, label: k, tone: doctorTone(k), rows: people.filter(r => r.kind === 'appt' && docKey(r) === k) }));
+  const noDoc = people.filter(r => r.kind === 'appt' && !docKey(r));
+  if(noDoc.length) cols.push({ key: 'none', label: 'No doctor yet', rows: noDoc });
+  const walk = people.filter(r => r.kind === 'walkin');
+  if(walk.length || cols.length) cols.push({ key: 'walk', label: 'Walk-ins', rows: walk });
+  const allDay = events.filter(r => r.allDay || !timed(r));
+  const banner = allDay.map(r => '<div class="ipd-banner"><b>' + (r.kind === 'leave' ? 'Away' : 'Clinic event') + '</b>'
+    + escapeHtml(r.title || (r.kind === 'leave' ? 'Doctor away' : 'Clinic closed')) + '</div>').join('');
+  if(!people.length){
+    /* Nobody on the day: its timed events still said, as lines. */
+    const timedLines = events.filter(r => !r.allDay && timed(r)).map(r => '<div class="ipd-banner"><b>' + escapeHtml(clock(r.mins)
+      + (Number.isFinite(r.end) ? ' \u2013 ' + clock(r.end) : '')) + '</b>' + escapeHtml(r.title || (r.kind === 'leave' ? 'Away' : 'Clinic event')) + '</div>').join('');
+    return banner + timedLines + '<div class="empty-state">' + escapeHtml(emptyWord || (day < todayStr() ? 'Nobody booked or came' : 'Nothing booked yet')) + '</div>';
+  }
+  /* The hours the grid covers: the working day, stretched to whoever is on
+     it earlier or later. */
+  let from = IPD_FROM, to = IPD_TO;
+  people.concat(events.filter(r => !r.allDay)).filter(timed).forEach(r => {
+    from = Math.min(from, Math.floor(r.mins / 60) * 60);
+    const e = Number.isFinite(r.end) ? r.end : r.mins + lenOf(r);
+    to = Math.max(to, Math.ceil(e / 60) * 60);
+  });
+  from = Math.max(0, from); to = Math.min(24 * 60, to);
+  const H = Math.round((to - from) * IPD_PPM), HR = Math.round(60 * IPD_PPM);
+  const nowM = (day === todayStr()) ? (typeof waNowMins === 'function' ? waNowMins() : (new Date().getHours() * 60 + new Date().getMinutes())) : -1;
+  const nowHtml = (nowM >= from && nowM <= to) ? '<div class="ipd-now" style="top:' + Math.round((nowM - from) * IPD_PPM) + 'px"></div>' : '';
+  const bands = events.filter(r => !r.allDay && timed(r)).map(r => {
+    const e = Number.isFinite(r.end) ? r.end : r.mins + 30;
+    return '<div class="ipd-band" style="top:' + Math.round((r.mins - from) * IPD_PPM) + 'px; height:' + Math.max(14, Math.round((e - r.mins) * IPD_PPM)) + 'px;">'
+      + escapeHtml(r.title || (r.kind === 'leave' ? 'Away' : 'Clinic event')) + '</div>';
+  }).join('');
+  let head = '<div class="ipd-h ipd-h0"></div>', body = '<div class="ipd-times">';
+  for(let m = from; m < to; m += 60) body += '<div class="ipd-t" style="top:' + Math.round((m - from) * IPD_PPM) + 'px">' + escapeHtml(clock(m)) + '</div>';
+  body += nowHtml + '</div>';
+  cols.forEach(c => {
+    const anyTime = c.rows.filter(r => !timed(r));
+    const n = c.rows.filter(r => !r.rough).length;
+    head += '<div class="ipd-h"' + (c.tone ? ' style="--kbd:' + c.tone.border + '"' : '') + '>' + escapeHtml(c.label)
+      + '<small>' + (n ? n + (n === 1 ? ' patient' : ' patients') : 'nobody yet') + '</small>'
+      + (anyTime.length ? '<div class="ipd-any">' + anyTime.map(r => '<button type="button"'
+          + (r.notFiled ? '' : ' onclick="openDrawer(' + jsArg(day) + ',' + jsArg(r.kind) + ',' + jsArg(r.id) + ')"') + '>'
+          + escapeHtml((r.name || 'Patient') + ' · any time') + '</button>').join('') + '</div>' : '')
+      + '</div>';
+    const items = ipdLanes(c.rows.filter(timed).map(r => {
+      const len = lenOf(r);
+      return { r, s: r.mins, len, e: r.mins + Math.max(len, IPD_MIN_H / IPD_PPM) };
+    }));
+    body += '<div class="ipd-col">' + bands + items.map(it => ipdCardHtml(it.r, it, day, from)).join('') + nowHtml + '</div>';
+  });
+  return banner + '<div class="ipd" data-day="' + escapeHtml(day) + '" data-from="' + from + '">'
+    + '<div class="ipd-grid" style="--n:' + cols.length + '; --h:' + H + 'px; --hr:' + HR + 'px; --h0:0px;">' + head + body + '</div></div>';
+}
+/* After the diary is drawn: it fills the screen down to the bottom, and a
+   redraw (every refresh) leaves it scrolled where it was. The first look at
+   a day opens it at now, or at the first booking. */
+function ipadAfterPaint(){
+  const el = document.querySelector('#calList .ipd');
+  if(!el) return;
+  try{
+    const top = el.getBoundingClientRect().top + (window.scrollY || 0);
+    const room = window.innerHeight - top - (document.body.classList.contains('ipad-wide') ? 16 : 86);
+    el.style.maxHeight = Math.max(360, room) + 'px';
+  }catch(e){}
+  const day = el.getAttribute('data-day');
+  if(ipdKeep && ipdKeep.day === day){ el.scrollTop = ipdKeep.top; el.scrollLeft = ipdKeep.left; return; }
+  if(ipdScrolledFor === day) return;
+  ipdScrolledFor = day;
+  const now = el.querySelector('.ipd-now'), first = el.querySelector('.ipd-cd');
+  const at = now ? parseInt(now.style.top, 10) : first ? parseInt(first.style.top, 10) : 0;
+  el.scrollTop = Math.max(0, at - 110);
+}
+/* HELD SIDEWAYS, PATIENTS IS ALWAYS ON THE SCREEN, so whenever the diary
+   is drawn - a refresh, a change from the desk, a day tapped - today's list
+   beside it is drawn too. Otherwise it would be as fresh as the last time
+   somebody opened the Patients tab. */
+const ipadRenderCalendar0 = renderCalendar;
+renderCalendar = function(){
+  const r = ipadRenderCalendar0.apply(this, arguments);
+  if(ipadWideNow()){ try{ renderPatients(); }catch(e){} }
+  return r;
+};
+/* The red line moves with the clock between refreshes. */
+function ipadNowTick(){
+  const el = document.querySelector('#calList .ipd');
+  if(!el || el.getAttribute('data-day') !== todayStr()) return;
+  const from = Number(el.getAttribute('data-from')) || 0;
+  const m = typeof waNowMins === 'function' ? waNowMins() : (new Date().getHours() * 60 + new Date().getMinutes());
+  el.querySelectorAll('.ipd-now').forEach(n => { n.style.top = Math.round((m - from) * IPD_PPM) + 'px'; });
+}
+window.addEventListener('load', ipadLayout);
+window.addEventListener('resize', ipadOnResize);
+window.addEventListener('orientationchange', ipadOnResize);
+setInterval(ipadPanelWatch, 300);
+setInterval(ipadNowTick, 60 * 1000);
+/* ======================================================= end the iPad == */
+
 window.addEventListener('load', () => {
   document.getElementById('appVer').textContent = LITE_VERSION;
   paintGreeting();

@@ -4552,7 +4552,11 @@ async function lanProbeNow(){
      reads, and the admin secret is asked for behind it. */
   if(lanInfo && lanInfo.key && !lanInfo.akey) lanSecretAsk();
   if(!lanInfo || !lanInfo.key || !lanInfo.skey || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
-  const bases = lanInfo.ips.slice(0, 4).map(ip => 'http://' + ip + ':' + (lanInfo.port || 8765));
+  /* THE SECURE DOOR (4.71). An iPhone or iPad may only talk to https from an
+     https page, so it uses the desk server's secure port when the PC has one
+     (desk server 1.9, relay r4.13). Every other phone keeps the plain door. */
+  const tls = lanUseTls();
+  const bases = lanInfo.ips.slice(0, 4).map(ip => tls ? 'https://' + ip + ':' + lanInfo.sport : 'http://' + ip + ':' + (lanInfo.port || 8765));
   const one = (b) => lanFetch(lanUrl(b, 'ping'), LAN_PROBE_MS).then(j => {
     if(j.echo === 'echo-nexus-desk' && j.id === lanInfo.id) return b;
     throw new Error('not this clinic');
@@ -4560,12 +4564,20 @@ async function lanProbeNow(){
   let got = '';
   try{ got = await lanFirst(bases.map(one)); }catch(e){ got = ''; }
   if(got){ lanBase = got; lanState = 'up'; lanCheckedAt = Date.now(); lanPaint(); return true; }
-  lanNote('the PC did not answer at ' + bases.map(b => b.replace('http://', '')).join(', '));
+  lanNote('the PC did not answer at ' + bases.map(b => b.replace(/^https?:\/\//, '')).join(', ')
+    + (tls ? ' (secure door - is the clinic certificate installed on this iPhone?)' : ''));
   lanMarkDown();
   /* The PC may have a new address, or a new card: ask the relay, behind. */
   lanInfoRefresh(false);
   return false;
 }
+function lanIsApple(){
+  try{
+    const ua = String(navigator.userAgent || '');
+    return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+  }catch(e){ return false; }
+}
+function lanUseTls(){ return !!(lanInfo && Number(lanInfo.sport) > 0 && lanIsApple()); }
 function lanEnsure(){
   if(lanState === 'up' && lanBase) return Promise.resolve(true);
   if(lanState === 'down' && Date.now() - lanCheckedAt < LAN_RECHECK_MS) return Promise.resolve(false);
@@ -5975,7 +5987,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.70';
+const ADMIN_VERSION = '4.71';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
