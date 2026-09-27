@@ -1656,14 +1656,26 @@ function paintFreshness(){
 
 /* ------------------------------------------------------------ people -- */
 function nameOf(pid){ const d = S('patients.json') || {}; return d[String(pid)] || ''; }
+/* AGE AND SEX AS "34y / M" (4.77, owner's call). "it should display as
+   '3y / M' (3 years and male). currently its 3 M, becomes confusing." The y
+   says years, the slash says the two are a pair - the same words Nexus and
+   the notification now use. ONE formatter for every place the two sit
+   together, so they cannot drift. Either half may be missing and the other
+   stands alone ("42y", "M") with no stray slash; an age from an earlier
+   year keeps that year beside it, "41y (2023) / F", because the phone does
+   not count the years forward either. The sex is passed in already decided. */
+function fmtAgeSex(age, sex, recYear){
+  const a = age === 0 ? '0' : String(age === undefined || age === null ? '' : age).trim();
+  const x = String(sex || '').trim();
+  return [a ? a + 'y' + (recYear ? ' (' + recYear + ')' : '') : '', x].filter(Boolean).join(' / ');
+}
 function ageSexOf(pid){
   const rec = briefOf(pid);
   if(!rec) return '';
-  let age = (rec.age === undefined || rec.age === null || rec.age === '') ? '' : String(rec.age);
+  const age = (rec.age === undefined || rec.age === null || rec.age === '') ? '' : String(rec.age);
   const yr = rec.ageRecordedOn ? String(rec.ageRecordedOn).slice(0, 4) : '';
-  if(age && yr && yr !== todayStr().slice(0, 4)) age = age + ' (' + yr + ')';
   const sx = rec.sex ? String(rec.sex).trim()[0].toUpperCase() : '';
-  return [age, (sx === 'M' || sx === 'F') ? sx : ''].filter(Boolean).join('/');
+  return fmtAgeSex(age, (sx === 'M' || sx === 'F') ? sx : '', (age && yr && yr !== todayStr().slice(0, 4)) ? yr : '');
 }
 /* ==== THE DESK'S OWN PALETTE, ENTIRE (4.33) ====================
 
@@ -6328,14 +6340,14 @@ async function loadPatientContacts(){
   try{ return await _loadPatientContacts_inflight; }finally{ _loadPatientContacts_inflight = null; }
 }
 /* An age recorded years ago is not today's age, so the year it was taken is
-   said rather than quietly adding the difference — the desk does the same. */
+   said rather than quietly adding the difference — the desk does the same.
+   4.77: the age and the year only; whoLine puts it beside the sex. */
 function ageTextOf(contacts, patientId){
   const rec = contacts && contacts[String(patientId)];
-  if(!rec || rec.age === undefined || rec.age === null || rec.age === '') return '';
+  if(!rec || rec.age === undefined || rec.age === null || rec.age === '') return { age: '', yr: '' };
   const yr = rec.ageRecordedOn ? String(rec.ageRecordedOn).slice(0, 4) : '';
   const thisYear = todayStr().slice(0, 4);
-  if(!yr || yr === thisYear) return String(rec.age);
-  return rec.age + ' (' + yr + ')';
+  return { age: String(rec.age), yr: (!yr || yr === thisYear) ? '' : yr };
 }
 function sexTextOf(contacts, patientId){
   const rec = contacts && contacts[String(patientId)];
@@ -6344,9 +6356,11 @@ function sexTextOf(contacts, patientId){
   const c = v[0].toUpperCase();
   return (c === 'M' || c === 'F') ? c : v;
 }
+/* 4.77: "34y / M" through fmtAgeSex, age first - this line said "M · 34",
+   the other way round from every other screen. */
 function whoLine(contacts, patientId){
   const a = ageTextOf(contacts, patientId), x = sexTextOf(contacts, patientId);
-  return [x, a].filter(Boolean).join(' \u00b7 ');
+  return fmtAgeSex(a.age, x, a.yr);
 }
 /* The same line with the number to ring on the end (4.31). Who they are is
    what tells two people of one name apart; the number is what the row was
@@ -6449,7 +6463,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.76';
+const ADMIN_VERSION = '4.77';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */

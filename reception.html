@@ -896,7 +896,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.76';
+const LITE_VERSION = '4.77';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -2028,14 +2028,26 @@ function paintFreshness(){
 
 /* ------------------------------------------------------------ people -- */
 function nameOf(pid){ const d = S('patients.json') || {}; return d[String(pid)] || ''; }
+/* AGE AND SEX AS "34y / M" (4.77, owner's call). "it should display as
+   '3y / M' (3 years and male). currently its 3 M, becomes confusing." The y
+   says years, the slash says the two are a pair - the same words Nexus and
+   the notification now use. ONE formatter for every place the two sit
+   together, so they cannot drift. Either half may be missing and the other
+   stands alone ("42y", "M") with no stray slash; an age from an earlier
+   year keeps that year beside it, "41y (2023) / F", because the phone does
+   not count the years forward either. The sex is passed in already decided. */
+function fmtAgeSex(age, sex, recYear){
+  const a = age === 0 ? '0' : String(age === undefined || age === null ? '' : age).trim();
+  const x = String(sex || '').trim();
+  return [a ? a + 'y' + (recYear ? ' (' + recYear + ')' : '') : '', x].filter(Boolean).join(' / ');
+}
 function ageSexOf(pid){
   const rec = briefOf(pid);
   if(!rec) return '';
-  let age = (rec.age === undefined || rec.age === null || rec.age === '') ? '' : String(rec.age);
+  const age = (rec.age === undefined || rec.age === null || rec.age === '') ? '' : String(rec.age);
   const yr = rec.ageRecordedOn ? String(rec.ageRecordedOn).slice(0, 4) : '';
-  if(age && yr && yr !== todayStr().slice(0, 4)) age = age + ' (' + yr + ')';
   const sx = rec.sex ? String(rec.sex).trim()[0].toUpperCase() : '';
-  return [age, (sx === 'M' || sx === 'F') ? sx : ''].filter(Boolean).join('/');
+  return fmtAgeSex(age, (sx === 'M' || sx === 'F') ? sx : '', (age && yr && yr !== todayStr().slice(0, 4)) ? yr : '');
 }
 /* ==== THE DESK'S OWN PALETTE, ENTIRE (4.33) ====================
 

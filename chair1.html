@@ -981,18 +981,19 @@ function inChairNumber(visits, n){
   });
   return best;
 }
-/* Age and sex, in the app's own shorthand: the bare figure and the initial.
-   Only what the record actually holds — a patient with no sex recorded must
-   not read as "65 ·" with a gap after it. */
+/* Age and sex, in the app's own shorthand: "65y / M" (owner's call, Nexus
+   v11.89 - "currently its 3 M, becomes confusing"). The same words Nexus and
+   the phones use. Only what the record actually holds — a patient with no
+   sex recorded reads "65y", never "65y /" with a gap after it. */
+function fmtAgeSex(age, sex){
+  const a = String(age === undefined || age === null ? '' : age).trim();
+  const x = String(sex || '').trim().charAt(0).toUpperCase();
+  return [a ? a + 'y' : '', x].filter(Boolean).join(' / ');
+}
 function asBit(contacts, patientId){
   const rec = contacts && contacts[String(patientId)];
   if(!rec) return '';
-  const bits = [];
-  const a = ageNow(rec);
-  if(a) bits.push(a);
-  const sx = String(rec.sex || '').trim();
-  if(sx) bits.push(sx.charAt(0).toUpperCase());
-  return bits.join(' ');
+  return fmtAgeSex(ageNow(rec), rec.sex);
 }
 
 /* ONE LIVE VISIT PER PATIENT PER DAY - THE SAME FOLD THE APP MAKES (Sep 2026).
@@ -1022,8 +1023,15 @@ function collapseDuplicateVisits(list, appts){
     if(seen.has(pid)) dup.add(pid); else seen.add(pid);
   });
   if(!dup.size) return list;
+  /* A booking on a row folded earlier speaks for its survivor (27 Sep 2026),
+     exactly as the app does - so both still pick the same row. */
   const linked = new Set();
-  (appts || []).forEach(a => { if(a && a.visitId) linked.add(String(a.visitId)); });
+  (appts || []).forEach(a => {
+    if(!a || !a.visitId) return;
+    linked.add(String(a.visitId));
+    const r = findVisitRow(list, a.visitId);
+    if(r) linked.add(String(r.id));
+  });
   const at = new Date().toISOString();
   dup.forEach(pid => {
     const rows = list.filter(v => v && v.id && !v.removedAt && String(v.patientId || '') === pid);
@@ -1222,6 +1230,12 @@ async function linkBooking(apptId, visitId){
       if(!list) return { error: 'the appointments file could not be read' };
       const a = list.find(x => x && x.id === apptId);
       if(!a) return { error: 'the booking is no longer on file' };
+      /* ALREADY LINKED BY THE DESK, in the same moment (27 Sep 2026). Chair 2
+         and reception marked 25281 in within a second: two rows, one folded
+         into the other. Whichever id the booking holds, it is the same
+         patient's one visit - every screen follows a folded id to the
+         survivor and the app repoints the file - so it is not fought over. */
+      if(a.visitId && String(a.visitId) !== String(visitId)) return { stop: true, kept: true };
       a.status = 'visited';
       a.visitId = String(visitId);
       a.settledAt = new Date().toISOString();
