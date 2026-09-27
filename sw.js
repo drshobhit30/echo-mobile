@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.73';  // one number across lite, admin, reception and this file
+const CACHE_VERSION = 'echo-nexus-4.76';  // one number across lite, admin, reception and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -40,6 +40,16 @@ const LAST_APP = '/__lastapp';
    phone that is a setup screen, and worse, that launch then recorded
    lite.html as the answer for ever after. This cache is never deleted. */
 const LAST_APP_CACHE = 'echo-nexus-lastapp';
+/* ONLY THE REAL PAGE IS EVER SAVED AS THE APP (4.75, audit L11). A cafe or
+   hotel Wi-Fi answers every address with its own login page - by a redirect,
+   or as an error - and the worker saved whatever came back "ok" as the app:
+   the next open, with no signal, showed the login page instead of Echo. Now
+   only a plain 200 from this site itself, not redirected, is kept; anything
+   else is not saved, and a saved copy is shown in its place. */
+function goodPage(res){ return !!(res && res.status === 200 && res.type === 'basic' && !res.redirected); }
+/* Every app this folder serves (4.75: the iPad was missing - a notification
+   tapped on the iPad opened another app). */
+const APP_PAGE = /(?:admin|lite|reception|ipad)\.html$/;
 
 const SHELL = [
   './lite.html',
@@ -96,13 +106,13 @@ self.addEventListener('fetch', (event) => {
 
   if(isPage){
     const pageKey = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
-    if(/admin\.html$|lite\.html$|reception\.html$/.test(url.pathname)){
+    if(APP_PAGE.test(url.pathname)){
       event.waitUntil(caches.open(LAST_APP_CACHE).then(c =>
         c.put(LAST_APP, new Response(url.pathname.split('/').pop()))).catch(() => {}));
     }
     /* ?fresh=... is the app itself asking for the newest page (the version
        check, or the version tap). It waits for the network - no fuse - and
-       whatever arrives becomes the saved copy. */
+       what arrives becomes the saved copy if it is the real page (4.75). */
     const wantsFresh = url.searchParams.has('fresh');
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_VERSION);
@@ -112,7 +122,7 @@ self.addEventListener('fetch', (event) => {
          can only be answered by the newest file. */
       const bust = url.pathname + '?_=' + Date.now();
       const fresh = fetch(bust, { cache: 'no-store', credentials: 'same-origin' }).then(res => {
-        if(res && res.ok) cache.put(pageKey, res.clone());
+        if(goodPage(res)) cache.put(pageKey, res.clone());
         return res;
       }).catch(() => null);
       if(wantsFresh){
@@ -120,24 +130,24 @@ self.addEventListener('fetch', (event) => {
         return res || new Response('', { status: 504 });
       }
       /* EVERY APP OPENS FROM ITS SAVED COPY AT ONCE (reception 4.51, lite and
-         admin 4.61, owner's call). No 2.5-second wait on GitHub first; the newest page is still
+         admin 4.61, owner's call; the iPad, left out, joined 4.75). No 2.5-second wait on GitHub first; the newest page is still
          fetched behind it and saved, and the app's own version check a few
          seconds later offers the bar - so an update arrives one open later,
          or at a tap. */
-      if(/(reception|lite|admin)\.html$/.test(url.pathname)){
+      if(APP_PAGE.test(url.pathname)){
         const saved = await cache.match(pageKey);
         if(saved){ event.waitUntil(fresh); return saved; }
       }
       const fuse = new Promise(resolve => setTimeout(() => resolve('timeout'), PAGE_FUSE_MS));
       const first = await Promise.race([fresh, fuse]);
-      if(first && first !== 'timeout') return first;
+      if(first && first !== 'timeout' && goodPage(first)) return first;
       const cached = await cache.match(pageKey);
       if(cached){
         event.waitUntil(fresh);   // keep fetching for next time
         return cached;
       }
       const late = await fresh;
-      if(late) return late;
+      if(late && !late.redirected) return late;     // 4.75: a login page's redirect is not the app
       return new Response(
         '<h1>Echo Nexus</h1><p>No connection, and no saved copy of this page yet. '
         + 'Open it once with a signal and it will work offline afterwards.</p>',
@@ -152,7 +162,7 @@ self.addEventListener('fetch', (event) => {
     if(cached) return cached;
     try{
       const fresh = await fetch(req);
-      if(fresh && fresh.status === 200 && fresh.type === 'basic'){
+      if(goodPage(fresh)){
         const cache = await caches.open(CACHE_VERSION);
         cache.put(req, fresh.clone());
       }
@@ -268,7 +278,7 @@ self.addEventListener('notificationclick', (event) => {
     /* A "Photo needed" belongs to the reception app (4.50): its window if one
        is open, else the reception app itself - never lite's calendar. */
     /* A money alert belongs to the admin app (4.67), never lite's calendar. */
-    const mine = money ? /admin\.html/ : photo ? /reception\.html/ : /admin\.html|lite\.html|reception\.html/;
+    const mine = money ? /admin\.html/ : photo ? /reception\.html/ : /admin\.html|lite\.html|reception\.html|ipad\.html/;
     for(const c of open){
       if(mine.test(c.url)){
         try{ await c.focus(); }catch(e){}

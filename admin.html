@@ -1001,6 +1001,12 @@ body{ background:#FAF7F2 !important; }
     </div>
     <div class="nt-msg" id="notifMsg"></div>
     <div class="nt-lan" id="lanWhy" style="font-size:0.72rem; color:var(--muted); margin:8px 0 0; line-height:1.35;"></div>
+    <!-- NEXUS RESET CODE (4.74, audit M11, owner's call). Only while admin is
+         unlocked: the one way to let Nexus set a missing admin password. -->
+    <div id="resetCodeBox" class="hidden" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">
+      <button type="button" class="nt-opt" onclick="resetCodeAsk()"><b>Nexus reset code</b><span>Nexus asks for this when its admin password file is missing</span></button>
+      <div class="nt-msg" id="resetCodeMsg"></div>
+    </div>
     <button type="button" class="nt-close" onclick="notifClose()">Done</button>
   </div>
 </div>
@@ -1588,6 +1594,25 @@ function idleWork(){
 const weekAsked = {};   // range -> ms asked, so a tap-tap-tap does not re-ask
 const WEEK_RECHECK_MS = 60 * 1000;
 let lastWeekError = '';
+/* THE PC'S FRESHER DAY IS NOT GIVEN UP FOR THE RELAY'S OLDER ONE (4.75,
+   audit M21). One Wi-Fi hiccup sends the next read to the relay, whose copy
+   of a day can be minutes behind the PC's - and it used to replace the PC's
+   copy whole: a booking just filed vanished, a seated patient showed as
+   waiting again. Now a day read from the PC is marked as such, and a relay
+   copy replaces it only when the relay's stamp for that day is as new or
+   newer (both stamps say when the day was last saved). Otherwise the PC's
+   copy stays, and the line above the diary says the relay is behind
+   instead of "Updated". The PC's own answer is always taken. */
+let weekKept = {};     // day -> true: the PC's copy kept over an older relay copy
+function dayTake(d, got, fromPc){
+  const held = mem.days[d];
+  const stamp = got.modified || null;
+  if(!fromPc && held && held.pc && held.modified && (!stamp || String(stamp) < String(held.modified))) return false;
+  mem.days[d] = { appointments: got.appointments || [], visits: got.visits || [], modified: stamp, at: Date.now() };
+  if(fromPc) mem.days[d].pc = true;
+  idbPut('day:' + d, mem.days[d]);
+  return true;
+}
 async function ensureWeek(anyDay, force){
   const from = weekStart(anyDay), to = addDays(from, 13);   // this week and the next
   const today = todayStr();
@@ -1602,12 +1627,11 @@ async function ensureWeek(anyDay, force){
   setFreshness('updating');
   try{
     const r = await relay(force ? { action: 'week', from, to, fresh: '1' } : { action: 'week', from, to });
-    Object.keys(r.days || {}).forEach(d => {
-      mem.days[d] = { appointments: r.days[d].appointments || [], visits: r.days[d].visits || [], modified: r.days[d].modified, at: Date.now() };
-      idbPut('day:' + d, mem.days[d]);
-    });
+    const kept = {};
+    Object.keys(r.days || {}).forEach(d => { if(r.days[d] && !dayTake(d, r.days[d], r.lan === true)) kept[d] = true; });
+    weekKept = kept;
     lastWeekError = '';
-    setFreshness('fresh');
+    setFreshness(Object.keys(kept).length ? 'stale' : 'fresh');
   }catch(e){
     lastWeekError = e.message || 'offline';
     setFreshness('failed');
@@ -1625,6 +1649,8 @@ function paintFreshness(){
   if(freshness === 'updating') el.textContent = held ? 'Showing saved copy' + (at ? ' from ' + at : '') + ' \u00b7 updating\u2026' : 'Reading\u2026';
   else if(freshness === 'failed') el.textContent = held ? 'No connection \u00b7 saved copy' + (at ? ' from ' + at : '') + (lastWeekError && lastWeekError !== 'offline' ? ' \u00b7 ' + lastWeekError : '')
     : (lastWeekError && lastWeekError !== 'offline' ? 'Could not read: ' + lastWeekError : 'Not read yet \u2014 needs a connection');
+  else if(freshness === 'stale') el.textContent = weekKept[viewDay] ? 'Clinic PC\u2019s copy' + (at ? ' from ' + at : '') + ' \u00b7 the relay is behind'
+    : (at ? 'Updated ' + at + ' \u00b7 ' : '') + 'the relay is behind the clinic PC';
   else el.textContent = at ? 'Updated ' + at : '';
 }
 
@@ -1838,6 +1864,21 @@ function rowsFor(day){
   const visits = (held.visits || []).filter(v => v && !v.removedAt);
   const byVisitId = {};
   visits.forEach(v => { byVisitId[String(v.id)] = v; });
+  /* A BOOKING ON A FOLDED ROW CLAIMS THE SURVIVOR (4.76). 27 Sep: chair 2 and
+     reception marked 25281 in within a second; the desk folded reception's
+     row into the chair's, but her booking kept the struck row's id - so this
+     list drew her booking AND a walk-in beside it. The id is followed along
+     mergedInto (loop-safe, as the desk's findVisitRow) to the live row. */
+  const allVisits = held.visits || [];
+  const survivorOf = (id) => {
+    let x = allVisits.find(r => r && String(r.id) === String(id)) || null, hops = 0;
+    while(x && x.mergedInto && hops++ < 5){
+      const next = allVisits.find(r => r && String(r.id) === String(x.mergedInto));
+      if(!next) break;
+      x = next;
+    }
+    return x ? byVisitId[String(x.id)] || null : null;
+  };
   const used = {};
   const rows = [];
   (held.appointments || []).forEach(a => {
@@ -1847,7 +1888,7 @@ function rowsFor(day){
     if(a.pending && bkMine(a.id)) return;
     const st = a.status || 'scheduled';
     if(st === 'cancelled') return;
-    const v = a.visitId ? byVisitId[String(a.visitId)] : null;
+    const v = a.visitId ? (byVisitId[String(a.visitId)] || survivorOf(a.visitId)) : null;
     if(v) used[String(v.id)] = true;
     const t = minsOf(a.time);
     let status;
@@ -2475,7 +2516,7 @@ function openDrawer(day, kind, id){
     /* If the list has not been read from the store yet, read it and draw this
        drawer again - the slip is the one thing here that needs it. */
     withRx(() => { if(drawerCtx && drawerCtx.day === day && String(drawerCtx.id) === String(id)) openDrawer(day, kind, id); });
-    const mine = (r.patientId && rxReady) ? rxFor(r.patientId).filter(x => String(x.date || '').slice(0, 10) === day) : [];
+    const mine = (r.patientId && rxReady) ? rxFor(r.patientId).filter(x => localDayOf(x.date) === day) : [];
     const title = '\u211e ' + (day === todayStr() ? 'Today' : 'That day');
     h += mine.length ? mine.map(x => slipHtml(x, title)).join('')
       : '<div class="sl"><div class="sl-head"><b>' + title + '</b><span>' + escapeHtml(shortDate(day, true)) + '</span></div><div class="sl-body"><div class="muted">'
@@ -2965,7 +3006,7 @@ async function bkFreshDay(day){
   try{
     const r = await relay({ action: 'week', from: day, to: day, fresh: '1' });
     const d = r.days && r.days[day];
-    if(d){ mem.days[day] = { appointments: d.appointments || [], visits: d.visits || [], modified: d.modified, at: Date.now() }; idbPut('day:' + day, mem.days[day]); }
+    if(d) dayTake(day, d, r.lan === true);     // 4.75: never an older relay copy over the PC's
   }catch(e){}
 }
 let bkWatchBusy = false;
@@ -3166,7 +3207,7 @@ function faceHtml(pid, cls){
   if(ph && ph.id){
     const url = faceMem[ph.id];
     if(!url && !ph.own) faceAsk(pid, ph.id);
-    img = '<img data-face="' + escapeHtml(ph.id) + '" alt=""' + (url ? ' src="' + url + '"' : '') + '>';
+    img = '<img data-face="' + escapeHtml(ph.id) + '" alt=""' + imgSrcAttr(url) + '>';
   }
   const unsent = !!(ph && ph.own && photoUnsent(pid));
   return '<span class="face' + (cls ? ' ' + cls : '') + (unsent ? ' face-unsent' : '') + '"' + (unsent ? ' title="Not sent to the desk yet"' : '') + '><i>' + escapeHtml(faceInitials(photoNameOf(pid))) + '</i>' + img + '</span>';
@@ -3212,7 +3253,7 @@ async function faceFetch(){
   const missing = [];
   ids.forEach(id => {
     const url = held['face:' + id];
-    if(url){ faceMem[id] = url; facePaint(id, url); faceKeep(want[id], url); }
+    if(url && imgSrcOk(url)){ faceMem[id] = url; facePaint(id, url); faceKeep(want[id], url); }
     else missing.push(id);
   });
   for(let i = 0; i < missing.length; i += 30){
@@ -3221,7 +3262,8 @@ async function faceFetch(){
       const r = await relay({ action: 'faceThumbs', items: chunk.map(id => want[id] + ':' + id).join(',') });
       const got = r.thumbs || {};
       Object.keys(got).forEach(id => {
-        const url = 'data:image/jpeg;base64,' + got[id];
+        const url = chunk.indexOf(id) !== -1 ? imgDataUrl(got[id]) : '';     // 4.74: only what was asked, only a picture
+        if(!url) return;
         faceMem[id] = url; idbPut('face:' + id, url); facePaint(id, url); faceKeep(want[id], url);
       });
     }catch(e){ /* tried again the next time it is drawn */ }
@@ -3527,6 +3569,20 @@ const PF_VIEW_MAX = 20 * 1024 * 1024;  // bigger than this is opened at the desk
 const PF_FILES_MS = 60 * 1000;         // how often a patient's list is asked again
 const PF_TYPES_MS = 30 * 60 * 1000;
 const PF_ID_RE = /^pf-[A-Za-z0-9-]{6,60}$/;
+/* PICTURES ONLY AS PICTURES (4.74, audit H11). A thumbnail arrives as text
+   from the relay or the reception PC and was written into src="..." just as
+   it came - so a "thumbnail" holding a quote and an event handler ran code
+   in this app, which shares its storage (and so its keys) with the admin
+   app. Now only plain base64 is taken in, only a data: or blob: address is
+   ever written into the page, and a file is opened only as a picture, a PDF
+   or a download - never as a page of its own. Used by the faces too. */
+function imgDataUrl(b64){ return (typeof b64 === 'string' && b64.length > 0 && b64.length < 8000000 && /^[A-Za-z0-9+\/=]+$/.test(b64)) ? 'data:image/jpeg;base64,' + b64 : ''; }
+function imgSrcOk(u){
+  u = String(u || '');
+  return /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(u) || /^blob:[A-Za-z0-9:\/._\[\]-]{1,200}$/.test(u);
+}
+function imgSrcAttr(u){ return imgSrcOk(u) ? ' src="' + u + '"' : ''; }
+const PF_SAFE_MIME = { 'image/jpeg': 1, 'image/png': 1, 'image/webp': 1, 'image/gif': 1, 'application/pdf': 1 };
 const PF_DEFAULT_TYPES = [
   { id: 'xray', label: 'X-ray / OPG' }, { id: 'cbct', label: 'CBCT' }, { id: 'warranty', label: 'Warranty card' },
   { id: 'lab-report', label: 'Lab report' }, { id: 'outside-rx', label: 'Outside prescription' },
@@ -3762,9 +3818,9 @@ function pfCardHtml(pid, c){
   if(!url && c.thumb && !c.own) pfThumbAsk(pid, c.id);
   const kind = c.kind === 'folder' ? 'FOLDER' : c.kind === 'pages' ? '' : (String((c.files && c.files[0] && c.files[0].name) || '').split('.').pop() || 'FILE').toUpperCase().slice(0, 5);
   const state = c.own ? (c.sent ? '<span class="pf-wait">\u23f3 with the desk</span>' : '<span class="pf-wait pf-unsent">\u23f3 ' + escapeHtml(c.lastError || 'sending\u2026') + '</span>') : '';
-  const d = String(c.at || '').slice(0, 10);
+  const d = localDayOf(c.at);     // 4.75: the clinic's day (audit L9)
   return '<div class="pf-card' + (c.struck ? ' pf-struck' : '') + '" onclick="' + PF_NS + 'pfOpenFile(' + jsArg(pid) + ',' + jsArg(c.id) + ')">'
-    + '<span class="pf-th">' + (c.thumb ? '<img data-pfth="' + escapeHtml(c.id) + '" alt=""' + (url ? ' src="' + url + '"' : '') + '>' : '') + (kind ? '<i>' + escapeHtml(kind) + '</i>' : '') + '</span>'
+    + '<span class="pf-th">' + (c.thumb ? '<img data-pfth="' + escapeHtml(c.id) + '" alt=""' + imgSrcAttr(url) + '>' : '') + (kind ? '<i>' + escapeHtml(kind) + '</i>' : '') + '</span>'
     + '<span class="pf-meta"><b>' + escapeHtml(c.remark || c.folderName || label) + '</b>'
     + '<span><em class="pf-tchip">' + escapeHtml(label) + '</em>' + (c.count > 1 ? ' ' + c.count + (c.kind === 'pages' ? ' pages' : ' files') : '') + '</span>'
     + '<span>' + escapeHtml((/^\d{4}-\d{2}-\d{2}$/.test(d) ? shortDate(d) : '') + ' \u00b7 ' + (c.src === 'desk' ? 'desk' : (c.by || 'phone'))) + '</span>'
@@ -3787,14 +3843,15 @@ async function pfThumbFetch(){
   let held = {};
   try{ held = await idbGetMany(ids.map(id => 'pft:' + id)); }catch(e){ held = {}; }
   const missing = [];
-  ids.forEach(id => { const u = held['pft:' + id]; if(u){ pfThumbMem[id] = u; pfThumbPaint(id, u); } else missing.push(id); });
+  ids.forEach(id => { const u = held['pft:' + id]; if(u && imgSrcOk(u)){ pfThumbMem[id] = u; pfThumbPaint(id, u); } else missing.push(id); });
   for(let i = 0; i < missing.length; i += 30){
     const chunk = missing.slice(i, i + 30);
     try{
       const r = await relay({ action: 'fileThumbs', items: chunk.map(id => want[id] + ':' + id).join(',') });
       const got = (r && r.thumbs) || {};
       Object.keys(got).forEach(id => {
-        const u = 'data:image/jpeg;base64,' + got[id];
+        const u = chunk.indexOf(id) !== -1 ? imgDataUrl(got[id]) : '';        // 4.74: only what was asked, only a picture
+        if(!u) return;
         pfThumbMem[id] = u; idbPut('pft:' + id, u); pfThumbPaint(id, u);
       });
     }catch(e){ /* tried again the next time it is drawn */ }
@@ -3807,7 +3864,7 @@ function pfFaceBig(pid){
   const w = pfWrap('pfFace', 'photo-wrap pf-facewrap');
   w.innerHTML = '<div class="photo-sheet" onclick="event.stopPropagation()">'
     + '<div class="photo-who"><b>' + escapeHtml(nameOf(pid) || photoNameOf(pid) || ('ID ' + pid)) + '</b><span>' + escapeHtml(pid) + '</span></div>'
-    + (url ? '<img class="photo-big" src="' + url + '" alt="">' : '<div class="photo-big pf-noface">' + faceHtml(pid, 'face-lg') + '</div>')
+    + (imgSrcOk(url) ? '<img class="photo-big" src="' + url + '" alt="">' : '<div class="photo-big pf-noface">' + faceHtml(pid, 'face-lg') + '</div>')
     + '<div class="photo-btns"><button type="button" class="btn ghost" onclick="' + PF_NS + 'pfFaceClose()">Close</button>'
     + '<button type="button" class="btn" onclick="' + PF_NS + 'pfFaceClose(); ' + PF_NS + 'photoTake(' + jsArg(pid) + ')">\ud83d\udcf7 Retake</button></div></div>';
   w.onclick = () => pfFaceClose();
@@ -4015,7 +4072,7 @@ async function pfViewFetch(item){
   const bin = atob(r.b64);
   const bytes = new Uint8Array(bin.length);
   for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([bytes], { type: r.mime || 'application/octet-stream' }));
+  const url = URL.createObjectURL(new Blob([bytes], { type: PF_SAFE_MIME[r.mime] ? r.mime : 'application/octet-stream' }));   // 4.74: never a page
   pfBlobMem[key] = url;
   return url;
 }
@@ -4046,10 +4103,10 @@ async function pfViewPaint(){
   }
   if(item.kind === 'img'){
     /* Pinch to zoom on the picture itself; a double tap doubles it. */
-    w.innerHTML = v.head + '<div class="pf-vimg" id="pfVimg"><img src="' + item.url + '" alt="" ondblclick="this.classList.toggle(\'pf-zoom\')"></div>' + nav;
+    w.innerHTML = v.head + '<div class="pf-vimg" id="pfVimg"><img' + imgSrcAttr(item.url) + ' alt="" ondblclick="this.classList.toggle(\'pf-zoom\')"></div>' + nav;
   } else {
     w.innerHTML = v.head + '<div class="pf-vmsg"><b>' + escapeHtml(item.name) + '</b><br><br>'
-      + '<a class="btn" href="' + item.url + '" target="_blank" rel="noopener"' + (item.kind === 'pdf' ? '' : ' download="' + escapeHtml(item.name) + '"') + '>'
+      + '<a class="btn" href="' + (imgSrcOk(item.url) || /^blob:/.test(String(item.url)) ? escapeHtml(item.url) : '#') + '" target="_blank" rel="noopener"' + (item.kind === 'pdf' ? '' : ' download="' + escapeHtml(item.name) + '"') + '>'
       + (item.kind === 'pdf' ? 'Open the PDF' : 'Download') + '</a></div>' + nav;
   }
 }
@@ -4289,10 +4346,7 @@ function paintAdminExtras(){
 async function ensureRange(from, to){
   try{
     const r = await relay({ action: 'week', from, to });
-    Object.keys(r.days || {}).forEach(d => {
-      mem.days[d] = { appointments: r.days[d].appointments || [], visits: r.days[d].visits || [], modified: r.days[d].modified, at: Date.now() };
-      idbPut('day:' + d, mem.days[d]);
-    });
+    Object.keys(r.days || {}).forEach(d => { if(r.days[d]) dayTake(d, r.days[d], r.lan === true); });   // 4.75: as the week
     if(currentTab === 'calendar') renderCalendar();
   }catch(e){}
 }
@@ -4380,12 +4434,41 @@ function sessionIdleMs(){
   try{ const at = Number(sessionStorage.getItem(SESS_AT) || 0); return at ? Date.now() - at : 0; }catch(e){ return 0; }
 }
 function adminOn(){ return !!(adminSession || pcSession); }
+/* ONLY THE CLINIC'S OWN RELAY, AND NEVER SILENTLY OVER A WORKING ONE (4.74,
+   audit H11). Any link with #relay=...&key=... used to be taken as it came
+   and replace the setup on this phone - so a link sent by a stranger could
+   point the app at a server of theirs, which then answered with whatever
+   it liked. Now the relay must be a Google Apps Script web app
+   (script.google.com/macros/s/<id>/exec, or the /a/<domain>/ form), and a
+   phone that is already working asks before a different link replaces its
+   own. A phone whose key the relay turned down is not "working": its new
+   link is taken at once, as before. */
+const RELAY_URL_RE = /^https:\/\/script\.google\.com\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?macros\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?s\/[A-Za-z0-9_-]{10,200}\/exec$/;
+function relayLinkOk(r, k){ return RELAY_URL_RE.test(String(r || '')) && /^[A-Za-z0-9_-]{16,200}$/.test(String(k || '')); }
+function setupSay(text){
+  const el = document.getElementById('setupMsg');
+  if(el && !isSetUp()){ el.textContent = text; return; }
+  try{ alert(text); }catch(e){}
+}
 function takeSetupFromLink(){
   const h = String(location.hash || '').replace(/^#/, '');
   if(!h) return;
   const p = new URLSearchParams(h);
   const r = p.get('relay'), k = p.get('key');
-  if(r && k){ try{ localStorage.setItem(K_RELAY, r); localStorage.setItem(K_KEY, k); }catch(e){} }
+  if(r && k){
+    if(!relayLinkOk(r, k)){
+      setupSay('That link is not the clinic\u2019s own \u2014 it was not used. Open the setup link the clinic sent you.');
+    } else if(r !== relayUrl() || k !== relayKey()){
+      const working = isSetUp() && keyBadHeld() !== keyFingerprint(relayKey());
+      let take = true;
+      if(working){
+        try{ take = confirm('This phone is already set up for the clinic.\n\nReplace its link with the one just opened? Only say OK if the clinic sent you a new link.'); }catch(e){ take = false; }
+      }
+      if(take){ try{ localStorage.setItem(K_RELAY, r); localStorage.setItem(K_KEY, k); }catch(e){} }
+    }
+  }
+  /* The key does not stay in the address bar, where a screenshot or a shared
+     tab would carry it. */
   try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
 }
 function relayUrl(){ try{ return localStorage.getItem(K_RELAY) || ''; }catch(e){ return ''; } }
@@ -4593,15 +4676,88 @@ function sealB64(u8){
   return btoa(s);
 }
 function sealNonce(){ return Array.from(crypto.getRandomValues(new Uint8Array(12)), x => ('0' + x.toString(16)).slice(-2)).join(''); }
+/* THE ANSWER IS THE PC'S, AND IT IS FOR THIS REQUEST (4.74, desk 2.0,
+   audit M19). The Wi-Fi secret is on every staff phone, so a sealed answer
+   proved only that SOME phone with the secret wrote it - and an "ok"
+   recorded earlier could be played back as the answer to a new booking.
+   Now:
+     - every answer from the PC leads with the request's own one-off number
+       and action, inside the seal: anything else is refused;
+     - the PC signs its answers with a key only it has (RSA, SHA-256); the
+       public half comes on the card from the relay. When the card has one,
+       an answer without a good signature is not the PC - the phone stops
+       using that address and asks the relay, and says why in the bell sheet;
+     - the clock reply is sealed and signed like any answer, so a stranger
+       cannot set the phone's clock.
+   A card without a public key is an older PC (desk server before 2.0): the
+   phone reads it exactly as before, so nothing stops mid-rollout. */
+const SEAL_SIG_BYTES = 256;
+const sealPubCache = new Map();
+function sealUntrusted(text){
+  const e = new Error(text);
+  if(Date.now() - sealRefreshAt > 60000){ sealRefreshAt = Date.now(); try{ lanInfoRefresh(true); }catch(x){} }
+  return e;                                            // not "answered": the phone stops using that address
+}
+async function sealVerify(pub, sig, data){
+  try{
+    let k = sealPubCache.get(pub);
+    if(!k){
+      const der = Uint8Array.from(atob(pub), c => c.charCodeAt(0));
+      k = await crypto.subtle.importKey('spki', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+      sealPubCache.clear(); sealPubCache.set(pub, k);
+    }
+    return await crypto.subtle.verify('RSASSA-PKCS1-v1_5', k, sig, data);
+  }catch(e){ return false; }
+}
+/* Does the opened answer name this request? An answer that names none is
+   an older PC's, taken only while the card has no signing key. */
+function sealNamesRequest(raw, n, a, pub){
+  const head = new TextDecoder().decode(new Uint8Array(raw, 0, Math.min(raw.byteLength, 240)));
+  if(head.indexOf('{"_n":') !== 0) return !pub;
+  const want = '{"_n":' + JSON.stringify(n) + ',"_a":' + JSON.stringify(a);
+  return head.indexOf(want) === 0 && (head.charAt(want.length) === ',' || head.charAt(want.length) === '}');
+}
+/* The plaintext of an answer to request n/a - or a throw: err.answered when
+   the seal itself did not hold (as before), a plain error when it is not the
+   PC's or not this request's. */
+async function sealAnswerOpen(buf, keys, pub, n, a){
+  let b = new Uint8Array(buf);
+  if(pub){
+    if(b.length < 64 + SEAL_SIG_BYTES) throw sealUntrusted('the answer was not signed by the clinic PC \u2014 not trusted');
+    const sig = b.slice(b.length - SEAL_SIG_BYTES);
+    b = b.slice(0, b.length - SEAL_SIG_BYTES);
+    if(!(await sealVerify(pub, sig, b))) throw sealUntrusted('the answer was not signed by the clinic PC \u2014 not trusted');
+  }
+  const raw = await sealOpenRaw(b, 'A', keys);
+  if(!raw){ const e = new Error('the PC\u2019s answer did not open'); e.answered = true; throw e; }
+  if(!sealNamesRequest(raw, n, a, pub)) throw sealUntrusted('the answer was not for this request \u2014 not trusted');
+  return raw;
+}
+/* The PC's clock, from its refusal: the sealed copy when there is one;
+   the plain number only from an older PC (no signing key on the card). */
+async function sealClockNow(e, keys, pub, n, a){
+  if(!e.seal) return (!pub && isFinite(Number(e.now))) ? Number(e.now) : null;
+  try{
+    const raw = await sealAnswerOpen(Uint8Array.from(atob(String(e.seal)), c => c.charCodeAt(0)), keys, pub, n, a);
+    const j = JSON.parse(new TextDecoder().decode(raw));
+    return (j && j.error === 'clock' && isFinite(Number(j.now))) ? Number(j.now) : null;
+  }catch(x){ return null; }
+}
 /* One sealed request to the PC at `base`. Resolves with the answer's
    plaintext bytes. Throws with err.answered = true when the PC answered but
-   refused (bad seal, replay), and without it when nothing answered. A phone
-   clock that is off is set right from the PC's own, once. New keys on the
-   PC (Nexus: Change Wi-Fi keys) make the phone fetch its card again. */
+   refused (bad seal, replay), and without it when nothing answered - or when
+   what answered is not the PC (4.74). A phone clock that is off is set right
+   from the PC's own, once. New keys on the PC (Nexus: Change Wi-Fi keys)
+   make the phone fetch its card again. */
 async function sealPost(base, secret, q, ms){
   const keys = await sealKeys(secret);
+  const pub = (lanInfo && lanInfo.pub) ? String(lanInfo.pub) : '';
+  const act = String((q && q.a) || '');
   for(let attempt = 0; attempt < 2; attempt++){
-    const body = sealB64(await sealPack(Object.assign({}, q, { t: Date.now() + sealClockSkew, n: sealNonce() }), 'Q', keys));
+    const n = sealNonce();
+    const req = Object.assign({}, q, { t: Date.now() + sealClockSkew, n: n });
+    if(pub) req.v = 2;                                 // "sign your answer"
+    const body = sealB64(await sealPack(req, 'Q', keys));
     const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
     const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms || 5000) : null;
     let res, buf;
@@ -4610,14 +4766,15 @@ async function sealPost(base, secret, q, ms){
         signal: ctl ? ctl.signal : undefined, targetAddressSpace: 'local' });
       buf = await res.arrayBuffer();
     }finally{ if(tm) clearTimeout(tm); }
-    if(res.status === 200){
-      const raw = await sealOpenRaw(buf, 'A', keys);
-      if(!raw){ const e = new Error('the PC’s answer did not open'); e.answered = true; throw e; }
-      return raw;
-    }
+    if(res.status === 200) return await sealAnswerOpen(buf, keys, pub, n, act);
     let e = null;
     try{ e = JSON.parse(new TextDecoder().decode(buf)); }catch(x){ e = null; }
-    if(e && e.error === 'clock' && isFinite(Number(e.now)) && !attempt){ sealClockSkew = Number(e.now) - Date.now(); continue; }
+    if(e && e.error === 'clock' && !attempt){
+      const now = await sealClockNow(e, keys, pub, n, act);
+      if(now === null) throw sealUntrusted('the clock reply was not the clinic PC\u2019s \u2014 not trusted');
+      sealClockSkew = now - Date.now();
+      continue;
+    }
     if(e && e.error === 'bad seal' && Date.now() - sealRefreshAt > 60000){ sealRefreshAt = Date.now(); try{ lanInfoRefresh(true); }catch(x){} }
     const err = new Error((e && e.error) ? 'the PC refused: ' + e.error : ('the PC answered ' + res.status));
     err.answered = true;
@@ -4691,14 +4848,19 @@ async function lanProbeNow(){
      (desk server 1.9, relay r4.13). Every other phone keeps the plain door. */
   const tls = lanUseTls();
   const bases = lanInfo.ips.slice(0, 4).map(ip => tls ? 'https://' + ip + ':' + lanInfo.sport : 'http://' + ip + ':' + (lanInfo.port || 8765));
+  /* 4.74: an address that answered but is not the PC (its answer not
+     signed with the PC's key, or not for this request) is said as that -
+     not as "did not answer". */
+  let distrust = '';
   const one = (b) => lanFetch(lanUrl(b, 'ping'), LAN_PROBE_MS).then(j => {
     if(j.echo === 'echo-nexus-desk' && j.id === lanInfo.id) return b;
     throw new Error('not this clinic');
-  });
+  }, e => { if(e && /not trusted/.test(String(e.message))) distrust = String(e.message); throw e; });
   let got = '';
   try{ got = await lanFirst(bases.map(one)); }catch(e){ got = ''; }
   if(got){ lanBase = got; lanState = 'up'; lanCheckedAt = Date.now(); lanPaint(); return true; }
-  lanNote('the PC did not answer at ' + bases.map(b => b.replace(/^https?:\/\//, '')).join(', ')
+  if(distrust) lanNote(distrust);
+  else lanNote('the PC did not answer at ' + bases.map(b => b.replace(/^https?:\/\//, '')).join(', ')
     + (tls ? ' (secure door - is the clinic certificate installed on this iPhone?)' : ''));
   lanMarkDown();
   /* The PC may have a new address, or a new card: ask the relay, behind. */
@@ -4958,6 +5120,12 @@ async function driveReadJson(fileId, opts){
   if(held && held.modified) item.s = held.modified;
   /* SLIM (4.28 / relay r4.1): the bills index without each bill's lines. */
   if(opts && opts.slim) item.slim = 1;
+  /* STRAIGHT FROM DRIVE (4.75, relay r4.15): the money that is still moving
+     - both indexes, today's book, yesterday's until noon - is read from
+     Drive itself, not the relay's ready copy, which can be minutes behind.
+     The stamp above still goes with it, so an unchanged file is still only
+     "not modified". The relay honours it for an unlocked admin only. */
+  if(moneyFromDrive(key)) item.fr = 1;
   /* A money file's answer - or its failure - is noted, so the screen can say
      how current its figure is (4.73). */
   const money = moneyKeyWatched(key);
@@ -5529,6 +5697,11 @@ function moneyKeyWatched(key){
 function moneyLiveDays(){
   const t = todayStr();
   return new Date().getHours() < 12 ? [t, addDays(t, -1)] : [t];
+}
+function moneyFromDrive(key){
+  if(key === 'settings/bills-index.json' || key === 'settings/entries-index.json') return true;
+  const m = /^data\/(\d{4}-\d{2}-\d{2})\.json$/.exec(String(key || ''));
+  return !!(m && moneyLiveDays().indexOf(m[1]) !== -1);
 }
 function moneyDayDue(d){ return !dayBooksAt[d] || Date.now() - dayBooksAt[d] >= MONEY_FRESH_MS; }
 function moneyNote(key, ok){
@@ -6276,7 +6449,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.73';
+const ADMIN_VERSION = '4.76';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -6544,8 +6717,30 @@ function notifOpen(){
   const w = document.getElementById('notifWrap');
   if(!w) return;
   w.classList.remove('hidden');
+  const rb = document.getElementById('resetCodeBox');
+  if(rb){ rb.classList.toggle('hidden', !adminOn()); const m = document.getElementById('resetCodeMsg'); if(m) m.textContent = ''; }
   notifPaint();
   notifMsg(notifSupported() ? '' : 'This phone cannot show notifications from a web app.', notifSupported() ? '' : 'bad');
+}
+/* THE NEXUS RESET CODE (4.74, audit M11, owner's call). A Nexus whose
+   settings/admin-password.txt has gone - while the folder holds the
+   clinic's records - no longer offers "Set password" to whoever is at the
+   keyboard. It asks for this code: six digits from the relay, good for ten
+   minutes and one use, given only to this app unlocked with the PIN. */
+async function resetCodeAsk(){
+  const m = document.getElementById('resetCodeMsg');
+  const say = (html) => { if(m) m.innerHTML = html; };
+  if(!adminOn()){ say('Unlock admin first.'); return; }
+  if(!adminSession){ say('This needs the relay: lock admin, then unlock it again with a signal.'); return; }
+  say('Asking\u2026');
+  try{
+    const r = await relayViaGoogle({ action: 'resetIssue' });
+    if(!r || !/^\d{6}$/.test(String(r.code || ''))){ say('The relay did not give a code.'); return; }
+    say('<b style="font-size:1.6rem; letter-spacing:0.2em;">' + escapeHtml(r.code) + '</b><br>Type it into Nexus within ' + escapeHtml(String(r.minutes || 10)) + ' minutes. It works once.');
+  }catch(e){
+    const why = (e && e.message) || 'no connection';
+    say(/unknown action/.test(why) ? 'The relay needs updating (r4.14) first.' : /unlock|session/.test(why) ? 'Admin has locked \u2014 unlock it again.' : 'Could not get a code (' + escapeHtml(why) + ').');
+  }
 }
 function notifClose(e){
   if(e && e.target && e.target.id !== 'notifWrap' && e.type === 'click' && e.currentTarget !== e.target) return;
@@ -7983,6 +8178,7 @@ function pasteSetupLink(){
   const i = raw.indexOf('#');
   const p = new URLSearchParams(i === -1 ? '' : raw.slice(i + 1));
   if(!p.get('relay') || !p.get('key')){ if(msg) msg.textContent = 'That is not a setup link \u2014 copy the whole link, from https to the end.'; return; }
+  if(!relayLinkOk(p.get('relay'), p.get('key'))){ if(msg) msg.textContent = 'That link is not the clinic\u2019s own \u2014 it was not used.'; return; }   // 4.74 (audit H11)
   location.hash = raw.slice(i + 1);
   if(typeof boot === 'function') boot();
 }
