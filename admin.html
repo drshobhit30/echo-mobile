@@ -3050,9 +3050,30 @@ async function bkWatch(){
           else if(now - p.filedAt > 30 * 60 * 1000){ bkPending = bkPending.filter(x => x.id !== p.id); }
         } else if(st[p.id] === 'unknown' && now - (p.sentAt || now) > 10 * 60 * 1000){
           /* Neither waiting nor filed: something went wrong between the relay
-             and the desk. Said out loud, never dropped in silence. */
-          toast('Could not confirm the booking for ' + (p.patientId ? (nameOf(p.patientId) || p.patientId) : (p.newName || 'the rough slot')) + ' \u2014 please check with the desk');
-          bkPending = bkPending.filter(x => x.id !== p.id);
+             and the desk. Said out loud, never dropped in silence.
+             4.78 (29 Sep, a real morning): NOT ON THE FIRST ANSWER. The desk
+             PC came on at 9:40, filed a 9:00 booking, and Drive uploaded the
+             "done" copy some minutes after it removed the inbox copy - in that
+             gap the relay saw neither, and one "unknown" was enough to drop a
+             booking the desk had. So: this phone's own copy of the day is
+             asked first (the desk's diary showing it IS the receipt); then
+             "unknown" must come back three checks in a row, a minute apart;
+             and even then the note stays half an hour more, so the card does
+             not vanish while the diary catches up. */
+          if(bkFiledCopy(p.id)){
+            p.unknownRuns = 0;
+            if(!p.filedAt) p.filedAt = now;
+          } else {
+            p.unknownRuns = (p.unknownRuns || 0) + 1;
+            if(p.unknownRuns === 3){
+              toast('Could not confirm the booking for ' + (p.patientId ? (nameOf(p.patientId) || p.patientId) : (p.newName || 'the rough slot')) + ' \u2014 please check the desk calendar');
+              p.unsureAt = now;
+            } else if(p.unknownRuns > 3 && p.unsureAt && now - p.unsureAt > 30 * 60 * 1000){
+              bkPending = bkPending.filter(x => x.id !== p.id);
+            }
+          }
+        } else if(st[p.id] === 'waiting' || st[p.id] === 'filed'){
+          p.unknownRuns = 0;
         }
       }
       bkSave();
@@ -6463,7 +6484,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.77';
+const ADMIN_VERSION = '4.78';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
