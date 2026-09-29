@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-4.78';  // one number across lite, admin, reception and this file
+const CACHE_VERSION = 'echo-nexus-4.79';  // one number across lite, admin, reception and this file
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -62,6 +62,7 @@ const SHELL = [
   './lite.webmanifest',
   './icon-192.png',
   './icon-badge.png',
+  './icon-notify.png',
   './icon-512.png',
   './icon-maskable-192.png',
   './icon-maskable-512.png'
@@ -192,7 +193,12 @@ self.addEventListener('push', (event) => {
   const body = String(d.body || 'A visit was marked at the desk.');
   const opts = {
     body: body,
-    icon: './icon-192.png',
+    /* THE CLINIC'S TOOTH ON A NOTIFICATION (4.79, owner's call, 29 Sep). The
+       big picture was the app's home-screen icon (the Nexus rings); phones
+       differ in what they do with the badge below - Dr Trapti's ignores it
+       and draws the app icon twice - so the picture itself is now the
+       clinic's tooth. The home-screen icon is unchanged. */
+    icon: './icon-notify.png',
     /* A BADGE IS NOT A SMALL ICON (v50). This was icon-192.png - the full
        colour logo - where Android wants a monochrome silhouette it can tint
        and draw at about twenty pixels. Phones differ in whether they render
