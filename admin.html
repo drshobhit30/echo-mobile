@@ -4400,7 +4400,7 @@ return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHr
   pfLoad, pfSheetOpen, pfSheetClose, pfFaceBig, pfFaceClose, pfShoot, pfPickType, pfPageDrop, pfShotCancel, pfShotSave, pfRetry, pfOpenFile, pfViewGo, pfViewClose, pfTodayHtml, pfBadgeHtml, pfListOf, pfCountOf, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS, idleWork, ptRowHtml,
-  resetFresh: () => { settingsFreshThisOpen = false; }, refillMoney };
+  resetFresh: () => { settingsFreshThisOpen = false; }, refillMoney, fmtAgeSex };
 })();
 
 /* ---------------- RELAY AND LOCK (4.0) ----------------
@@ -6381,7 +6381,7 @@ function sexTextOf(contacts, patientId){
    the other way round from every other screen. */
 function whoLine(contacts, patientId){
   const a = ageTextOf(contacts, patientId), x = sexTextOf(contacts, patientId);
-  return fmtAgeSex(a.age, x, a.yr);
+  return Cal.fmtAgeSex(a.age, x, a.yr);
 }
 /* The same line with the number to ring on the end (4.31). Who they are is
    what tells two people of one name apart; the number is what the row was
@@ -6484,7 +6484,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.79';
+const ADMIN_VERSION = '4.80';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -7496,7 +7496,11 @@ async function fetchBillLines(number){
     }catch(e2){ billLineStore[number] = null; }
   }
   billLineBusy[number] = false;
-  renderBilling();
+  /* REDRAW THE SCREEN THAT ASKED (4.80). A bill opened inside a patient's
+     record asked for its lines and then redrew Billing - a tab nobody was
+     looking at - so the record said "Reading the lines\u2026" for good. */
+  if(currentTab === 'patients' && ptOpen) renderPatientsTab();
+  else renderBilling();
 }
 function toggleBill(k){ openBill = (openBill === k) ? null : k; renderBilling(); }
 function billLinesHtml(b){
@@ -7525,10 +7529,14 @@ function billLinesHtml(b){
   /* Only the figures the bill actually carries: a zero discount printed on
      every bill is noise, and a total invented here could disagree with the
      one above it. */
+  /* 4.80: the slim index leaves these out too; the bill fetched for its
+     lines has them. */
+  const whole = (n && billLineStore[n]) || {};
+  const fig = (k) => (b[k] != null ? b[k] : whole[k]);
   const foot = [];
-  if(b.subTotal != null) foot.push(['Sub-total', money(b.subTotal)]);
-  if(Number(b.discountAmount)) foot.push(['Discount', '\u2212' + money(b.discountAmount)]);
-  if(Number(b.taxAmount)) foot.push(['Tax', money(b.taxAmount)]);
+  if(fig('subTotal') != null) foot.push(['Sub-total', money(fig('subTotal'))]);
+  if(Number(fig('discountAmount'))) foot.push(['Discount', '\u2212' + money(fig('discountAmount'))]);
+  if(Number(fig('taxAmount'))) foot.push(['Tax', money(fig('taxAmount'))]);
   foot.push(['Total', money(b.grandTotal)]);
   h += '<div class="bl-foot">' + foot.map(f =>
       '<div class="bl-row"><div class="bl-name">' + f[0] + '</div><div class="bl-amt">' + f[1] + '</div></div>'
@@ -8069,7 +8077,9 @@ async function renderPtRecord(body, pid){
     struck:false, body: () => '' });
   (bills || []).filter(b => b && String(b.patientId) === P).forEach(b =>
     mine.bill.push({ when:String(b.date || '').slice(0,10),
-      what: (b.billNo ? '#' + b.billNo + ' \u00b7 ' : '') + fmtINR(Number(b.grandTotal)||0)
+      /* billNumber is what the desk writes; billNo alone left every bill
+         here without its number (4.80), as Billing once did (see above). */
+      what: (billNumberOf(b) ? '#' + billNumberOf(b) + ' \u00b7 ' : '') + fmtINR(Number(b.grandTotal)||0)
             + (isCreditNote(b) ? ' \u00b7 credit note' : ''),
       struck: isCancelledBill(b), body: () => billLinesHtml(b) }));
   (entries || []).forEach(e => (e.items || []).forEach(it => {
