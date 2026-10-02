@@ -967,7 +967,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.79';
+const LITE_VERSION = '4.81';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -2399,7 +2399,7 @@ function rowHtml(r, day){
       + '<div class="ka-in">'
         + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span>'
           + '<span><span class="cal-chip st-event">' + (away ? 'Away' : 'Clinic event') + '</span></span></div>'
-        + '<div class="ka-name">' + escapeHtml(r.title || (away ? 'Doctor away' : 'Clinic closed')) + '</div>'
+        + '<div class="ka-name">' + escapeHtml(r.title || (away ? 'Doctor away' : 'All appointments blocked')) + '</div>'
       + '</div></div>';
   }
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
@@ -2797,7 +2797,7 @@ function stripDayMark(d){
   /* A doctor being away is not the clinic being shut: the diary still takes
      bookings, so it must not read as closed here. */
   const shut = blocksOn(d).some(b => b && b.allDay && b.kind !== 'leave');
-  if(shut) return '<i class="kv-x" title="Clinic closed">\u00d7</i>';
+  if(shut) return '<i class="kv-x" title="All appointments blocked">\u00d7</i>';
   const held = mem.days[d];
   if(!held) return '';                       // not on this phone: say nothing
   const n = (held.appointments || []).filter(a =>
@@ -3185,7 +3185,7 @@ function bkRender(){
         if(st === 'closed'){
           const b = bkBlockAt(minsOf(bk.time));
           const what = (b && b.title) ? escapeHtml(b.title) + ' is at this time'
-            : ((b && b.kind === 'leave') ? 'The doctor is away at this time' : 'The clinic is closed at this time');
+            : ((b && b.kind === 'leave') ? 'The doctor is away at this time' : 'All appointments are blocked at this time');
           return '<div class="bk-warn">\u26A0 ' + what + '. It will still be booked.</div>';
         }
         return '';
@@ -5453,7 +5453,7 @@ function ipadDiaryHtml(rows, day, emptyWord){
   if(walk.length || cols.length) cols.push({ key: 'walk', label: 'Walk-ins', rows: walk });
   const allDay = events.filter(r => r.allDay || !timed(r));
   const banner = allDay.map(r => '<div class="ipd-banner"><b>' + (r.kind === 'leave' ? 'Away' : 'Clinic event') + '</b>'
-    + escapeHtml(r.title || (r.kind === 'leave' ? 'Doctor away' : 'Clinic closed')) + '</div>').join('');
+    + escapeHtml(r.title || (r.kind === 'leave' ? 'Doctor away' : 'All appointments blocked')) + '</div>').join('');
   if(!people.length){
     /* Nobody on the day: its timed events still said, as lines. */
     const timedLines = events.filter(r => !r.allDay && timed(r)).map(r => '<div class="ipd-banner"><b>' + escapeHtml(clock(r.mins)

@@ -440,6 +440,16 @@ body{ padding-bottom:28px; }
 .dr-pair{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .dr-amt{ font-size:1rem; font-weight:700; color:var(--ink); margin-top:2px; }
 .dr-panel.dr-owes{ background:#FCEBEB; border-color:#F09595; }
+/* 4.80: the day's bill, opened in the drawer. */
+.dr-panel.dr-tap{ cursor:pointer; position:relative; }
+.dr-panel.dr-tap::after{ content:'+'; position:absolute; top:8px; right:11px; color:var(--brown); font-weight:700; }
+.dr-panel.dr-tap.dr-on{ border-color:var(--gold-deep); }
+.dr-panel.dr-tap.dr-on::after{ content:'\2013'; }
+.dr-bills{ border:1px solid var(--line); border-radius:12px; padding:2px 12px 10px; margin:-2px 0 10px; }
+.dr-bill + .dr-bill{ border-top:1px dashed var(--line); margin-top:10px; }
+.dr-bill-h{ display:flex; justify-content:space-between; gap:10px; padding-top:9px; font-size:0.84rem; font-weight:600; color:var(--ink); }
+.dr-bill.struck .dr-bill-h, .dr-bill.struck .bl-row{ text-decoration:line-through; opacity:0.6; }
+.dr-bills .bill-body{ margin-top:6px; }
 .dr-btns{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 /* Chrome's own pull-to-refresh RELOADS the page, which ended the admin session.
    The app's own pull (which never did) is the only one now. */
@@ -1956,7 +1966,7 @@ function rowHtml(r, day){
       + '<div class="ka-in">'
         + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span>'
           + '<span><span class="cal-chip st-event">' + (away ? 'Away' : 'Clinic event') + '</span></span></div>'
-        + '<div class="ka-name">' + escapeHtml(r.title || (away ? 'Doctor away' : 'Clinic closed')) + '</div>'
+        + '<div class="ka-name">' + escapeHtml(r.title || (away ? 'Doctor away' : 'All appointments blocked')) + '</div>'
       + '</div></div>';
   }
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
@@ -2356,7 +2366,7 @@ function stripDayMark(d){
   /* A doctor being away is not the clinic being shut: the diary still takes
      bookings, so it must not read as closed here. */
   const shut = blocksOn(d).some(b => b && b.allDay && b.kind !== 'leave');
-  if(shut) return '<i class="kv-x" title="Clinic closed">\u00d7</i>';
+  if(shut) return '<i class="kv-x" title="All appointments blocked">\u00d7</i>';
   const held = mem.days[d];
   if(!held) return '';                       // not on this phone: say nothing
   const n = (held.appointments || []).filter(a =>
@@ -2556,7 +2566,8 @@ function openDrawer(day, kind, id){
   }
   if(r.patientId && hooks.adminOn() && r.visitId){
     h += '<div class="dr-pair"><div class="dr-panel" id="drBill"><div class="rxs-k">Bill ' + (day === todayStr() ? 'today' : 'that day') + '</div><div class="muted">Reading\u2026</div></div>'
-      + '<div class="dr-panel" id="drPending"><div class="rxs-k">Pending</div><div class="muted">Reading\u2026</div></div></div>';
+      + '<div class="dr-panel" id="drPending"><div class="rxs-k">Pending</div><div class="muted">Reading\u2026</div></div></div>'
+      + '<div id="drBillLines"></div>';
   }
   if(r.patientId){
     /* THE NUMBER SITS WITH THE BUTTONS THAT USE IT (4.36) - it was a box of
@@ -2741,7 +2752,7 @@ function bkRender(){
         if(st === 'closed'){
           const b = bkBlockAt(minsOf(bk.time));
           const what = (b && b.title) ? escapeHtml(b.title) + ' is at this time'
-            : ((b && b.kind === 'leave') ? 'The doctor is away at this time' : 'The clinic is closed at this time');
+            : ((b && b.kind === 'leave') ? 'The doctor is away at this time' : 'All appointments are blocked at this time');
           return '<div class="bk-warn">\u26A0 ' + what + '. It will still be booked.</div>';
         }
         return '';
@@ -4331,7 +4342,7 @@ function renderPatients(){
 }
 
 /* -------------------------------------------------- admin-only extras -- */
-const hooks = { adminOn: () => false, money: null, fullHistory: null };
+const hooks = { adminOn: () => false, money: null, fullHistory: null, billHtml: null };
 function fmtRs(n){ return '\u20b9' + Math.round(Number(n) || 0).toLocaleString('en-IN'); }
 let moneyAsked = null;              // 4.73: the drawer's pair, to redraw when the money moves
 async function fillMoney(pid, day, again){
@@ -4342,13 +4353,32 @@ async function fillMoney(pid, day, again){
   const bill = document.getElementById('drBill'), pend = document.getElementById('drPending');
   if(!bill || !pend || !drawerCtx || String(drawerCtx.patientId) !== String(pid)) return;
   if(!m){ bill.innerHTML = '<div class="rxs-k">Bill</div><div class="muted">Could not read</div>'; pend.innerHTML = '<div class="rxs-k">Pending</div><div class="muted">\u2014</div>'; return; }
+  /* THE DAY'S BILL OPENS HERE (4.80, owner's call). Tapping the box shows
+     each bill of that day - number, lines, discount, total - below the pair;
+     a cancelled one struck through. No bill that day: nothing to tap. */
+  const dayBills = (m.bills || []);
+  const canOpen = dayBills.length > 0 && !!hooks.billHtml;
+  const isOpen = canOpen && drBillOpenFor === pid + '|' + day;
+  bill.classList.toggle('dr-tap', canOpen);
+  bill.classList.toggle('dr-on', isOpen);
+  bill.onclick = canOpen ? () => toggleDrBill() : null;
   bill.innerHTML = '<div class="rxs-k">Bill ' + (day === todayStr() ? 'today' : 'that day') + '</div>'
-    + (m.billToday ? '<div class="dr-amt">' + fmtRs(m.billToday) + '</div>' : '<div class="muted">No bill</div>');
+    + (m.billToday ? '<div class="dr-amt">' + fmtRs(m.billToday) + '</div>'
+       : '<div class="muted">' + (dayBills.length ? 'Cancelled' : 'No bill') + '</div>');
+  const lines = document.getElementById('drBillLines');
+  if(lines) lines.innerHTML = isOpen ? '<div class="dr-bills">' + dayBills.map(b => hooks.billHtml(b)).join('') + '</div>' : '';
   const owes = m.pending > 0.5, adv = m.pending < -0.5;
   pend.classList.toggle('dr-owes', owes);
   pend.innerHTML = '<div class="rxs-k">' + (adv ? 'In advance' : 'Pending') + '</div>'
     + '<div class="dr-amt">' + (owes || adv ? fmtRs(Math.abs(m.pending)) : 'Settled') + '</div>'
     + (m.stamp || '');
+}
+let drBillOpenFor = '';
+function toggleDrBill(){
+  if(!moneyAsked) return;
+  const k = moneyAsked.pid + '|' + moneyAsked.day;
+  drBillOpenFor = (drBillOpenFor === k) ? '' : k;
+  fillMoney(moneyAsked.pid, moneyAsked.day, true);
 }
 function refillMoney(){
   if(!moneyAsked || !drawerCtx || String(drawerCtx.patientId) !== String(moneyAsked.pid)) return;
@@ -4400,7 +4430,7 @@ return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHr
   pfLoad, pfSheetOpen, pfSheetClose, pfFaceBig, pfFaceClose, pfShoot, pfPickType, pfPageDrop, pfShotCancel, pfShotSave, pfRetry, pfOpenFile, pfViewGo, pfViewClose, pfTodayHtml, pfBadgeHtml, pfListOf, pfCountOf, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS, idleWork, ptRowHtml,
-  resetFresh: () => { settingsFreshThisOpen = false; }, refillMoney, fmtAgeSex };
+  resetFresh: () => { settingsFreshThisOpen = false; }, refillMoney, fmtAgeSex, toggleDrBill };
 })();
 
 /* ---------------- RELAY AND LOCK (4.0) ----------------
@@ -6484,7 +6514,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.80';
+const ADMIN_VERSION = '4.81';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -7500,6 +7530,7 @@ async function fetchBillLines(number){
      record asked for its lines and then redrew Billing - a tab nobody was
      looking at - so the record said "Reading the lines\u2026" for good. */
   if(currentTab === 'patients' && ptOpen) renderPatientsTab();
+  else if(currentTab === 'calendar'){ try{ Cal.refillMoney(); }catch(e){} }
   else renderBilling();
 }
 function toggleBill(k){ openBill = (openBill === k) ? null : k; renderBilling(); }
@@ -8173,8 +8204,21 @@ async function boot(){
     const mine = (bills || []).filter(b => billCountsAsMoney(b) && String(b.patientId) === String(pid));
     const billToday = mine.filter(b => String(b.date || '').slice(0, 10) === day).reduce((t, b) => t + (Number(b.grandTotal) || 0), 0);
     const map = computePendingFromData(bills || [], entries || []);
-    return { billToday, pending: (map[String(pid)] || {}).pending || 0,
+    const dayBills = (bills || []).filter(b => b && b.status !== 'draft' && String(b.patientId) === String(pid)
+      && String(b.date || '').slice(0, 10) === day);
+    return { billToday, bills: dayBills, pending: (map[String(pid)] || {}).pending || 0,
              stamp: moneyAsOfHtml(['settings/bills-index.json'].concat(moneyEntryKeys())) };
+  };
+  /* 4.80: one bill as the drawer shows it - its number and total on top,
+     then the same lines Billing and the record show. */
+  Cal.hooks.billHtml = (b) => {
+    const n = billNumberOf(b);
+    return '<div class="dr-bill' + (isCancelledBill(b) ? ' struck' : '') + '">'
+      + '<div class="dr-bill-h"><span>' + (n ? '#' + escapeHtml(n) : 'Bill')
+        + (isCreditNote(b) ? ' \u00b7 credit note' : '')
+        + (isCancelledBill(b) ? ' \u00b7 cancelled' : '') + '</span>'
+      + '<span>' + fmtINR(Number(b.grandTotal) || 0) + '</span></div>'
+      + billLinesHtml(b) + '</div>';
   };
   Cal.hooks.fullHistory = (pid, back) => {
     ptReturnToCalendar = back || null;
