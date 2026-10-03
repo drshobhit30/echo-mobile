@@ -219,6 +219,35 @@ body{ padding-bottom:28px; }
 /* 4.73: how current the figure above is; red when the last check failed. */
 .money-asof{ font-size:0.72rem; color:var(--muted); margin:3px 2px 8px; }
 .money-asof.stale{ color:var(--danger); font-weight:700; }
+/* ---- 4.82: Payment green, Billing blue ---- */
+.pg-head{ display:flex; align-items:center; gap:10px; margin:10px 0 12px; }
+.pg-ic{ width:36px; height:36px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:1.15rem; font-weight:700; flex:none; }
+.pg-t{ font-weight:800; font-size:1.08rem; color:var(--ink); }
+.pg-s{ font-size:0.74rem; color:var(--muted); margin-top:1px; }
+.pg-pay .pg-ic{ background:#e2f1e6; color:#2f6b3a; }
+.pg-bill .pg-ic{ background:#eaeefa; }
+#moneyTotals .tot{ background:#eaf5ed; border-color:#9cc8a8; cursor:default; }
+#moneyTotals .tot:active{ transform:none; background:#eaf5ed; }
+#moneyTotals .tot-v{ color:#2f6b3a; }
+#moneyTotals .tot-k{ color:#4d7a58; }
+#payList .pt-card::before{ background:#5aa36a; opacity:1; width:4px; }
+#payList .pt-amt{ color:#2f6b3a; }
+#payList .pt-amt.neg{ color:var(--danger); }
+#payList .pt-side, #billList .pt-side{ text-align:right; }
+.pay-modes{ display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 2px; }
+.pay-mode{ display:inline-block; font-size:0.72rem; font-weight:700; padding:4px 9px; border-radius:99px; letter-spacing:.03em; background:#eee; color:#555; }
+.pay-mode.m-cash{ background:#f3ead6; color:#8a5f26; } .pay-mode.m-upi{ background:#e6e9fb; color:#3c4aa8; }
+.pay-mode.m-card{ background:#f8e4ea; color:#a33b5c; } .pay-mode.m-bank{ background:#e3f1f4; color:#2c6f7e; }
+.pay-mode.sm{ font-size:0.64rem; padding:2px 7px; border-radius:6px; margin-top:4px; letter-spacing:.06em; }
+#billTotals .tot{ background:#fff; border:1.5px dashed #9aa6cf; }
+#billTotals .tot:active{ background:#f4f6fd; }
+#billTotals .tot-v{ color:#2b3566; } #billTotals .tot-k{ color:#5b6596; } #billTotals .tot-chev{ color:#5b6596; }
+#billTotals .tot-split{ border-top-color:#cdd4f3; }
+#billList .pt-card{ background:#fbfcff; }
+#billList .pt-card::before{ background:#6f7fc4; opacity:1; width:4px; }
+#billList .pt-amt:not(.neg){ color:#2b3566; }
+.bill-no{ display:inline-block; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:0.72rem; font-weight:700; color:#3c4aa8; background:#eef1fd; border:1px solid #cdd4f3; padding:2px 7px; border-radius:6px; margin-bottom:4px; }
+.bill-see{ font-size:0.72rem; color:#6f7fc4; margin-top:3px; white-space:nowrap; }
 .tot-split{ display:flex; flex-wrap:wrap; gap:14px 22px; margin-top:12px; padding-top:11px;
   border-top:1px solid var(--gold-light); }
 .tot-s{ display:flex; flex-direction:column; }
@@ -1053,6 +1082,12 @@ body{ background:#FAF7F2 !important; }
       <div id="patientList"><div class="empty-state">Type a name, an ID or a phone number</div></div>
     </div>
     <div id="viewPayment" class="hidden">
+      <!-- 4.82: PAYMENT AND BILLING LOOK LIKE WHAT THEY ARE (owner's call
+           3 Oct 2026: "the billing page and the payment page is the same").
+           Payment is money in - green; Billing is what was charged - blue,
+           receipt-like. -->
+      <div class="pg-head pg-pay"><div class="pg-ic">&#8377;</div>
+        <div><div class="pg-t">Money received</div><div class="pg-s">What patients paid &middot; cash, UPI, card</div></div></div>
       <div class="period-row" id="payPeriod"></div>
       <div class="daynav">
         <button type="button" class="daynav-btn" onclick="stepMoney(-1)">&lsaquo;</button>
@@ -1060,13 +1095,15 @@ body{ background:#FAF7F2 !important; }
         <button type="button" class="daynav-btn" id="moneyNextBtn" onclick="stepMoney(1)">&rsaquo;</button>
       </div>
       <div id="moneyTotals"></div>
-      <div class="sec-head"><span class="sec-title">Payments</span>
+      <div class="sec-head"><span class="sec-title">Payments received</span>
         <span class="count-badge" id="payCount">0</span></div>
       <div id="payList"><div class="spin">Reading&hellip;</div></div>
     </div>
 
     <!-- BILLING — what was raised, over the same period. -->
     <div id="viewBilling" class="hidden">
+      <div class="pg-head pg-bill"><div class="pg-ic">&#129534;</div>
+        <div><div class="pg-t">Bills raised</div><div class="pg-s">What was charged &middot; tap a bill for its lines</div></div></div>
       <div class="period-row" id="billSubRow"></div>
       <div class="period-row" id="billPeriod"></div>
       <div class="daynav">
@@ -6514,7 +6551,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.81';
+const ADMIN_VERSION = '4.82';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -7386,14 +7423,19 @@ async function renderPayment(){
       if(reversalExcludesFromDayTotals(it)) return;
       const amt = (it.method === 'refund' ? -1 : 1) * (Number(it.amount) || 0);
       rows.push({ date: e.date, pid: String(it.patientId || ''), amt,
+                  at: String(it.time || it.addedAt || ''),
                   mode: String(it.method || 'cash').toLowerCase(),
                   name: (dir && dir[String(it.patientId)]) || it.patientName || 'Unknown patient' });
     });
   });
   /* Every method, not the top three: a split that hides one of its own parts
      does not add up to the figure above it. */
-  document.getElementById('moneyTotals').innerHTML = totalBlock('collected', fmtINR(total),
-    ['cash','upi','card','bank'].map(m => [m, byMode[m] ? fmtINR(byMode[m]) : '']), '')
+  /* 4.82: the split is always on show, as coloured chips - it is the
+     second thing anybody reads on this page, so it is not behind a tap. */
+  const modeChips = ['cash','upi','card','bank'].filter(m => byMode[m])
+    .map(m => '<span class="pay-mode m-' + m + '">' + m.toUpperCase() + ' ' + fmtINR(byMode[m]) + '</span>').join('');
+  document.getElementById('moneyTotals').innerHTML = totalBlock('collected', fmtINR(total), [], '')
+    + (modeChips ? '<div class="pay-modes">' + modeChips + '</div>' : '')
     + moneyAsOfHtml(moneyEntryKeys(inPeriod));
   rollOrSet('payCount', rows.length);
   if(!rows.length){
@@ -7409,11 +7451,19 @@ async function renderPayment(){
   list.innerHTML = rows.slice(0, 200).map(r =>
       '<div class="pt-card"><div class="pt-top">' + (r.pid ? Cal.faceHtml(r.pid, 'face-sm') : '') + '<div class="pt-main">'   // 4.69: the face
     + '<div class="pt-name">' + escapeHtml(r.name) + '</div>'
-    + '<div class="pt-sub">' + escapeHtml(r.pid) + ' \u00b7 ' + escapeHtml(r.mode)
-      + (moneyPeriod === 'day' ? '' : ' \u00b7 ' + escapeHtml(shortDateMobile(r.date))) + '</div>'
+    + '<div class="pt-sub">' + [r.pid, moneyPeriod === 'day' ? '' : shortDateMobile(r.date), payClock(r.at)]
+        .filter(Boolean).map(escapeHtml).join(' \u00b7 ') + '</div>'
     + '</div><div class="pt-side"><div class="pt-amt' + (r.amt < 0 ? ' neg' : '') + '">'
-      + fmtINR(r.amt) + '</div></div></div></div>').join('')
+      + (r.amt > 0 ? '+ ' : '') + fmtINR(r.amt) + '</div>'
+      + '<div class="pay-mode sm m-' + escapeHtml(r.mode) + '">' + escapeHtml(r.mode === 'refund' ? 'REFUND' : r.mode.toUpperCase()) + '</div>'
+    + '</div></div></div>').join('')
     + (rows.length > 200 ? '<div class="empty-state">' + (rows.length - 200) + ' more \u2014 narrow the period</div>' : '');
+}
+/* When a payment was taken, as the desk stamped it; nothing when it was not. */
+function payClock(iso){
+  const t = Date.parse(iso || '');
+  if(!t) return '';
+  try{ return new Date(t).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).toLowerCase(); }catch(e){ return ''; }
 }
 function atLatestPeriod(){
   const k = moneyKey(), t = todayStr();
@@ -7449,10 +7499,11 @@ async function renderBilling(){
     const amt = Number(b.grandTotal) || 0;
     if(isCreditNote(b)) credited += amt; else if(!isCancelledBill(b)) billed += amt;
   });
+  const nBills = mine.filter(b => !isCreditNote(b)).length;
   document.getElementById('billTotals').innerHTML = totalBlock('billed', fmtINR(billed - credited),
     [['raised', fmtINR(billed)],
      ['credited', credited ? fmtINR(credited) : ''],
-     ['bills', String(mine.filter(b => !isCreditNote(b)).length)]], '')
+     ['bills', String(nBills)]], nBills + ' bill' + (nBills === 1 ? '' : 's'))
     + moneyAsOfHtml(['settings/bills-index.json']);
   rollOrSet('billCount', mine.length);
   if(!mine.length){ list.innerHTML = '<div class="empty-state">Nothing billed</div>'; return; }
@@ -7468,18 +7519,20 @@ async function renderBilling(){
     return '<div class="pt-card' + (cancelled ? ' struck' : '') + (open ? ' pt-open' : '')
         + ' tappable" onclick="toggleBill(\'' + key + '\')">'
       + '<div class="pt-top">' + (b.patientId ? Cal.faceHtml(String(b.patientId), 'face-sm') : '') + '<div class="pt-main">'   // 4.69: the face
-      + '<div class="pt-name">' + escapeHtml(name) + '</div>'
       /* The desk writes billNumber; billNo was my own invention and meant
-         every bill on this list showed without its number. */
+         every bill on this list showed without its number. 4.82: the number
+         heads the row, like a receipt. */
+      + (b.billNumber || b.billNo ? '<div class="bill-no">' + escapeHtml(String(b.billNumber || b.billNo)) + '</div>' : '')
+      + '<div class="pt-name">' + escapeHtml(name) + '</div>'
       + '<div class="pt-sub">' + escapeHtml(String(b.patientId || ''))
-        + (b.billNumber || b.billNo ? ' \u00b7 ' + escapeHtml(String(b.billNumber || b.billNo)) : '')
         + (moneyPeriod === 'day' ? '' : ' \u00b7 ' + escapeHtml(shortDateMobile(b.date))) + '</div>'
       + (credit ? '<div class="pt-tag pt-tag-wait">credit note</div>' : '')
       + (cancelled ? '<div class="pt-tag pt-tag-none">cancelled'
           + (b.cancellation && b.cancellation.reason ? ' \u00b7 ' + escapeHtml(b.cancellation.reason) : '')
           + '</div>' : '')
       + '</div><div class="pt-side"><div class="pt-amt' + (credit ? ' neg' : '') + '">'
-        + fmtINR(Number(b.grandTotal) || 0) + '</div></div></div>'
+        + fmtINR(Number(b.grandTotal) || 0) + '</div>'
+        + '<div class="bill-see">' + (open ? 'Close \u25b4' : 'See lines \u203a') + '</div></div></div>'
       + (open ? billLinesHtml(b) : '')
       + '</div>';
   }).join('')
