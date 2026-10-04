@@ -642,6 +642,34 @@ body{ background:#FAF7F2 !important; }
 .pf-clip{ flex:0 0 auto; font-size:12px; color:#5A4630; min-width:30px; text-align:right; }
 .pf-clip-0{ opacity:.35; }
 .pf-badge{ background:#fff; border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13px; color:var(--brown); cursor:pointer; }
+/* 4.83: RVG X-rays (clinic Wi-Fi only, read only) */
+.xr-slot:empty{ display:none; }
+.xr-btn-off{ opacity:.55; }
+.xr-wrap{ z-index:86; }
+.xr-why{ color:#8A5F26; }
+.xr-dayh{ font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#8A5F26; font-weight:700; margin:12px 0 6px; }
+.xr-dayh span{ background:#8A5F26; color:#fff; border-radius:999px; padding:1px 7px; margin-left:4px; letter-spacing:0; }
+.xr-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+.xr-th{ position:relative; aspect-ratio:4/3; border:1px solid var(--line); border-radius:10px; background:#111; overflow:hidden; padding:0; cursor:pointer; }
+.xr-th img{ width:100%; height:100%; object-fit:cover; display:block; }
+.xr-th i{ font-style:normal; font-size:22px; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+.xr-th small{ position:absolute; left:4px; bottom:3px; font-size:10px; color:#fff; background:rgba(0,0,0,.55); border-radius:4px; padding:0 4px; }
+.xr-foot{ font-size:11px; color:var(--muted); margin-top:14px; line-height:1.45; }
+.xv{ z-index:93; }
+.xv .xv-nav{ background:#333; color:#fff; border:0; border-radius:50%; width:36px; height:36px; font-size:18px; flex:0 0 auto; }
+.xv-stage{ flex:1; position:relative; overflow:hidden; touch-action:none; display:flex; align-items:center; justify-content:center; background:#000; }
+.xv-stage canvas{ transform-origin:center center; image-rendering:auto; }
+.xv-msg{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:24px; text-align:center; font-size:15px; line-height:1.5; color:#ddd; }
+.xv-tools{ background:#1b1b1b; padding:8px 12px 4px; display:flex; flex-direction:column; gap:6px; }
+.xv-tools label{ display:flex; align-items:center; gap:10px; font-size:16px; }
+.xv-tools input[type=range]{ flex:1; }
+.xv-btns{ display:flex; gap:6px; }
+.xv-btns button{ flex:1; background:#333; color:#fff; border:0; border-radius:10px; padding:9px 0; font:inherit; font-size:13px; }
+.xv-strip{ display:flex; gap:6px; overflow-x:auto; padding:6px 12px calc(8px + env(safe-area-inset-bottom)); background:#1b1b1b; }
+.xv-sth{ flex:0 0 64px; height:48px; border:2px solid transparent; border-radius:6px; background:#333; padding:0; overflow:hidden; }
+.xv-sth.cur{ border-color:#F5B544; }
+.xv-sth img{ width:100%; height:100%; object-fit:cover; display:block; }
+.xr-insheet .xr-btn{ margin:0 0 10px; }
 .pf-wrap{ z-index:85; }
 .pf-shotwrap{ z-index:87; }
 .pf-facewrap{ z-index:88; }
@@ -967,7 +995,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.82';
+const LITE_VERSION = '4.83';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -1539,8 +1567,34 @@ async function lanStampTick(){
   }finally{ lanStampBusy = false; }
 }
 setInterval(() => { lanStampTick(); }, LAN_STAMP_MS);
+/* RVG X-RAYS (4.83): asked of the reception PC only, never of the relay.
+   The first look waits up to 3 seconds for the PC; a list or a small
+   picture waits 10 seconds, a whole X-ray 45. Away from the clinic Wi-Fi
+   the answer is "clinic Wi-Fi only". A slow X-ray is not held against the
+   PC: the other reads keep using it. */
+const XR_LAN_ONLY = { xrayFor: 1, xrayThumbs: 1, xrayGet: 1 };
+const XR_LAN_WAIT_MS = 3000, XR_LIST_REQ_MS = 10000, XR_FILE_REQ_MS = 45000;
+async function xrRelayLan(params){
+  const act = params.action;
+  if(!lanInfo) throw new RelayError('wifi only', { wifiOnly: true });
+  let up = false;
+  try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), XR_LAN_WAIT_MS))]); }catch(e){ up = false; }
+  if(!up || !lanBase) throw new RelayError('wifi only', { wifiOnly: true });
+  try{
+    const j = await lanFetch(lanUrl(lanBase, act, params), act === 'xrayGet' ? XR_FILE_REQ_MS : XR_LIST_REQ_MS, { answers: true });
+    lanServed++;
+    if(!j || !j.ok) throw new RelayError((j && j.error) || 'refused', j || {});
+    return j;
+  }catch(e){
+    if(e instanceof RelayError) throw e;
+    throw new RelayError((e && e.answered && e.message) || 'the PC did not answer', {});
+  }
+}
 async function relay(params){
   const act = params && params.action;
+  /* 4.83: X-rays come from the reception PC on the clinic Wi-Fi, never
+     through Google. */
+  if(XR_LAN_ONLY[act]) return xrRelayLan(params);
   if(lanInfo && LAN_WRITES[act] && await lanReadyNow()){
     try{
       const j = await lanFetch(lanUrl(lanBase, act, params), LAN_REQ_MS, { answers: true });
@@ -2679,7 +2733,7 @@ function hsHeadHtml(pid, backCall){
     + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
     + '</div>' + cam + '</div>'
     /* 4.70: the patient's files. */
-    + '<div class="hs-files">' + pfBadgeHtml(pid, 'pf-badge') + '</div>'
+    + '<div class="hs-files">' + pfBadgeHtml(pid, 'pf-badge') + ' ' + xrBadgeHtml(pid, 'pf-badge') + '</div>'
     + (waNumberOf(pid) ? '<div class="hs-wa">' + callBtnHtml(pid, 'call-chip')
         + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
     + numListHtml(pid)
@@ -2968,7 +3022,7 @@ function openDrawer(day, kind, id){
             + '; border-color:' + tone.border + ';')
       +   bit(when)
       /* 4.70: the patient's files, one tap away. */
-      +   (r.patientId ? pfBadgeHtml(r.patientId, 'dr-c pf-drclip', true) : '')
+      +   (r.patientId ? pfBadgeHtml(r.patientId, 'dr-c pf-drclip', true) + xrBadgeHtml(r.patientId, 'dr-c pf-drclip', true) : '')
       + '</div></div>'
       + '<div class="dr-headr"><span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>'
       + '<button type="button" class="dr-x" onclick="closeDrawer()" aria-label="Close">\u2715</button></div></div>';
@@ -4280,6 +4334,7 @@ function pfSheetPaint(){
     + (!has && !declined ? '<button type="button" class="pf-link" onclick="' + PF_NS + 'photoDecline(' + jsArg(pid) + ')">Patient declined a photo</button>' : '')
     + '</div><button type="button" class="pf-x" onclick="' + PF_NS + 'pfSheetClose()" aria-label="Close">\u00d7</button></div>'
     + photoUnsentHtml(pid) + pfUnsentHtml(pid)
+    + '<div class="xr-insheet">' + xrBadgeHtml(pid, 'pf-badge') + '</div>'
     + '<button type="button" class="btn pf-shoot" onclick="' + PF_NS + 'pfShoot(' + jsArg(pid) + ')">\ud83d\udcc4 Photograph a document</button>'
     + '<div class="pf-sec">Files' + (live ? ' <span>' + live + '</span>' : '') + '</div>'
     + (list.length ? '<div class="pf-list">' + list.map(c => pfCardHtml(pid, c)).join('') + '</div>'
@@ -4603,6 +4658,620 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('online', () => { if(pfPending.some(p => !p.sent)) pfSend(); });
 /* ================================================= end patient files == */
+/* The .rvg reader: the same code as Nexus (a Carestream .rvg is a DICOM file,
+   JPEG lossless, 12-bit). */
+const XR_TS_EXPLICIT = '1.2.840.10008.1.2.1';
+const XR_TS_JPEG_LOSSLESS = ['1.2.840.10008.1.2.4.70', '1.2.840.10008.1.2.4.57'];
+const XR_LONG_VR = { OB: 1, OD: 1, OF: 1, OL: 1, OW: 1, SQ: 1, UC: 1, UR: 1, UT: 1, UN: 1, OV: 1 };
+function xrTag(g, e){ return ((g << 16) | e) >>> 0; }
+const XR_T = {
+  TS: xrTag(0x0002, 0x0010), NAME: xrTag(0x0010, 0x0010), PID: xrTag(0x0010, 0x0020),
+  SDATE: xrTag(0x0008, 0x0020), STIME: xrTag(0x0008, 0x0030), ADATE: xrTag(0x0008, 0x0022), ATIME: xrTag(0x0008, 0x0032),
+  CDATE: xrTag(0x0008, 0x0023), CTIME: xrTag(0x0008, 0x0033), MODEL: xrTag(0x0008, 0x1090), MODALITY: xrTag(0x0008, 0x0060),
+  ROWS: xrTag(0x0028, 0x0010), COLS: xrTag(0x0028, 0x0011), BITS: xrTag(0x0028, 0x0101), BALLOC: xrTag(0x0028, 0x0100),
+  PHOTO: xrTag(0x0028, 0x0004), SPP: xrTag(0x0028, 0x0002), SIGN: xrTag(0x0028, 0x1041), LAT: xrTag(0x0020, 0x0062),
+  ICON: xrTag(0x0088, 0x0200), PIXELS: xrTag(0x7FE0, 0x0010),
+  ITEM: xrTag(0xFFFE, 0xE000), ITEM_END: xrTag(0xFFFE, 0xE00D), SEQ_END: xrTag(0xFFFE, 0xE0DD)
+};
+function xrText(u8, off, len){
+  let s = '';
+  for(let i = 0; i < len; i++){ const c = u8[off + i]; if(c === 0) break; s += String.fromCharCode(c); }
+  return s.replace(/\s+$/, '');
+}
+/* One level of a data set. Returns { tags: Map(tag -> {vr, off, len, items?}), end }.
+   stopAtPixels: stop at (7FE0,0010) and note where it begins - the header
+   alone is all the index needs. */
+function xrReadSet(u8, dv, pos, limit, stopAtPixels, depth){
+  const tags = new Map();
+  while(pos + 8 <= limit){
+    const g = dv.getUint16(pos, true), e = dv.getUint16(pos + 2, true);
+    const tag = xrTag(g, e);
+    if(tag === XR_T.ITEM_END || tag === XR_T.SEQ_END){ return { tags, end: pos + 8, closed: true }; }
+    const vr = String.fromCharCode(u8[pos + 4], u8[pos + 5]);
+    let len, hdr;
+    if(XR_LONG_VR[vr]){ len = dv.getUint32(pos + 8, true); hdr = 12; }
+    else if(/^[A-Z]{2}$/.test(vr)){ len = dv.getUint16(pos + 6, true); hdr = 8; }
+    else throw new Error('not explicit VR at ' + pos);
+    const off = pos + hdr;
+    if(tag === XR_T.PIXELS && stopAtPixels){ tags.set(tag, { vr, off, len, at: pos }); return { tags, end: pos, pixelsAt: pos }; }
+    if(vr === 'SQ'){
+      const items = [];
+      let p = off;
+      const seqLimit = len === 0xFFFFFFFF ? limit : Math.min(limit, off + len);
+      while(p + 8 <= seqLimit){
+        const ig = xrTag(dv.getUint16(p, true), dv.getUint16(p + 2, true));
+        if(ig === XR_T.SEQ_END){ p += 8; break; }
+        if(ig !== XR_T.ITEM) throw new Error('bad item in sequence');
+        const ilen = dv.getUint32(p + 4, true);
+        const ilim = ilen === 0xFFFFFFFF ? seqLimit : p + 8 + ilen;
+        const r = xrReadSet(u8, dv, p + 8, ilim, false, depth + 1);
+        items.push(r.tags);
+        p = ilen === 0xFFFFFFFF ? r.end : p + 8 + ilen;
+      }
+      tags.set(tag, { vr, off, len, items });
+      pos = len === 0xFFFFFFFF ? p : off + len;
+      continue;
+    }
+    if(len === 0xFFFFFFFF){
+      /* encapsulated pixel data: items until the sequence delimiter */
+      const frags = [];
+      let p = off;
+      while(p + 8 <= limit){
+        const ig = xrTag(dv.getUint16(p, true), dv.getUint16(p + 2, true));
+        const il = dv.getUint32(p + 4, true);
+        if(ig === XR_T.SEQ_END){ p += 8; break; }
+        frags.push({ off: p + 8, len: il });
+        p += 8 + il;
+      }
+      tags.set(tag, { vr, off, len, frags });
+      pos = p;
+      continue;
+    }
+    tags.set(tag, { vr, off, len });
+    pos = off + len;
+  }
+  return { tags, end: pos };
+}
+function xrParse(buf, stopAtPixels){
+  const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  if(u8.length < 140 || xrText(u8, 128, 4) !== 'DICM') return { ok: false, why: 'not a DICOM file' };
+  /* the meta group */
+  let pos = 132, ts = '';
+  while(pos + 8 <= u8.length && dv.getUint16(pos, true) === 0x0002){
+    const e = dv.getUint16(pos + 2, true);
+    const vr = String.fromCharCode(u8[pos + 4], u8[pos + 5]);
+    let len, hdr;
+    if(XR_LONG_VR[vr]){ len = dv.getUint32(pos + 8, true); hdr = 12; } else { len = dv.getUint16(pos + 6, true); hdr = 8; }
+    if(e === 0x0010) ts = xrText(u8, pos + hdr, len).replace(/\0/g, '');
+    pos += hdr + len;
+  }
+  if(ts !== XR_TS_EXPLICIT && XR_TS_JPEG_LOSSLESS.indexOf(ts) === -1) return { ok: false, why: 'stored in a way Nexus cannot read (' + ts + ')', ts };
+  let set;
+  try{ set = xrReadSet(u8, dv, pos, u8.length, stopAtPixels, 0); }
+  catch(e){ return { ok: false, why: 'the file could not be read (' + e.message + ')', ts, short: true }; }
+  const T = set.tags;
+  const str = (t) => { const x = T.get(t); return x ? xrText(u8, x.off, x.len) : ''; };
+  const us = (t, from) => { const m = from || T; const x = m.get(t); return x && x.len >= 2 ? dv.getUint16(x.off, true) : 0; };
+  const out = {
+    ok: true, ts, name: str(XR_T.NAME).replace(/\^+/g, ' ').replace(/\s+/g, ' ').trim(), pid: str(XR_T.PID),
+    date: str(XR_T.ADATE) || str(XR_T.CDATE) || str(XR_T.SDATE), time: str(XR_T.ATIME) || str(XR_T.CTIME) || str(XR_T.STIME),
+    model: str(XR_T.MODEL), modality: str(XR_T.MODALITY), laterality: str(XR_T.LAT),
+    rows: us(XR_T.ROWS), cols: us(XR_T.COLS), bits: us(XR_T.BITS) || 12, alloc: us(XR_T.BALLOC) || 16,
+    photo: str(XR_T.PHOTO), sign: str(XR_T.SIGN), pixelsAt: set.pixelsAt || 0
+  };
+  const icon = T.get(XR_T.ICON);
+  if(icon && icon.items && icon.items[0]){
+    const I = icon.items[0];
+    const px = I.get(XR_T.PIXELS);
+    const ir = us(XR_T.ROWS, I), ic = us(XR_T.COLS, I), ib = us(XR_T.BALLOC, I);
+    if(px && !px.frags && ir && ic && ib === 8 && px.len >= ir * ic) out.icon = { off: px.off, rows: ir, cols: ic, photo: (I.get(XR_T.PHOTO) ? xrText(u8, I.get(XR_T.PHOTO).off, I.get(XR_T.PHOTO).len) : '') };
+  }
+  const px = T.get(XR_T.PIXELS);
+  if(px && !stopAtPixels) out.pixels = px;
+  return out;
+}
+/* ---- JPEG lossless (ITU T.81 process 14), one component ----------------- */
+function xrJpegLossless(u8){
+  let p = 0;
+  const marker = () => { if(u8[p] !== 0xFF) throw new Error('marker expected at ' + p); while(u8[p] === 0xFF) p++; return u8[p++]; };
+  const u16 = (i) => (u8[i] << 8) | u8[i + 1];
+  if(marker() !== 0xD8) throw new Error('no SOI');
+  const huff = {};
+  let P = 0, Y = 0, X = 0, Nf = 0, comp = null, restart = 0, pred = 1, Pt = 0, Td = 0;
+  for(;;){
+    const m = marker();
+    const len = u16(p);
+    if(m === 0xC3){
+      P = u8[p + 2]; Y = u16(p + 3); X = u16(p + 5); Nf = u8[p + 7];
+      if(Nf !== 1) throw new Error('only one-component images are read');
+      comp = u8[p + 8];
+    } else if(m === 0xC4){
+      let q = p + 2;
+      while(q < p + len){
+        const tc_th = u8[q++]; const counts = u8.subarray(q, q + 16); q += 16;
+        let total = 0; for(let i = 0; i < 16; i++) total += counts[i];
+        const vals = u8.subarray(q, q + total); q += total;
+        /* canonical codes -> a table keyed by (length, code) */
+        const maxcode = new Int32Array(18).fill(-1), valptr = new Int32Array(17), mincode = new Int32Array(17);
+        let code = 0, k = 0;
+        for(let l = 1; l <= 16; l++){
+          valptr[l] = k; mincode[l] = code;
+          code += counts[l - 1]; k += counts[l - 1];
+          maxcode[l] = counts[l - 1] ? code - 1 : -1;
+          code <<= 1;
+        }
+        huff[tc_th & 0x0F] = { maxcode, valptr, mincode, vals: Uint8Array.from(vals) };
+      }
+    } else if(m === 0xDD){
+      restart = u16(p + 2);
+    } else if(m === 0xDA){
+      const Ns = u8[p + 2];
+      if(Ns !== 1) throw new Error('one component per scan only');
+      Td = u8[p + 4] >> 4;
+      pred = u8[p + 5]; Pt = u8[p + 7] & 0x0F;
+      p += len;
+      break;
+    } else if(m === 0xD9){ throw new Error('no image data'); }
+    p += len;
+  }
+  if(!X || !Y) throw new Error('no frame header');
+  const H = huff[Td]; if(!H) throw new Error('no Huffman table');
+  const out = new Uint16Array(X * Y);
+  /* bit reader with byte unstuffing; stops at a marker */
+  let bitbuf = 0, bitcnt = 0, hitMarker = false;
+  const fill = () => {
+    while(bitcnt <= 24){
+      let b = 0;
+      if(!hitMarker && p < u8.length){
+        b = u8[p];
+        if(b === 0xFF){
+          const nx = u8[p + 1];
+          if(nx === 0x00){ p += 2; }
+          else { hitMarker = true; b = 0; }
+        } else p++;
+      }
+      bitbuf = (bitbuf << 8 | b) >>> 0; bitcnt += 8;
+    }
+  };
+  const bits = (n) => { if(n === 0) return 0; if(bitcnt < n) fill(); const v = (bitbuf >>> (bitcnt - n)) & ((1 << n) - 1); bitcnt -= n; return v; };
+  const decodeHuff = () => {
+    let code = 0;
+    for(let l = 1; l <= 16; l++){
+      code = (code << 1) | bits(1);
+      if(H.maxcode[l] >= 0 && code <= H.maxcode[l] && code >= H.mincode[l]) return H.vals[H.valptr[l] + code - H.mincode[l]];
+    }
+    throw new Error('bad Huffman code');
+  };
+  const diff = () => {
+    const s = decodeHuff();
+    if(s === 0) return 0;
+    if(s === 16) return 32768;
+    const v = bits(s);
+    return v < (1 << (s - 1)) ? v - (1 << s) + 1 : v;
+  };
+  const mask = (1 << P) - 1;
+  const start = 1 << (P - Pt - 1);
+  /* T.81 H.1.1: in lossless mode a restart interval is whole lines; the
+     first line after a restart is predicted like the first line of the
+     image (from the left, starting from the mid value). */
+  let n = 0, firstOfInterval = true, firstLine = true;
+  for(let y = 0; y < Y; y++){
+    for(let x = 0; x < X; x++){
+      if(restart && n > 0 && n % restart === 0){
+        bitbuf = 0; bitcnt = 0;
+        if(hitMarker){ p += 2; hitMarker = false; }
+        else { while(p < u8.length && !(u8[p] === 0xFF && u8[p + 1] >= 0xD0 && u8[p + 1] <= 0xD7)) p++; p += 2; }
+        firstOfInterval = true; firstLine = true;
+      }
+      if(x === 0 && !firstOfInterval) firstLine = false;
+      let px;
+      const i = y * X + x;
+      if(firstOfInterval){ px = start; firstOfInterval = false; }
+      else if(firstLine) px = out[i - 1];
+      else if(x === 0) px = out[i - X];
+      else {
+        const Ra = out[i - 1], Rb = out[i - X], Rc = out[i - X - 1];
+        switch(pred){
+          case 1: px = Ra; break;
+          case 2: px = Rb; break;
+          case 3: px = Rc; break;
+          case 4: px = Ra + Rb - Rc; break;
+          case 5: px = Ra + ((Rb - Rc) >> 1); break;
+          case 6: px = Rb + ((Ra - Rc) >> 1); break;
+          case 7: px = (Ra + Rb) >> 1; break;
+          default: px = Ra;
+        }
+      }
+      out[i] = (px + diff()) & mask;
+      n++;
+    }
+  }
+  if(Pt) for(let i = 0; i < out.length; i++) out[i] <<= Pt;
+  return { width: X, height: Y, precision: P, data: out };
+}
+/* The image itself: the pixel values, ready for a window. */
+function xrPixels(buf){
+  const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const d = xrParse(u8, false);
+  if(!d.ok) return d;
+  const px = d.pixels;
+  if(!px) return { ok: false, why: 'no image in the file' };
+  let img;
+  try{
+    if(XR_TS_JPEG_LOSSLESS.indexOf(d.ts) !== -1){
+      if(!px.frags || !px.frags.length) return { ok: false, why: 'no image in the file' };
+      /* fragments[0] is the offset table; the rest are the frame */
+      const parts = px.frags.slice(1);
+      let total = 0; parts.forEach(f => total += f.len);
+      const jp = new Uint8Array(total); let o = 0;
+      parts.forEach(f => { jp.set(u8.subarray(f.off, f.off + f.len), o); o += f.len; });
+      img = xrJpegLossless(jp);
+    } else {
+      const n = d.rows * d.cols;
+      const data = new Uint16Array(n);
+      const dv = new DataView(u8.buffer, u8.byteOffset + px.off, Math.min(px.len, n * 2));
+      for(let i = 0; i < n; i++) data[i] = dv.getUint16(i * 2, true);
+      img = { width: d.cols, height: d.rows, precision: d.bits, data };
+    }
+  }catch(e){ return { ok: false, why: 'the image could not be decoded (' + e.message + ')' }; }
+  return Object.assign(d, { ok: true, width: img.width, height: img.height, data: img.data, precision: img.precision });
+}
+/* ====================================================== RVG X-rays ==
+   RVG X-RAYS ON THE PHONE (4.83, owner's call 4 Oct 2026: "make the rvg
+   show in phone too" ... "start with a . in all the apps").
+   Carestream's X-rays, as Nexus lists them, read from the reception PC -
+   ON THE CLINIC WI-FI ONLY. They never go through Google: away from the
+   clinic the button says so and nothing is asked. READ ONLY: the desk
+   server only hands over what Nexus has listed for that patient, and
+   nothing is ever written to the Carestream folder.
+   Limits: the list is asked again after 2 minutes; at most 40 small
+   pictures per ask; one X-ray up to 20 MB (the desk server's cap); the
+   last 4 X-rays opened are kept in memory, nothing is kept on the phone. */
+const XR_LIST_MS = 2 * 60 * 1000;
+const XR_KEEP_FILES = 4;
+let xrLists = {};                      // pid -> { at, list: [{ f, n, d, t, w, h, icon }] } | { at, failed, why }
+const xrAskingNow = {};
+let xrWantSet = {}, xrWantTimer = null;
+const xrThumbMem = {};                 // 'folder/file' -> data URL
+const xrFileMem = [];                  // [{ k, img }] the last few opened
+let xrSheetPid = '';
+let xrV = null;                        // the open viewer
+
+function xrKey(x){ return x.f + '/' + x.n; }
+function xrWhyText(e){
+  const b = (e && e.body) || {};
+  if(b.wifiOnly) return 'X-rays open on the clinic Wi-Fi only.';
+  const m = String((e && e.message) || b.error || '');
+  if(/unknown action/.test(m)) return 'The reception PC’s desk server needs its update (2.3) for X-rays.';
+  if(/too big/.test(m) || b.tooBig) return 'This X-ray is too large to open on a phone — open it at the desk.';
+  return 'The reception PC did not answer just now. Try again in a moment.';
+}
+function xrAsk(pids, force){
+  (pids || []).map(String).forEach(pid => {
+    if(!/^[A-Za-z0-9]{1,20}$/.test(pid) || xrAskingNow[pid]) return;
+    const c = xrLists[pid];
+    if(!force && c && Date.now() - c.at < XR_LIST_MS) return;
+    xrWantSet[pid] = 1;
+  });
+  if(!Object.keys(xrWantSet).length || xrWantTimer) return;
+  xrWantTimer = setTimeout(xrAskNow, 120);
+}
+async function xrAskNow(){
+  xrWantTimer = null;
+  const want = Object.keys(xrWantSet); xrWantSet = {};
+  if(!want.length) return;
+  want.forEach(pid => { xrAskingNow[pid] = 1; });
+  try{
+    for(let i = 0; i < want.length; i += 60){
+      const chunk = want.slice(i, i + 60);
+      try{
+        const r = await relay({ action: 'xrayFor', pids: chunk.join(',') });
+        const got = (r && r.xrays) || {};
+        chunk.forEach(pid => {
+          const list = Array.isArray(got[pid]) ? got[pid].filter(x => x && /^[A-Za-z0-9_-]{1,80}$/.test(String(x.f || '')) && /^[A-Za-z0-9_.-]{1,40}\.rvg$/i.test(String(x.n || ''))) : [];
+          xrLists[pid] = { at: Date.now(), list };
+        });
+      }catch(e){
+        const why = xrWhyText(e);
+        chunk.forEach(pid => { xrLists[pid] = { at: Date.now(), failed: true, why, list: (xrLists[pid] && xrLists[pid].list) || null }; });
+      }
+    }
+  }finally{
+    want.forEach(pid => { delete xrAskingNow[pid]; });
+  }
+  xrFillSlots();
+  if(xrSheetPid && want.indexOf(xrSheetPid) !== -1) xrSheetPaint();
+}
+/* The button. Drawn as a slot and filled when the PC has answered: with
+   X-rays "RVG · N"; none, no button; away from the clinic Wi-Fi the full
+   button stays (a tap says why), the short one does not show. */
+function xrBadgeHtml(pid, cls, short){
+  if(!pid) return '';
+  xrAsk([pid], false);
+  return '<span class="xr-slot" data-pid="' + escapeHtml(String(pid)) + '" data-cls="' + escapeHtml(cls || 'pf-badge') + '"' + (short ? ' data-short="1"' : '') + '>'
+    + xrSlotInner(String(pid), cls || 'pf-badge', !!short) + '</span>';
+}
+function xrSlotInner(pid, cls, short){
+  const c = xrLists[pid];
+  if(!c) return '';                    // not answered yet: no button that might vanish
+  const n = Array.isArray(c.list) ? c.list.length : -1;
+  if(n === 0 && !(c && c.failed)) return '';
+  if(n <= 0 && short) return '';
+  const label = '🩻 ' + (short ? n : 'RVG' + (n > 0 ? ' · ' + n : ''));
+  return '<button type="button" class="' + escapeHtml(cls) + ' xr-btn' + (n > 0 ? '' : ' xr-btn-off') + '" onclick="event.stopPropagation(); ' + PF_NS + 'xrOpen(' + jsArg(pid) + ')">' + label + '</button>';
+}
+function xrFillSlots(){
+  if(typeof document === 'undefined') return;
+  document.querySelectorAll('.xr-slot[data-pid]').forEach(el => {
+    const h = xrSlotInner(el.getAttribute('data-pid'), el.getAttribute('data-cls') || 'pf-badge', el.getAttribute('data-short') === '1');
+    if(el.innerHTML !== h) el.innerHTML = h;
+  });
+}
+
+/* ---- the gallery ------------------------------------------------------ */
+function xrDayLabel(d){
+  const m = /^(\d{4})(\d{2})(\d{2})$/.exec(String(d || ''));
+  if(!m) return 'Date not recorded';
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+function xrTimeLabel(t){
+  t = String(t || '');
+  if(t.length < 4) return '';
+  const hh = Number(t.slice(0, 2)), mm = Number(t.slice(2, 4));
+  return isFinite(hh) && isFinite(mm) ? clock(hh * 60 + mm) : '';
+}
+function xrOpen(pid){
+  xrSheetPid = String(pid);
+  xrAsk([xrSheetPid], true);
+  xrSheetPaint();
+}
+function xrClose(){
+  xrSheetPid = '';
+  const w = document.getElementById('xrSheet');
+  if(w) w.classList.add('hidden');
+}
+function xrSheetPaint(){
+  const pid = xrSheetPid;
+  if(!pid) return;
+  const w = pfWrap('xrSheet', 'photo-wrap pf-wrap xr-wrap');
+  const c = xrLists[pid];
+  const list = (c && c.list) || [];
+  let body;
+  if(xrAskingNow[pid] && !list.length) body = '<div class="pf-none">Asking the reception PC…</div>';
+  else if(c && c.failed && !list.length) body = '<div class="pf-none xr-why">' + escapeHtml(c.why) + '</div>';
+  else if(!list.length) body = '<div class="pf-none">No X-rays from Carestream for this patient.</div>';
+  else {
+    const days = [];
+    list.forEach((x, i) => {
+      let g = days[days.length - 1];
+      if(!g || g.d !== x.d){ g = { d: x.d, items: [] }; days.push(g); }
+      g.items.push({ x, i });
+    });
+    body = (c.failed ? '<div class="pf-none xr-why">' + escapeHtml(c.why) + ' Showing the list from a moment ago.</div>' : '')
+      + days.map(g => '<div class="xr-dayh">' + escapeHtml(xrDayLabel(g.d)) + ' <span>' + g.items.length + '</span></div><div class="xr-grid">'
+        + g.items.map(o => '<button type="button" class="xr-th" data-k="' + escapeHtml(xrKey(o.x)) + '" onclick="' + PF_NS + 'xrView(' + jsArg(pid) + ',' + o.i + ')">'
+          + (xrThumbMem[xrKey(o.x)] ? '<img alt="" src="' + xrThumbMem[xrKey(o.x)] + '">' : '<i>🩻</i>')
+          + '<small>' + escapeHtml(xrTimeLabel(o.x.t)) + '</small></button>').join('')
+        + '</div>').join('');
+  }
+  w.innerHTML = '<div class="photo-sheet pf-sheet xr-sheet" onclick="event.stopPropagation()">'
+    + '<div class="pf-head"><div class="pf-who"><b>RVG · ' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
+    + '<span>' + escapeHtml(pid) + (list.length ? ' · ' + list.length + ' X-ray' + (list.length === 1 ? '' : 's') + ' · newest first' : '') + '</span></div>'
+    + '<button type="button" class="pf-x" onclick="' + PF_NS + 'xrClose()" aria-label="Close">×</button></div>'
+    + body
+    + '<div class="xr-foot">From Carestream on the reception PC, on the clinic Wi-Fi only. Read only — measuring and enhancing stay in CS Imaging.</div>'
+    + '</div>';
+  w.onclick = () => xrClose();
+  w.classList.remove('hidden');
+  xrThumbsFetch(pid, list);
+}
+let xrThumbBusy = false;
+async function xrThumbsFetch(pid, list){
+  const want = list.filter(x => x.icon && !xrThumbMem[xrKey(x)]).map(xrKey);
+  if(!want.length || xrThumbBusy) return;
+  xrThumbBusy = true;
+  try{
+    for(let i = 0; i < want.length; i += 40){
+      let r;
+      try{ r = await relay({ action: 'xrayThumbs', pid, items: want.slice(i, i + 40).join(',') }); }catch(e){ break; }
+      const got = (r && r.thumbs) || {};
+      Object.keys(got).forEach(k => {
+        const u = xrGreyUrl(got[k]);
+        if(!u) return;
+        xrThumbMem[k] = u;
+        document.querySelectorAll('.xr-th[data-k], .xv-sth[data-k]').forEach(el => {
+          if(el.getAttribute('data-k') === k) el.innerHTML = '<img alt="" src="' + u + '">' + (el.querySelector('small') ? el.querySelector('small').outerHTML : '');
+        });
+      });
+    }
+  }finally{ xrThumbBusy = false; }
+}
+/* 8-bit grey from the file, stretched to its own range, as on the desk. */
+function xrGreyUrl(t){
+  try{
+    const w = Number(t.w), h = Number(t.h);
+    if(!(w > 0 && h > 0 && w * h <= 200 * 1024)) return '';
+    const bin = atob(String(t.g || ''));
+    if(bin.length !== w * h) return '';
+    let lo = 255, hi = 0;
+    for(let i = 0; i < bin.length; i++){ const v = bin.charCodeAt(i); if(v < lo) lo = v; if(v > hi) hi = v; }
+    const span = Math.max(1, hi - lo);
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const g = cv.getContext('2d'); const im = g.createImageData(w, h);
+    for(let i = 0; i < bin.length; i++){ const v = Math.round((bin.charCodeAt(i) - lo) * 255 / span); im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; }
+    g.putImageData(im, 0, 0);
+    return cv.toDataURL('image/png');
+  }catch(e){ return ''; }
+}
+
+/* ---- the viewer ------------------------------------------------------- */
+function xrView(pid, i){
+  const c = xrLists[String(pid)];
+  const list = (c && c.list) || [];
+  if(!list[i]) return;
+  xrV = { pid: String(pid), list, i, img: null, rot: 0, flip: false, inv: false, zoom: 1, panX: 0, panY: 0, bright: 0, contrast: 0 };
+  let w = document.getElementById('xrViewer');
+  if(!w){ w = document.createElement('div'); w.id = 'xrViewer'; w.className = 'pf-view xv'; document.body.appendChild(w); }
+  w.innerHTML = '<div class="pf-vhead"><button type="button" class="pf-x" onclick="' + PF_NS + 'xrViewClose()" aria-label="Close">‹</button>'
+    + '<div><b id="xvWho"></b><span id="xvWhen"></span></div>'
+    + '<button type="button" class="xv-nav" onclick="' + PF_NS + 'xrShowAt(-1)" aria-label="Previous">←</button>'
+    + '<button type="button" class="xv-nav" onclick="' + PF_NS + 'xrShowAt(1)" aria-label="Next">→</button></div>'
+    + '<div class="xv-stage" id="xvStage"><canvas id="xvCanvas"></canvas><div class="xv-msg" id="xvMsg"></div></div>'
+    + '<div class="xv-tools">'
+    +   '<label>☀️<input type="range" id="xvBright" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
+    +   '<label>◐<input type="range" id="xvContrast" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
+    +   '<div class="xv-btns"><button type="button" onclick="' + PF_NS + 'xrTool(\'inv\')">Invert</button><button type="button" onclick="' + PF_NS + 'xrTool(\'rot\')">Rotate</button>'
+    +   '<button type="button" onclick="' + PF_NS + 'xrTool(\'flip\')">Flip</button><button type="button" onclick="' + PF_NS + 'xrTool(\'reset\')">Reset</button></div>'
+    + '</div>'
+    + '<div class="xv-strip">' + list.map(x => '<button type="button" class="xv-sth" data-k="' + escapeHtml(xrKey(x)) + '" onclick="' + PF_NS + 'xrShowKey(' + jsArg(xrKey(x)) + ')">'
+      + (xrThumbMem[xrKey(x)] ? '<img alt="" src="' + xrThumbMem[xrKey(x)] + '">' : '') + '</button>').join('') + '</div>';
+  w.classList.remove('hidden');
+  xrWireStage();
+  xrShow(i);
+}
+function xrViewClose(){ const w = document.getElementById('xrViewer'); if(w){ w.classList.add('hidden'); w.innerHTML = ''; } xrV = null; }
+function xrShowAt(d){ if(xrV) xrShow(xrV.i + d); }
+function xrShowKey(k){ if(!xrV) return; const i = xrV.list.findIndex(x => xrKey(x) === k); if(i >= 0) xrShow(i); }
+async function xrShow(k){
+  if(!xrV || k < 0 || k >= xrV.list.length) return;
+  xrV.i = k;
+  const x = xrV.list[k];
+  const who = document.getElementById('xvWho'), when = document.getElementById('xvWhen');
+  if(who) who.textContent = (nameOf(xrV.pid) || ('ID ' + xrV.pid));
+  if(when) when.textContent = xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '') + ' · ' + (k + 1) + ' of ' + xrV.list.length;
+  document.querySelectorAll('#xrViewer .xv-sth').forEach(el => el.classList.toggle('cur', el.getAttribute('data-k') === xrKey(x)));
+  const cur = document.querySelector('#xrViewer .xv-sth.cur'); if(cur && cur.scrollIntoView) try{ cur.scrollIntoView({ block: 'nearest', inline: 'center' }); }catch(e){}
+  const msg = document.getElementById('xvMsg'), cv = document.getElementById('xvCanvas');
+  /* the last X-ray is hidden at once, never shown under the next one's name */
+  if(cv) cv.style.visibility = 'hidden';
+  xrV.img = null;
+  if(msg){ msg.textContent = 'Opening…'; msg.style.display = ''; }
+  try{
+    let held = xrFileMem.find(o => o.k === xrKey(x));
+    if(!held){
+      const r = await relay({ action: 'xrayGet', pid: xrV ? xrV.pid : '', f: x.f, n: x.n });
+      if(!r || !r.ok || !r.b64) throw new RelayError((r && r.error) || 'no file', r || {});
+      const bin = atob(r.b64); const u8 = new Uint8Array(bin.length);
+      for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const img = xrPixels(u8);
+      if(!img.ok){ if(xrV && xrV.i === k && msg) msg.textContent = 'This X-ray cannot be shown here (' + img.why + '). Open it at the desk.'; return; }
+      const hist = new Uint32Array(65536); for(let i = 0; i < img.data.length; i++) hist[img.data[i]]++;
+      const total = img.data.length; let acc = 0, lo = 0, hi = 65535;
+      for(let v = 0; v < 65536; v++){ acc += hist[v]; if(acc >= total * 0.005){ lo = v; break; } }
+      acc = 0; for(let v = 65535; v >= 0; v--){ acc += hist[v]; if(acc >= total * 0.005){ hi = v; break; } }
+      held = { k: xrKey(x), img: { w: img.width, h: img.height, data: img.data, lo, hi: Math.max(hi, lo + 1), mono1: img.photo === 'MONOCHROME1' } };
+      xrFileMem.push(held);
+      while(xrFileMem.length > XR_KEEP_FILES) xrFileMem.shift();
+    }
+    if(!xrV || xrV.i !== k) return;
+    xrV.img = held.img;
+    Object.assign(xrV, { rot: 0, flip: false, inv: false, zoom: 1, panX: 0, panY: 0, bright: 0, contrast: 0 });
+    const b = document.getElementById('xvBright'), c = document.getElementById('xvContrast');
+    if(b) b.value = 0; if(c) c.value = 0;
+    if(msg) msg.style.display = 'none';
+    xrRender(); xrPlace();
+    if(cv) cv.style.visibility = '';
+  }catch(e){
+    if(xrV && xrV.i === k && msg) msg.textContent = xrWhyText(e);
+  }
+}
+function xrRender(){
+  if(!xrV || !xrV.img) return;
+  const I = xrV.img;
+  const c = document.getElementById('xvCanvas');
+  if(!c) return;
+  c.width = I.w; c.height = I.h;
+  const g = c.getContext('2d'); const im = g.createImageData(I.w, I.h);
+  const span = (I.hi - I.lo) * Math.pow(2, -xrV.contrast / 50);
+  const mid = (I.hi + I.lo) / 2 - (I.hi - I.lo) * (xrV.bright / 100);
+  const lo = mid - span / 2;
+  const flipTone = xrV.inv !== I.mono1;
+  const lut = new Uint8Array(65536);
+  for(let v = 0; v < 65536; v++){ let o = Math.round((v - lo) * 255 / span); o = o < 0 ? 0 : o > 255 ? 255 : o; lut[v] = flipTone ? 255 - o : o; }
+  const d = I.data, px = im.data;
+  for(let i = 0, j = 0; i < d.length; i++, j += 4){ const o = lut[d[i]]; px[j] = px[j + 1] = px[j + 2] = o; px[j + 3] = 255; }
+  g.putImageData(im, 0, 0);
+}
+/* Fitted to the screen, then the fingers' zoom and pan on top. */
+function xrPlace(){
+  if(!xrV || !xrV.img) return;
+  const c = document.getElementById('xvCanvas'), st = document.getElementById('xvStage');
+  if(!c || !st) return;
+  const turned = xrV.rot % 180 !== 0;
+  const W = turned ? xrV.img.h : xrV.img.w, H = turned ? xrV.img.w : xrV.img.h;
+  const fit = Math.min((st.clientWidth || 360) / W, (st.clientHeight || 480) / H);
+  c.style.width = Math.round(xrV.img.w * fit) + 'px'; c.style.height = Math.round(xrV.img.h * fit) + 'px';
+  c.style.transform = 'translate(' + xrV.panX + 'px,' + xrV.panY + 'px) rotate(' + xrV.rot + 'deg) scale(' + (xrV.flip ? -xrV.zoom : xrV.zoom) + ',' + xrV.zoom + ')';
+}
+function xrAdjust(){
+  if(!xrV) return;
+  xrV.bright = Number((document.getElementById('xvBright') || {}).value) || 0;
+  xrV.contrast = Number((document.getElementById('xvContrast') || {}).value) || 0;
+  xrRender();
+}
+function xrTool(t){
+  if(!xrV) return;
+  if(t === 'inv'){ xrV.inv = !xrV.inv; xrRender(); return; }
+  if(t === 'rot') xrV.rot = (xrV.rot + 90) % 360;
+  else if(t === 'flip') xrV.flip = !xrV.flip;
+  else if(t === 'reset'){
+    Object.assign(xrV, { rot: 0, flip: false, inv: false, zoom: 1, panX: 0, panY: 0, bright: 0, contrast: 0 });
+    const b = document.getElementById('xvBright'), c = document.getElementById('xvContrast');
+    if(b) b.value = 0; if(c) c.value = 0;
+    xrRender();
+  }
+  xrPlace();
+}
+/* One finger moves, two fingers zoom (to 8x), a double tap goes back to
+   the whole X-ray. A quick swipe sideways at normal size is the next one. */
+function xrWireStage(){
+  const st = document.getElementById('xvStage');
+  if(!st) return;
+  const pts = new Map();
+  let pinch = null, drag = null, lastTap = 0, swipe = null;
+  st.addEventListener('pointerdown', (e) => {
+    if(!xrV) return;
+    try{ st.setPointerCapture(e.pointerId); }catch(er){}
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if(pts.size === 2){
+      const [a, b] = Array.from(pts.values());
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: xrV.zoom }; drag = null; swipe = null;
+    } else if(pts.size === 1){
+      drag = { x: e.clientX, y: e.clientY, px: xrV.panX, py: xrV.panY };
+      swipe = { x: e.clientX, y: e.clientY, t: Date.now() };
+      const now = Date.now();
+      if(now - lastTap < 300){ Object.assign(xrV, { zoom: 1, panX: 0, panY: 0 }); xrPlace(); swipe = null; }
+      lastTap = now;
+    }
+  });
+  st.addEventListener('pointermove', (e) => {
+    if(!xrV || !pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if(pinch && pts.size >= 2){
+      const [a, b] = Array.from(pts.values());
+      xrV.zoom = Math.min(8, Math.max(1, pinch.z * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)));
+      xrPlace();
+    } else if(drag && xrV.zoom > 1){
+      xrV.panX = drag.px + e.clientX - drag.x; xrV.panY = drag.py + e.clientY - drag.y; xrPlace();
+    }
+  });
+  const up = (e) => {
+    pts.delete(e.pointerId);
+    if(pts.size < 2) pinch = null;
+    if(!pts.size){
+      if(swipe && xrV && xrV.zoom <= 1){
+        const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+        if(Math.abs(dx) > 60 && Math.abs(dy) < 50 && Date.now() - swipe.t < 600) xrShowAt(dx < 0 ? 1 : -1);
+      }
+      drag = null; swipe = null;
+    }
+  };
+  st.addEventListener('pointerup', up);
+  st.addEventListener('pointercancel', up);
+}
+/* ================================================== end RVG X-rays == */
 
 /* ------------------------------------------------------------ patients -- */
 /* THE NAMES ARE PREPARED ONCE (4.27). Every keystroke used to walk the whole
