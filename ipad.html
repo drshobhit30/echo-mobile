@@ -670,6 +670,13 @@ body{ background:#FAF7F2 !important; }
 .xv-sth.cur{ border-color:#F5B544; }
 .xv-sth img{ width:100%; height:100%; object-fit:cover; display:block; }
 .xr-insheet .xr-btn{ margin:0 0 10px; }
+.xr-th.pick{ outline:3px solid #F5B544; outline-offset:-3px; }
+.xr-cmp{ margin-right:8px; flex:0 0 auto; }
+.xr-cmp.on{ background:#8A5F26; color:#fff; border-color:#8A5F26; }
+.xv-pane{ position:relative; flex:1; min-width:0; height:100%; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.xv-two{ display:flex; gap:3px; }
+.xv-two .xv-pane{ background:#000; }
+.xv-lab{ position:absolute; left:8px; top:6px; font-size:12px; color:#F5D9A0; background:rgba(0,0,0,.6); padding:2px 7px; border-radius:6px; pointer-events:none; }
 .pf-wrap{ z-index:85; }
 .pf-shotwrap{ z-index:87; }
 .pf-facewrap{ z-index:88; }
@@ -818,6 +825,11 @@ body{ background:#FAF7F2 !important; }
 .ptr-acts{ display:flex; gap:8px; flex-wrap:wrap; margin-top:9px; }
 
 
+/* THE RVG ICON (v12.59 / phones 4.86 / chairs c1.2, owner 4 Oct: "keep the rvg icon consistent across entire ecosystem"):
+   one drawing - a molar radiograph on black film - the same on the chairs, in Nexus and on the phones.
+   A picture, not an emoji, so every computer and phone shows it alike (Windows 7 shows no X-ray emoji at all). */
+.rvg-ico{ display:inline-block; width:1.25em; height:1.25em; vertical-align:-.28em; flex:none; background:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Cdefs%3E%20%3ClinearGradient%20id='bgr'%20x1='0'%20y1='0'%20x2='0'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%23050505'/%3E%3Cstop%20offset='.46'%20stop-color='%23101010'/%3E%3Cstop%20offset='.6'%20stop-color='%234e4e4e'/%3E%3Cstop%20offset='1'%20stop-color='%23858585'/%3E%3C/linearGradient%3E%20%3ClinearGradient%20id='dnr'%20x1='0'%20y1='0'%20x2='0'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%23d6d6d6'/%3E%3Cstop%20offset='.55'%20stop-color='%23b4b4b4'/%3E%3Cstop%20offset='1'%20stop-color='%238e8e8e'/%3E%3C/linearGradient%3E%20%3ClinearGradient%20id='enr'%20x1='0'%20y1='0'%20x2='0'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%23ffffff'/%3E%3Cstop%20offset='1'%20stop-color='%23e4e4e4'/%3E%3C/linearGradient%3E%20%3ClinearGradient%20id='plr'%20x1='0'%20y1='0'%20x2='0'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%232e2e2e'/%3E%3Cstop%20offset='1'%20stop-color='%234c4c4c'/%3E%3C/linearGradient%3E%20%3CclipPath%20id='fr'%3E%3Crect%20x='6'%20y='5'%20width='52'%20height='54'%20rx='9'/%3E%3C/clipPath%3E%20%3CclipPath%20id='bnr'%3E%3Crect%20x='0'%20y='33'%20width='64'%20height='40'/%3E%3C/clipPath%3E%3C/defs%3E%3Crect%20x='6'%20y='5'%20width='52'%20height='54'%20rx='9'%20fill='url(%23bgr)'/%3E%3Cg%20clip-path='url(%23fr)'%3E%3Cg%20clip-path='url(%23bnr)'%3E%3Cpath%20d='M17.5%2021C17%2015%2020.5%2011.8%2025%2012C27.6%2012.1%2029.4%2013.6%2032%2013.6C34.6%2013.6%2036.4%2012.1%2039%2012C43.5%2011.8%2047%2015%2046.5%2021C46.2%2025%2044.6%2028%2043.4%2031C42.8%2033%2042.6%2035.5%2042.3%2038L40.6%2051C40.2%2054%2036.6%2054.2%2036.2%2051.2L34.6%2040C34.3%2038.2%2033.3%2037.4%2032%2037.4C30.7%2037.4%2029.7%2038.2%2029.4%2040L27.8%2051.2C27.4%2054.2%2023.8%2054%2023.4%2051L21.7%2038C21.4%2035.5%2021.2%2033%2020.6%2031C19.4%2028%2017.8%2025%2017.5%2021Z'%20fill='none'%20stroke='%23a6a6a6'%20stroke-width='2.4'%20opacity='.45'/%3E%3Cpath%20d='M17.5%2021C17%2015%2020.5%2011.8%2025%2012C27.6%2012.1%2029.4%2013.6%2032%2013.6C34.6%2013.6%2036.4%2012.1%2039%2012C43.5%2011.8%2047%2015%2046.5%2021C46.2%2025%2044.6%2028%2043.4%2031C42.8%2033%2042.6%2035.5%2042.3%2038L40.6%2051C40.2%2054%2036.6%2054.2%2036.2%2051.2L34.6%2040C34.3%2038.2%2033.3%2037.4%2032%2037.4C30.7%2037.4%2029.7%2038.2%2029.4%2040L27.8%2051.2C27.4%2054.2%2023.8%2054%2023.4%2051L21.7%2038C21.4%2035.5%2021.2%2033%2020.6%2031C19.4%2028%2017.8%2025%2017.5%2021Z'%20fill='none'%20stroke='%23262626'%20stroke-width='1.1'/%3E%3C/g%3E%3Cpath%20d='M17.5%2021C17%2015%2020.5%2011.8%2025%2012C27.6%2012.1%2029.4%2013.6%2032%2013.6C34.6%2013.6%2036.4%2012.1%2039%2012C43.5%2011.8%2047%2015%2046.5%2021C46.2%2025%2044.6%2028%2043.4%2031C42.8%2033%2042.6%2035.5%2042.3%2038L40.6%2051C40.2%2054%2036.6%2054.2%2036.2%2051.2L34.6%2040C34.3%2038.2%2033.3%2037.4%2032%2037.4C30.7%2037.4%2029.7%2038.2%2029.4%2040L27.8%2051.2C27.4%2054.2%2023.8%2054%2023.4%2051L21.7%2038C21.4%2035.5%2021.2%2033%2020.6%2031C19.4%2028%2017.8%2025%2017.5%2021Z'%20fill='url(%23dnr)'/%3E%3Cpath%20d='M17.5%2021C17%2015%2020.5%2011.8%2025%2012C27.6%2012.1%2029.4%2013.6%2032%2013.6C34.6%2013.6%2036.4%2012.1%2039%2012C43.5%2011.8%2047%2015%2046.5%2021C46.3%2024.5%2045%2027.6%2043.8%2030C43.2%2027%2042.4%2023.5%2040.5%2021.5C38%2019%2035%2018.6%2032%2018.6C29%2018.6%2026%2019%2023.5%2021.5C21.6%2023.5%2020.8%2027%2020.2%2030C19%2027.6%2017.7%2024.5%2017.5%2021Z'%20fill='url(%23enr)'/%3E%3Cpath%20d='M26%2028.2C25.9%2026.2%2026.6%2025.2%2027.4%2026C28.3%2026.9%2029.8%2027.3%2032%2027.3C34.2%2027.3%2035.7%2026.9%2036.6%2026C37.4%2025.2%2038.1%2026.2%2038%2028.2C37.9%2030.2%2037.2%2031.4%2037%2032.6L38.2%2050C38.25%2050.9%2037.8%2051%2037.6%2050.1L35.4%2037C35%2035%2033.7%2034.2%2032%2034.2C30.3%2034.2%2029%2035%2028.6%2037L26.4%2050.1C26.2%2051%2025.75%2050.9%2025.8%2050L27%2032.6C26.8%2031.4%2026.1%2030.2%2026%2028.2Z'%20fill='url(%23plr)'/%3E%3C/g%3E%3Crect%20x='6'%20y='5'%20width='52'%20height='54'%20rx='9'%20fill='none'%20stroke='%238A5F26'%20stroke-width='2'/%3E%3C/svg%3E") center/contain no-repeat; }
+.rvg-ico.dim{ opacity:.6; }
 /* ==== THE CLINIC iPAD (4.71, owner's call) - made into ipad.html by
    tools/build_ipad.py; lite.html and reception.html never carry this. ==== */
 #hdBell{ display:none !important; }            /* the iPad has no notifications at all */
@@ -995,7 +1007,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.84';
+const LITE_VERSION = '4.86';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -1110,6 +1122,7 @@ function relayRequestUrl(params){
   return url.toString();
 }
 async function relayViaGoogle(params){
+  const tmo = relayTimeoutOverride || RELAY_TIMEOUT_MS;   // 4.85: a whole X-ray gets longer
   const url = relayRequestUrl(params);
   const usedKey = relayKey();
   /* ONE RETRY (4.14). Google sometimes answers with an error page instead of
@@ -1122,7 +1135,7 @@ async function relayViaGoogle(params){
     /* A HANG MUST END (4.19). Without this a stuck request never returns and
        the screen waits for ever with nothing on it. Cut it off and say so. */
     const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
-    const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, RELAY_TIMEOUT_MS) : null;
+    const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, tmo) : null;
     /* THE CLOCK COVERS THE WHOLE ANSWER (4.20). The first version cleared it
        the moment the headers arrived, and then waited for the body with
        nothing watching - which is exactly the shape of a wedged relay run:
@@ -1574,21 +1587,43 @@ setInterval(() => { lanStampTick(); }, LAN_STAMP_MS);
    PC: the other reads keep using it. */
 const XR_LAN_ONLY = { xrayFor: 1, xrayThumbs: 1, xrayGet: 1 };
 const XR_LAN_WAIT_MS = 3000, XR_LIST_REQ_MS = 10000, XR_FILE_REQ_MS = 45000;
+const XR_GOOGLE_FILE_MS = 90000;       // a whole X-ray through Google
+let xrVia = '';                        // where the last X-ray answer came from: 'pc' or 'drive'
+let relayTimeoutOverride = 0;          // one call's longer clock for relayViaGoogle (read at its start)
 async function xrRelayLan(params){
   const act = params.action;
-  if(!lanInfo) throw new RelayError('wifi only', { wifiOnly: true });
-  let up = false;
-  try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), XR_LAN_WAIT_MS))]); }catch(e){ up = false; }
-  if(!up || !lanBase) throw new RelayError('wifi only', { wifiOnly: true });
-  try{
-    const j = await lanFetch(lanUrl(lanBase, act, params), act === 'xrayGet' ? XR_FILE_REQ_MS : XR_LIST_REQ_MS, { answers: true });
-    lanServed++;
-    if(!j || !j.ok) throw new RelayError((j && j.error) || 'refused', j || {});
-    return j;
-  }catch(e){
-    if(e instanceof RelayError) throw e;
-    throw new RelayError((e && e.answered && e.message) || 'the PC did not answer', {});
+  if(lanInfo){
+    let up = false;
+    try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), XR_LAN_WAIT_MS))]); }catch(e){ up = false; }
+    if(up && lanBase){
+      try{
+        const j = await lanFetch(lanUrl(lanBase, act, params), act === 'xrayGet' ? XR_FILE_REQ_MS : XR_LIST_REQ_MS, { answers: true });
+        lanServed++;
+        if(!j || !j.ok) throw new RelayError((j && j.error) || 'refused', j || {});
+        xrVia = 'pc';
+        return j;
+      }catch(e){
+        if(e instanceof RelayError) throw e;      // a refusal by rule from the PC stands
+        lanFailed(e, act);                        // the PC not answering: Google, below
+      }
+    }
   }
+  /* 4.85 (owner, 4 Oct): AWAY FROM THE CLINIC, through Google - the relay
+     (r4.17) reads the Drive copy of the Carestream folder. Slower (an X-ray
+     takes 5-10 s) and a few minutes behind the PC. */
+  let j;
+  try{
+    relayTimeoutOverride = act === 'xrayGet' ? XR_GOOGLE_FILE_MS : 0;
+    const pr = relayViaGoogle(params);
+    relayTimeoutOverride = 0;
+    j = await pr;
+  }catch(e){
+    relayTimeoutOverride = 0;
+    if(e instanceof RelayError && /unknown action/.test(String(e.message))) throw new RelayError('relay old', { relayOld: true });
+    throw e;
+  }
+  xrVia = (j && j.via) || 'drive';
+  return j;
 }
 async function relay(params){
   const act = params && params.action;
@@ -4917,7 +4952,7 @@ function xrPixels(buf){
   }catch(e){ return { ok: false, why: 'the image could not be decoded (' + e.message + ')' }; }
   return Object.assign(d, { ok: true, width: img.width, height: img.height, data: img.data, precision: img.precision });
 }
-/* ---- THE ENHANCED LOOK (v12.57 / phones 4.84) --------------------------
+/* ---- THE ENHANCED LOOK (v12.57 / phones 4.84; the picture for saving and sharing: v12.58 / 4.85) --------------------------
    Owner, 4 Oct 2026: "the xray quality is different from the small pic".
    A Carestream .rvg holds the RAW sensor image ("FOR PROCESSING"); CS
    Imaging sharpens it and sets its tone itself, and the small picture in
@@ -5067,6 +5102,31 @@ function xrDraw(canvas, I, enhanced, bright, contrast, inv){
   xrPaintBase(L.px, im.data, bright, contrast, inv !== (I.mono1 && !L.display));
   g.putImageData(im, 0, 0);
 }
+/* A picture of what is on screen - the look, the sliders, invert, the turn
+   and the flip - with a caption strip under it. For saving and sharing
+   (v12.58 / phones 4.85). */
+function xrPictureOf(I, enhanced, bright, contrast, inv, rot, flip, line1, line2){
+  const base = document.createElement('canvas');
+  xrDraw(base, I, enhanced, bright, contrast, inv);
+  const turned = (rot % 180) !== 0;
+  const W = turned ? I.h : I.w, H = turned ? I.w : I.h;
+  const strip = Math.max(28, Math.round(W * 0.055));
+  const out = document.createElement('canvas'); out.width = W; out.height = H + strip;
+  const g = out.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H + strip);
+  g.save(); g.translate(W / 2, H / 2); g.rotate(rot * Math.PI / 180); g.scale(flip ? -1 : 1, 1); g.drawImage(base, -I.w / 2, -I.h / 2); g.restore();
+  g.fillStyle = '#111'; g.fillRect(0, H, W, strip);
+  g.fillStyle = '#e8e8e8'; g.font = Math.round(strip * 0.42) + 'px sans-serif'; g.textBaseline = 'middle';
+  g.fillText(String(line1 || ''), Math.round(strip * 0.4), H + strip / 2);
+  g.textAlign = 'right'; g.fillStyle = '#c9a56b';
+  g.fillText(String(line2 || ''), W - Math.round(strip * 0.4), H + strip / 2);
+  return out;
+}
+function xrPictureName(pid, who, d, t){
+  const dd = /^(\d{4})(\d{2})(\d{2})$/.exec(String(d || '')), tt = /^(\d{2})(\d{2})/.exec(String(t || ''));
+  return 'EDC-' + pid + ' ' + String(who || '').replace(/[^A-Za-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
+    + (dd ? ' ' + dd[1] + '-' + dd[2] + '-' + dd[3] : '') + (tt ? ' ' + tt[1] + '-' + tt[2] : '') + '.jpg';
+}
 /* The sliders on top: brightness moves the middle, contrast narrows or
    widens - the same feel as before, now on either look. */
 function xrPaintBase(base, px, bright, contrast, invert){
@@ -5105,10 +5165,12 @@ function xrKey(x){ return x.f + '/' + x.n; }
 function xrWhyText(e){
   const b = (e && e.body) || {};
   if(b.wifiOnly) return 'X-rays open on the clinic Wi-Fi only.';
+  if(b.relayOld) return 'The phone relay needs its update (r4.17) to show X-rays away from the clinic.';
   const m = String((e && e.message) || b.error || '');
   if(/unknown action/.test(m)) return 'The reception PC’s desk server needs its update (2.3) for X-rays.';
   if(/too big/.test(m) || b.tooBig) return 'This X-ray is too large to open on a phone — open it at the desk.';
-  return 'The reception PC did not answer just now. Try again in a moment.';
+  if(/not on Drive yet/.test(m)) return 'This X-ray has not reached the clinic’s Drive copy yet. Try again in a few minutes.';
+  return 'The X-rays could not be fetched just now. Try again in a moment.';
 }
 function xrAsk(pids, force){
   (pids || []).map(String).forEach(pid => {
@@ -5161,7 +5223,7 @@ function xrSlotInner(pid, cls, short){
   const n = Array.isArray(c.list) ? c.list.length : -1;
   if(n === 0 && !(c && c.failed)) return '';
   if(n <= 0 && short) return '';
-  const label = '🩻 ' + (short ? n : 'RVG' + (n > 0 ? ' · ' + n : ''));
+  const label = '<span class=\"rvg-ico\"></span> ' + (short ? n : 'RVG' + (n > 0 ? ' · ' + n : ''));
   return '<button type="button" class="' + escapeHtml(cls) + ' xr-btn' + (n > 0 ? '' : ' xr-btn-off') + '" onclick="event.stopPropagation(); ' + PF_NS + 'xrOpen(' + jsArg(pid) + ')">' + label + '</button>';
 }
 function xrFillSlots(){
@@ -5191,7 +5253,7 @@ function xrOpen(pid){
   xrSheetPaint();
 }
 function xrClose(){
-  xrSheetPid = '';
+  xrSheetPid = ''; xrPickMode = false; xrPicked = [];
   const w = document.getElementById('xrSheet');
   if(w) w.classList.add('hidden');
 }
@@ -5214,21 +5276,33 @@ function xrSheetPaint(){
     });
     body = (c.failed ? '<div class="pf-none xr-why">' + escapeHtml(c.why) + ' Showing the list from a moment ago.</div>' : '')
       + days.map(g => '<div class="xr-dayh">' + escapeHtml(xrDayLabel(g.d)) + ' <span>' + g.items.length + '</span></div><div class="xr-grid">'
-        + g.items.map(o => '<button type="button" class="xr-th" data-k="' + escapeHtml(xrKey(o.x)) + '" onclick="' + PF_NS + 'xrView(' + jsArg(pid) + ',' + o.i + ')">'
-          + (xrThumbMem[xrKey(o.x)] ? '<img alt="" src="' + xrThumbMem[xrKey(o.x)] + '">' : '<i>🩻</i>')
+        + g.items.map(o => '<button type="button" class="xr-th' + (xrPicked.indexOf(o.i) !== -1 ? ' pick' : '') + '" data-k="' + escapeHtml(xrKey(o.x)) + '" onclick="' + PF_NS + 'xrThumbTap(' + jsArg(pid) + ',' + o.i + ')">'
+          + (xrThumbMem[xrKey(o.x)] ? '<img alt="" src="' + xrThumbMem[xrKey(o.x)] + '">' : '<i><span class="rvg-ico dim"></span></i>')
           + '<small>' + escapeHtml(xrTimeLabel(o.x.t)) + '</small></button>').join('')
         + '</div>').join('');
   }
   w.innerHTML = '<div class="photo-sheet pf-sheet xr-sheet" onclick="event.stopPropagation()">'
     + '<div class="pf-head"><div class="pf-who"><b>RVG · ' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
     + '<span>' + escapeHtml(pid) + (list.length ? ' · ' + list.length + ' X-ray' + (list.length === 1 ? '' : 's') + ' · newest first' : '') + '</span></div>'
+    + (list.length >= 2 && xrCanCompare() ? '<button type="button" class="pf-badge xr-cmp' + (xrPickMode ? ' on' : '') + '" onclick="' + PF_NS + 'xrCompareToggle()">⇄ Compare</button>' : '')
     + '<button type="button" class="pf-x" onclick="' + PF_NS + 'xrClose()" aria-label="Close">×</button></div>'
+    + (xrPickMode ? '<div class="pf-none xr-why">Tap two X-rays to see them side by side.' + (xrPicked.length ? ' One chosen — tap another.' : '') + '</div>' : '')
     + body
-    + '<div class="xr-foot">From Carestream on the reception PC, on the clinic Wi-Fi only. Read only — measuring and enhancing stay in CS Imaging.</div>'
+    + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy of Carestream (a few minutes behind the reception PC).' : 'From Carestream on the reception PC.') + ' Read only — measuring and enhancing stay in CS Imaging.</div>'
     + '</div>';
   w.onclick = () => xrClose();
   w.classList.remove('hidden');
   xrThumbsFetch(pid, list);
+}
+/* COMPARE (4.85), on a screen wide enough (the iPad): pick two, see both. */
+let xrPickMode = false, xrPicked = [];
+function xrCompareToggle(){ xrPickMode = !xrPickMode; xrPicked = []; xrSheetPaint(); }
+function xrThumbTap(pid, i){
+  if(!xrPickMode){ xrView(pid, i); return; }
+  const at = xrPicked.indexOf(i);
+  if(at !== -1) xrPicked.splice(at, 1); else xrPicked.push(i);
+  if(xrPicked.length === 2){ const [a, b] = xrPicked; xrPickMode = false; xrPicked = []; xrSheetPaint(); xrView(pid, a, b); return; }
+  xrSheetPaint();
 }
 let xrThumbBusy = false;
 async function xrThumbsFetch(pid, list){
@@ -5236,9 +5310,10 @@ async function xrThumbsFetch(pid, list){
   if(!want.length || xrThumbBusy) return;
   xrThumbBusy = true;
   try{
-    for(let i = 0; i < want.length; i += 40){
+    /* through Google the relay gives at most 12 an ask */
+    for(let i = 0; i < want.length; i += (xrVia === 'drive' ? 10 : 40)){
       let r;
-      try{ r = await relay({ action: 'xrayThumbs', pid, items: want.slice(i, i + 40).join(',') }); }catch(e){ break; }
+      try{ r = await relay({ action: 'xrayThumbs', pid, items: want.slice(i, i + (xrVia === 'drive' ? 10 : 40)).join(',') }); }catch(e){ break; }
       const got = (r && r.thumbs) || {};
       Object.keys(got).forEach(k => {
         const u = xrGreyUrl(got[k]);
@@ -5270,46 +5345,75 @@ function xrGreyUrl(t){
 }
 
 /* ---- the viewer ------------------------------------------------------- */
-function xrView(pid, i){
+/* 4.85: two X-rays side by side (Compare, on a screen wide enough - the
+   iPad), and Share (a JPEG of what is on screen, through the share sheet).
+   The viewer holds up to two panes; the single viewer is pane 0 alone. */
+const XR_COMPARE_MIN_W = 700;
+function xrCanCompare(){ return (typeof window !== 'undefined') && window.innerWidth >= XR_COMPARE_MIN_W; }
+function xrPaneState(){ return { zoom: 1, panX: 0, panY: 0 }; }
+function xrView(pid, i, i2){
   const c = xrLists[String(pid)];
   const list = (c && c.list) || [];
   if(!list[i]) return;
-  xrV = { pid: String(pid), list, i, img: null, rot: 0, flip: false, inv: false, zoom: 1, panX: 0, panY: 0, bright: 0, contrast: 0 };
+  const two = (i2 !== undefined && i2 !== null && i2 >= 0 && list[i2] && i2 !== i);
+  xrV = { pid: String(pid), list, i, i2: two ? i2 : -1, img: null, imgs: [null, null], panes: [xrPaneState(), xrPaneState()],
+    rot: 0, flip: false, inv: false, bright: 0, contrast: 0, loading: ['', ''] };
   let w = document.getElementById('xrViewer');
   if(!w){ w = document.createElement('div'); w.id = 'xrViewer'; w.className = 'pf-view xv'; document.body.appendChild(w); }
+  const pane = (n) => '<div class="xv-pane" data-pane="' + n + '"><canvas id="xvCanvas' + (n ? '2' : '') + '"></canvas><span class="xv-lab" id="xvLab' + n + '"></span></div>';
   w.innerHTML = '<div class="pf-vhead"><button type="button" class="pf-x" onclick="' + PF_NS + 'xrViewClose()" aria-label="Close">‹</button>'
     + '<div><b id="xvWho"></b><span id="xvWhen"></span></div>'
-    + '<button type="button" class="xv-nav" onclick="' + PF_NS + 'xrShowAt(-1)" aria-label="Previous">←</button>'
-    + '<button type="button" class="xv-nav" onclick="' + PF_NS + 'xrShowAt(1)" aria-label="Next">→</button></div>'
-    + '<div class="xv-stage" id="xvStage"><canvas id="xvCanvas"></canvas><div class="xv-msg" id="xvMsg"></div></div>'
+    + (two ? '' : '<button type="button" class="xv-nav" onclick="' + PF_NS + 'xrShowAt(-1)" aria-label="Previous">←</button>'
+      + '<button type="button" class="xv-nav" onclick="' + PF_NS + 'xrShowAt(1)" aria-label="Next">→</button>') + '</div>'
+    + '<div class="xv-stage' + (two ? ' xv-two' : '') + '" id="xvStage">' + pane(0) + (two ? pane(1) : '') + '<div class="xv-msg" id="xvMsg"></div></div>'
     + '<div class="xv-tools">'
     +   '<label>☀️<input type="range" id="xvBright" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
     +   '<label>◐<input type="range" id="xvContrast" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
-    +   '<div class="xv-btns"><button type="button" id="xvLook" onclick="' + PF_NS + 'xrTool(\'look\')">' + (xrEnhOn ? '\u2728 Enhanced' : 'Original') + '</button><button type="button" onclick="' + PF_NS + 'xrTool(\'inv\')">Invert</button><button type="button" onclick="' + PF_NS + 'xrTool(\'rot\')">Rotate</button>'
-    +   '<button type="button" onclick="' + PF_NS + 'xrTool(\'flip\')">Flip</button><button type="button" onclick="' + PF_NS + 'xrTool(\'reset\')">Reset</button></div>'
+    +   '<div class="xv-btns"><button type="button" id="xvLook" onclick="' + PF_NS + 'xrTool(\'look\')">' + (xrEnhOn ? '✨ Enhanced' : 'Original') + '</button><button type="button" onclick="' + PF_NS + 'xrTool(\'inv\')">Invert</button><button type="button" onclick="' + PF_NS + 'xrTool(\'rot\')">Rotate</button>'
+    +   '<button type="button" onclick="' + PF_NS + 'xrTool(\'flip\')">Flip</button><button type="button" onclick="' + PF_NS + 'xrTool(\'reset\')">Reset</button>'
+    +   (two ? '<button type="button" onclick="' + PF_NS + 'xrTool(\'swap\')">⇄ Swap</button><button type="button" onclick="' + PF_NS + 'xrTool(\'one\')">One</button>' : '')
+    +   '<button type="button" id="xvShare" onclick="' + PF_NS + 'xrTool(\'share\')">↗ Share</button></div>'
     + '</div>'
-    + '<div class="xv-strip">' + list.map(x => '<button type="button" class="xv-sth" data-k="' + escapeHtml(xrKey(x)) + '" onclick="' + PF_NS + 'xrShowKey(' + jsArg(xrKey(x)) + ')">'
-      + (xrThumbMem[xrKey(x)] ? '<img alt="" src="' + xrThumbMem[xrKey(x)] + '">' : '') + '</button>').join('') + '</div>';
+    + (two ? '' : '<div class="xv-strip">' + list.map(x => '<button type="button" class="xv-sth" data-k="' + escapeHtml(xrKey(x)) + '" onclick="' + PF_NS + 'xrShowKey(' + jsArg(xrKey(x)) + ')">'
+      + (xrThumbMem[xrKey(x)] ? '<img alt="" src="' + xrThumbMem[xrKey(x)] + '">' : '') + '</button>').join('') + '</div>');
   w.classList.remove('hidden');
   xrWireStage();
   xrShow(i);
+  if(two) xrShowPane(1, i2);
 }
 function xrViewClose(){ const w = document.getElementById('xrViewer'); if(w){ w.classList.add('hidden'); w.innerHTML = ''; } xrV = null; }
-function xrShowAt(d){ if(xrV) xrShow(xrV.i + d); }
+function xrShowAt(d){ if(xrV && xrV.i2 < 0) xrShow(xrV.i + d); }
 function xrShowKey(k){ if(!xrV) return; const i = xrV.list.findIndex(x => xrKey(x) === k); if(i >= 0) xrShow(i); }
+function xrPaneLabel(n, k){
+  const el = document.getElementById('xvLab' + n);
+  if(!el || !xrV) return;
+  const x = xrV.list[k];
+  el.textContent = (xrV.i2 >= 0 ? (n ? 'B · ' : 'A · ') : '') + xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '');
+  el.style.display = xrV.i2 >= 0 ? '' : 'none';
+}
 async function xrShow(k){
   if(!xrV || k < 0 || k >= xrV.list.length) return;
   xrV.i = k;
   const x = xrV.list[k];
   const who = document.getElementById('xvWho'), when = document.getElementById('xvWhen');
-  if(who) who.textContent = (nameOf(xrV.pid) || ('ID ' + xrV.pid));
-  if(when) when.textContent = xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '') + ' · ' + (k + 1) + ' of ' + xrV.list.length;
+  if(who) who.textContent = (nameOf(xrV.pid) || ('ID ' + xrV.pid)) + (xrV.i2 >= 0 ? ' · Compare' : '');
+  if(when) when.textContent = xrV.i2 >= 0
+    ? 'A: ' + xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' ' + xrTimeLabel(x.t) : '') + ' · B: ' + xrDayLabel(xrV.list[xrV.i2].d) + (xrTimeLabel(xrV.list[xrV.i2].t) ? ' ' + xrTimeLabel(xrV.list[xrV.i2].t) : '')
+    : xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '') + ' · ' + (k + 1) + ' of ' + xrV.list.length;
   document.querySelectorAll('#xrViewer .xv-sth').forEach(el => el.classList.toggle('cur', el.getAttribute('data-k') === xrKey(x)));
   const cur = document.querySelector('#xrViewer .xv-sth.cur'); if(cur && cur.scrollIntoView) try{ cur.scrollIntoView({ block: 'nearest', inline: 'center' }); }catch(e){}
-  const msg = document.getElementById('xvMsg'), cv = document.getElementById('xvCanvas');
-  /* the last X-ray is hidden at once, never shown under the next one's name */
+  await xrShowPane(0, k);
+}
+/* One pane: the file fetched (or taken from memory), decoded, drawn. The
+   last X-ray is hidden at once, never shown under the next one's name. */
+async function xrShowPane(n, k){
+  if(!xrV) return;
+  const x = xrV.list[k];
+  const msg = document.getElementById('xvMsg'), cv = document.getElementById('xvCanvas' + (n ? '2' : ''));
   if(cv) cv.style.visibility = 'hidden';
-  xrV.img = null;
+  xrV.imgs[n] = null; if(!n) xrV.img = null;
+  xrV.loading[n] = xrKey(x);
+  xrPaneLabel(n, k);
   if(msg){ msg.textContent = 'Opening…'; msg.style.display = ''; }
   try{
     let held = xrFileMem.find(o => o.k === xrKey(x));
@@ -5319,41 +5423,49 @@ async function xrShow(k){
       const bin = atob(r.b64); const u8 = new Uint8Array(bin.length);
       for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
       const img = xrPixels(u8);
-      if(!img.ok){ if(xrV && xrV.i === k && msg) msg.textContent = 'This X-ray cannot be shown here (' + img.why + '). Open it at the desk.'; return; }
+      if(!img.ok){ if(xrV && xrV.loading[n] === xrKey(x) && msg) msg.textContent = 'This X-ray cannot be shown here (' + img.why + '). Open it at the desk.'; return; }
       held = { k: xrKey(x), img: xrHeldImage(img, u8) };
       xrFileMem.push(held);
       while(xrFileMem.length > XR_KEEP_FILES) xrFileMem.shift();
     }
-    if(!xrV || xrV.i !== k) return;
-    xrV.img = held.img;
-    Object.assign(xrV, { rot: 0, flip: false, inv: false, zoom: 1, panX: 0, panY: 0, bright: 0, contrast: 0 });
-    const b = document.getElementById('xvBright'), c = document.getElementById('xvContrast');
-    if(b) b.value = 0; if(c) c.value = 0;
-    if(msg) msg.style.display = 'none';
+    if(!xrV || xrV.loading[n] !== xrKey(x)) return;
+    xrV.imgs[n] = held.img; if(!n) xrV.img = held.img;
+    xrV.panes[n] = xrPaneState();
+    if(!n && xrV.i2 < 0){
+      Object.assign(xrV, { rot: 0, flip: false, inv: false, bright: 0, contrast: 0 });
+      const b = document.getElementById('xvBright'), c = document.getElementById('xvContrast');
+      if(b) b.value = 0; if(c) c.value = 0;
+    }
+    if(msg && (xrV.i2 < 0 || (xrV.imgs[0] && xrV.imgs[1]))) msg.style.display = 'none';
     xrRender(); xrPlace();
     if(cv) cv.style.visibility = '';
   }catch(e){
-    if(xrV && xrV.i === k && msg) msg.textContent = xrWhyText(e);
+    if(xrV && xrV.loading[n] === xrKey(x) && msg) msg.textContent = xrWhyText(e);
   }
 }
 function xrRender(){
-  if(!xrV || !xrV.img) return;
-  const c = document.getElementById('xvCanvas');
-  if(!c) return;
-  xrDraw(c, xrV.img, xrEnhOn, xrV.bright, xrV.contrast, xrV.inv);
+  if(!xrV) return;
+  [0, 1].forEach(n => {
+    const I = xrV.imgs[n], c = document.getElementById('xvCanvas' + (n ? '2' : ''));
+    if(I && c) xrDraw(c, I, xrEnhOn, xrV.bright, xrV.contrast, xrV.inv);
+  });
   const b = document.getElementById('xvLook');
-  if(b) b.textContent = xrEnhOn ? '\u2728 Enhanced' : 'Original';
+  if(b) b.textContent = xrEnhOn ? '✨ Enhanced' : 'Original';
 }
-/* Fitted to the screen, then the fingers' zoom and pan on top. */
+/* Fitted to its pane, then the fingers' zoom and pan on top. */
 function xrPlace(){
-  if(!xrV || !xrV.img) return;
-  const c = document.getElementById('xvCanvas'), st = document.getElementById('xvStage');
-  if(!c || !st) return;
-  const turned = xrV.rot % 180 !== 0;
-  const W = turned ? xrV.img.h : xrV.img.w, H = turned ? xrV.img.w : xrV.img.h;
-  const fit = Math.min((st.clientWidth || 360) / W, (st.clientHeight || 480) / H);
-  c.style.width = Math.round(xrV.img.w * fit) + 'px'; c.style.height = Math.round(xrV.img.h * fit) + 'px';
-  c.style.transform = 'translate(' + xrV.panX + 'px,' + xrV.panY + 'px) rotate(' + xrV.rot + 'deg) scale(' + (xrV.flip ? -xrV.zoom : xrV.zoom) + ',' + xrV.zoom + ')';
+  if(!xrV) return;
+  [0, 1].forEach(n => {
+    const I = xrV.imgs[n], c = document.getElementById('xvCanvas' + (n ? '2' : ''));
+    if(!I || !c) return;
+    const box = c.parentNode || document.getElementById('xvStage');
+    const turned = xrV.rot % 180 !== 0;
+    const W = turned ? I.h : I.w, H = turned ? I.w : I.h;
+    const fit = Math.min((box.clientWidth || 360) / W, (box.clientHeight || 480) / H);
+    const p = xrV.panes[n];
+    c.style.width = Math.round(I.w * fit) + 'px'; c.style.height = Math.round(I.h * fit) + 'px';
+    c.style.transform = 'translate(' + p.panX + 'px,' + p.panY + 'px) rotate(' + xrV.rot + 'deg) scale(' + (xrV.flip ? -p.zoom : p.zoom) + ',' + p.zoom + ')';
+  });
 }
 function xrAdjust(){
   if(!xrV) return;
@@ -5364,61 +5476,90 @@ function xrAdjust(){
 function xrTool(t){
   if(!xrV) return;
   if(t === 'inv'){ xrV.inv = !xrV.inv; xrRender(); return; }
+  if(t === 'share'){ xrShare(); return; }
   if(t === 'look'){
     xrEnhOn = !xrEnhOn;
     const msg = document.getElementById('xvMsg');
-    if(xrV.img && !xrV.img.looks[xrEnhOn ? 'e' : 'o'] && msg){ msg.textContent = 'Preparing\u2026'; msg.style.display = ''; }
+    const need = [0, 1].some(n => xrV.imgs[n] && !xrV.imgs[n].looks[xrEnhOn ? 'e' : 'o']);
+    if(need && msg){ msg.textContent = 'Preparing…'; msg.style.display = ''; }
     setTimeout(() => { xrRender(); if(msg) msg.style.display = 'none'; }, 30);
     return;
   }
+  if(t === 'swap' && xrV.i2 >= 0){ const a = xrV.i; xrView(xrV.pid, xrV.i2, a); return; }
+  if(t === 'one' && xrV.i2 >= 0){ xrView(xrV.pid, xrV.i); return; }
   if(t === 'rot') xrV.rot = (xrV.rot + 90) % 360;
   else if(t === 'flip') xrV.flip = !xrV.flip;
   else if(t === 'reset'){
-    Object.assign(xrV, { rot: 0, flip: false, inv: false, zoom: 1, panX: 0, panY: 0, bright: 0, contrast: 0 });
+    Object.assign(xrV, { rot: 0, flip: false, inv: false, bright: 0, contrast: 0, panes: [xrPaneState(), xrPaneState()] });
     const b = document.getElementById('xvBright'), c = document.getElementById('xvContrast');
     if(b) b.value = 0; if(c) c.value = 0;
     xrRender();
   }
   xrPlace();
 }
+/* SHARE (4.85): a JPEG of what is on screen - the look, the sliders, the
+   turn - with a caption strip (name, number, date, the clinic), through the
+   phone's share sheet; a browser without one gets the file to save. */
+async function xrShare(){
+  if(!xrV || !xrV.img) return;
+  const x = xrV.list[xrV.i];
+  const who = nameOf(xrV.pid) || ('ID ' + xrV.pid);
+  const pic = xrPictureOf(xrV.img, xrEnhOn, xrV.bright, xrV.contrast, xrV.inv, xrV.rot, xrV.flip,
+    who + ' · EDC/' + xrV.pid, xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '') + ' · Echo Dental Clinic');
+  const name = xrPictureName(xrV.pid, who, x.d, x.t);
+  const blob = await new Promise(r => pic.toBlob(r, 'image/jpeg', 0.92));
+  if(!blob) return;
+  const file = (typeof File === 'function') ? new File([blob], name, { type: 'image/jpeg' }) : null;
+  if(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+    try{ await navigator.share({ files: [file], title: name }); }catch(e){ /* put away */ }
+    return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { try{ URL.revokeObjectURL(a.href); a.remove(); }catch(e){} }, 3000);
+}
 /* One finger moves, two fingers zoom (to 8x), a double tap goes back to
-   the whole X-ray. A quick swipe sideways at normal size is the next one. */
+   the whole X-ray - on the pane under the fingers. A quick swipe sideways
+   at normal size is the next one (single view only). */
 function xrWireStage(){
   const st = document.getElementById('xvStage');
   if(!st) return;
   const pts = new Map();
-  let pinch = null, drag = null, lastTap = 0, swipe = null;
+  let pinch = null, drag = null, lastTap = 0, swipe = null, pane = 0;
+  const paneOf = (e) => { const p = e.target && e.target.closest ? e.target.closest('.xv-pane') : null; return p ? Number(p.getAttribute('data-pane')) || 0 : 0; };
   st.addEventListener('pointerdown', (e) => {
     if(!xrV) return;
     try{ st.setPointerCapture(e.pointerId); }catch(er){}
+    if(!pts.size) pane = paneOf(e);
+    const P = xrV.panes[pane];
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if(pts.size === 2){
       const [a, b] = Array.from(pts.values());
-      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: xrV.zoom }; drag = null; swipe = null;
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: P.zoom }; drag = null; swipe = null;
     } else if(pts.size === 1){
-      drag = { x: e.clientX, y: e.clientY, px: xrV.panX, py: xrV.panY };
+      drag = { x: e.clientX, y: e.clientY, px: P.panX, py: P.panY };
       swipe = { x: e.clientX, y: e.clientY, t: Date.now() };
       const now = Date.now();
-      if(now - lastTap < 300){ Object.assign(xrV, { zoom: 1, panX: 0, panY: 0 }); xrPlace(); swipe = null; }
+      if(now - lastTap < 300){ Object.assign(P, { zoom: 1, panX: 0, panY: 0 }); xrPlace(); swipe = null; }
       lastTap = now;
     }
   });
   st.addEventListener('pointermove', (e) => {
     if(!xrV || !pts.has(e.pointerId)) return;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const P = xrV.panes[pane];
     if(pinch && pts.size >= 2){
       const [a, b] = Array.from(pts.values());
-      xrV.zoom = Math.min(8, Math.max(1, pinch.z * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)));
+      P.zoom = Math.min(8, Math.max(1, pinch.z * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)));
       xrPlace();
-    } else if(drag && xrV.zoom > 1){
-      xrV.panX = drag.px + e.clientX - drag.x; xrV.panY = drag.py + e.clientY - drag.y; xrPlace();
+    } else if(drag && P.zoom > 1){
+      P.panX = drag.px + e.clientX - drag.x; P.panY = drag.py + e.clientY - drag.y; xrPlace();
     }
   });
   const up = (e) => {
     pts.delete(e.pointerId);
     if(pts.size < 2) pinch = null;
     if(!pts.size){
-      if(swipe && xrV && xrV.zoom <= 1){
+      if(swipe && xrV && xrV.i2 < 0 && xrV.panes[0].zoom <= 1){
         const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
         if(Math.abs(dx) > 60 && Math.abs(dy) < 50 && Date.now() - swipe.t < 600) xrShowAt(dx < 0 ? 1 : -1);
       }
