@@ -924,7 +924,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.83';
+const LITE_VERSION = '4.84';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -4846,6 +4846,169 @@ function xrPixels(buf){
   }catch(e){ return { ok: false, why: 'the image could not be decoded (' + e.message + ')' }; }
   return Object.assign(d, { ok: true, width: img.width, height: img.height, data: img.data, precision: img.precision });
 }
+/* ---- THE ENHANCED LOOK (v12.57 / phones 4.84) --------------------------
+   Owner, 4 Oct 2026: "the xray quality is different from the small pic".
+   A Carestream .rvg holds the RAW sensor image ("FOR PROCESSING"); CS
+   Imaging sharpens it and sets its tone itself, and the small picture in
+   the file is made from that processed image. Nothing in the file says how,
+   so Nexus does two things:
+     - SHARPENS: a light smoothing (0.8 px) against grain, then fine detail
+       x2.5 (3 px) and broader contrast x1.5 (25 px) - tuned on the clinic's
+       own RVG 5200 X-rays;
+     - TAKES THE TONE FROM CARESTREAM'S OWN SMALL PICTURE: the raw image,
+       averaged down to the small picture's size, is laid against it, and
+       the grey Carestream gave each level becomes the curve for the whole
+       X-ray. Without a small picture: the middle 99% of the values.
+   "Original" shows the raw image as before. Only the screen changes - the
+   file is never touched. */
+let xrEnhOn = true;                    // the look chosen, kept for the session
+const XR_ENH = { smooth: 0.8, fine: 3, fineK: 2.5, broad: 25, broadK: 1.5 };
+/* Gaussian blur, approximated by three box blurs (running sums), in place
+   on a copy. */
+function xrBlur(src, w, h, sigma){
+  const n = 3;
+  const ideal = Math.sqrt((12 * sigma * sigma / n) + 1);
+  let wl = Math.floor(ideal); if(wl % 2 === 0) wl--;
+  const wu = wl + 2;
+  const m = Math.round((12 * sigma * sigma - n * wl * wl - 4 * n * wl - 3 * n) / (-4 * wl - 4));
+  const sizes = []; for(let i = 0; i < n; i++) sizes.push(i < m ? wl : wu);
+  let a = Float32Array.from(src), b = new Float32Array(src.length);
+  for(const s of sizes){
+    const r = (s - 1) >> 1;
+    if(r < 1) continue;
+    xrBoxH(a, b, w, h, r); xrBoxV(b, a, w, h, r);
+  }
+  return a;
+}
+/* One line of a box blur, the edges held at their last value. */
+function xrBoxLine(s, d, start, stride, len, r){
+  const last = start + (len - 1) * stride, inv = 1 / (r + r + 1);
+  const first = s[start], end = s[last];
+  let val = first * (r + 1);
+  for(let k = 1; k <= r; k++) val += s[start + (k < len ? k : len - 1) * stride];
+  let out = start, add = start + r * stride, sub = start - (r + 1) * stride;
+  for(let j = 0; j < len; j++){
+    d[out] = val * inv; out += stride;
+    add += stride; sub += stride;
+    val += (add <= last ? s[add] : end) - (sub >= start ? s[sub] : first);
+  }
+}
+function xrBoxH(s, d, w, h, r){ for(let i = 0; i < h; i++) xrBoxLine(s, d, i * w, 1, w, r); }
+function xrBoxV(s, d, w, h, r){ for(let i = 0; i < w; i++) xrBoxLine(s, d, i, w, h, r); }
+function xrSharpen(data, w, h){
+  const b = xrBlur(data, w, h, XR_ENH.smooth);
+  const f = xrBlur(b, w, h, XR_ENH.fine), g = xrBlur(b, w, h, XR_ENH.broad);
+  const out = new Float32Array(b.length);
+  for(let i = 0; i < b.length; i++) out[i] = b[i] + XR_ENH.fineK * (b[i] - f[i]) + XR_ENH.broadK * (b[i] - g[i]);
+  return out;
+}
+/* Carestream's tone, read off its small picture: { x: [raw], y: [0..1] }
+   rising, or null when there is no small picture of the same shape. */
+function xrToneFromIcon(data, w, h, icon, iw, ih){
+  if(!icon || !iw || !ih || icon.length < iw * ih) return null;
+  if(Math.abs((w / h) / (iw / ih) - 1) > 0.06) return null;
+  const by = h / ih, bx = w / iw, sm = new Float64Array(iw * ih);
+  for(let y = 0; y < ih; y++){
+    const y0 = Math.floor(y * by), y1 = Math.max(y0 + 1, Math.floor((y + 1) * by));
+    for(let x = 0; x < iw; x++){
+      const x0 = Math.floor(x * bx), x1 = Math.max(x0 + 1, Math.floor((x + 1) * bx));
+      let s = 0;
+      for(let yy = y0; yy < y1; yy++){ const o = yy * w; for(let xx = x0; xx < x1; xx++) s += data[o + xx]; }
+      sm[y * iw + x] = s / ((y1 - y0) * (x1 - x0));
+    }
+  }
+  const sorted = Float64Array.from(sm).sort();
+  const lo = sorted[Math.floor(sorted.length * 0.002)], hi = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.998))];
+  if(!(hi > lo)) return null;
+  const NB = 48, bins = Array.from({ length: NB }, () => []);
+  for(let i = 0; i < sm.length; i++){
+    const k = Math.floor((sm[i] - lo) / (hi - lo) * NB);
+    if(k >= 0 && k < NB) bins[k].push(icon[i]);
+  }
+  const xs = [], ys = [];
+  let top = 0;
+  bins.forEach((b, k) => {
+    if(b.length < 4) return;
+    b.sort((p, q) => p - q);
+    top = Math.max(top, b[b.length >> 1] / 255);       // never falling
+    xs.push(lo + (k + 0.5) * (hi - lo) / NB); ys.push(top);
+  });
+  return xs.length >= 6 ? { x: xs, y: ys } : null;
+}
+/* The picture to show, as 0..65535 per pixel (0 black), before the
+   brightness and contrast sliders. */
+function xrBase(img, enhanced){
+  const n = img.width * img.height, out = new Uint16Array(n);
+  if(!enhanced){
+    for(let i = 0; i < n; i++){ let t = (img.data[i] - img.lo) / (img.hi - img.lo); out[i] = t <= 0 ? 0 : t >= 1 ? 65535 : Math.round(t * 65535); }
+    return { px: out, display: false };
+  }
+  const e = xrSharpen(img.data, img.width, img.height);
+  const tone = xrToneFromIcon(img.data, img.width, img.height, img.icon, img.iconW, img.iconH);
+  if(tone){
+    /* a table over the raw range (one step per raw unit), then each pixel
+       looked up */
+    const X = tone.x, Y = tone.y, L = X.length;
+    const curve = (v) => {
+      if(v <= X[0]) return Y[0] - (X[0] - v) * (L > 1 ? (Y[1] - Y[0]) / (X[1] - X[0]) : 0);
+      if(v >= X[L - 1]) return Y[L - 1] + (v - X[L - 1]) * ((Y[L - 1] - Y[L - 2]) / (X[L - 1] - X[L - 2]));
+      let a = 0, b = L - 1; while(b - a > 1){ const m = (a + b) >> 1; if(X[m] <= v) a = m; else b = m; }
+      return Y[a] + (v - X[a]) * (Y[b] - Y[a]) / (X[b] - X[a]);
+    };
+    let mn = Infinity, mx = -Infinity;
+    for(let i = 0; i < n; i++){ const v = e[i]; if(v < mn) mn = v; if(v > mx) mx = v; }
+    mn = Math.floor(mn); mx = Math.ceil(mx);
+    const size = Math.min(1 << 20, mx - mn + 1), step = (mx - mn + 1) / size;
+    const table = new Uint16Array(size);
+    for(let k = 0; k < size; k++){ const t = curve(mn + k * step); table[k] = t <= 0 ? 0 : t >= 1 ? 65535 : Math.round(t * 65535); }
+    for(let i = 0; i < n; i++){ let k = Math.round((e[i] - mn) / step); out[i] = table[k < 0 ? 0 : k >= size ? size - 1 : k]; }
+    return { px: out, display: true };          // already Carestream's greys
+  }
+  const s = Float32Array.from(e).sort();
+  const lo = s[Math.floor(s.length * 0.005)], hi = Math.max(s[Math.floor(s.length * 0.995)], lo + 1);
+  for(let i = 0; i < n; i++){ const t = (e[i] - lo) / (hi - lo); out[i] = t <= 0 ? 0 : t >= 1 ? 65535 : Math.round(t * 65535); }
+  return { px: out, display: false };
+}
+/* One decoded X-ray, ready to show either way (the looks made on demand
+   and kept with it). */
+function xrHeldImage(img, u8){
+  const hist = new Uint32Array(65536);
+  for(let i = 0; i < img.data.length; i++) hist[img.data[i]]++;
+  const total = img.data.length; let acc = 0, lo = 0, hi = 65535;
+  for(let v = 0; v < 65536; v++){ acc += hist[v]; if(acc >= total * 0.005){ lo = v; break; } }
+  acc = 0; for(let v = 65535; v >= 0; v--){ acc += hist[v]; if(acc >= total * 0.005){ hi = v; break; } }
+  const ic = img.icon;
+  return { w: img.width, h: img.height, width: img.width, height: img.height, data: img.data, lo, hi: Math.max(hi, lo + 1),
+    mono1: img.photo === 'MONOCHROME1',
+    icon: ic && u8 ? u8.slice(ic.off, ic.off + ic.rows * ic.cols) : null, iconW: ic ? ic.cols : 0, iconH: ic ? ic.rows : 0, looks: {} };
+}
+function xrLookOf(I, enhanced){
+  const k = enhanced ? 'e' : 'o';
+  if(!I.looks[k]) I.looks[k] = xrBase(I, enhanced);
+  return I.looks[k];
+}
+/* Draw it: the look, the sliders, invert (a MONOCHROME1 file is shown the
+   right way round unless the look is already Carestream's greys). */
+function xrDraw(canvas, I, enhanced, bright, contrast, inv){
+  const L = xrLookOf(I, enhanced);
+  canvas.width = I.w; canvas.height = I.h;
+  const g = canvas.getContext('2d'); const im = g.createImageData(I.w, I.h);
+  xrPaintBase(L.px, im.data, bright, contrast, inv !== (I.mono1 && !L.display));
+  g.putImageData(im, 0, 0);
+}
+/* The sliders on top: brightness moves the middle, contrast narrows or
+   widens - the same feel as before, now on either look. */
+function xrPaintBase(base, px, bright, contrast, invert){
+  const k = Math.pow(2, contrast / 50), sh = bright / 100;
+  const lut = new Uint8Array(65536);
+  for(let v = 0; v < 65536; v++){
+    let o = ((v / 65535) - 0.5 + sh) * k + 0.5;
+    o = o <= 0 ? 0 : o >= 1 ? 255 : Math.round(o * 255);
+    lut[v] = invert ? 255 - o : o;
+  }
+  for(let i = 0, j = 0; i < base.length; i++, j += 4){ const o = lut[base[i]]; px[j] = px[j + 1] = px[j + 2] = o; px[j + 3] = 255; }
+}
+
 /* ====================================================== RVG X-rays ==
    RVG X-RAYS ON THE PHONE (4.83, owner's call 4 Oct 2026: "make the rvg
    show in phone too" ... "start with a . in all the apps").
@@ -4856,9 +5019,9 @@ function xrPixels(buf){
    nothing is ever written to the Carestream folder.
    Limits: the list is asked again after 2 minutes; at most 40 small
    pictures per ask; one X-ray up to 20 MB (the desk server's cap); the
-   last 4 X-rays opened are kept in memory, nothing is kept on the phone. */
+   last 3 X-rays opened are kept in memory, nothing is kept on the phone. */
 const XR_LIST_MS = 2 * 60 * 1000;
-const XR_KEEP_FILES = 4;
+const XR_KEEP_FILES = 3;   // 4.84: each now holds its looks too
 let xrLists = {};                      // pid -> { at, list: [{ f, n, d, t, w, h, icon }] } | { at, failed, why }
 const xrAskingNow = {};
 let xrWantSet = {}, xrWantTimer = null;
@@ -5051,7 +5214,7 @@ function xrView(pid, i){
     + '<div class="xv-tools">'
     +   '<label>☀️<input type="range" id="xvBright" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
     +   '<label>◐<input type="range" id="xvContrast" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
-    +   '<div class="xv-btns"><button type="button" onclick="' + PF_NS + 'xrTool(\'inv\')">Invert</button><button type="button" onclick="' + PF_NS + 'xrTool(\'rot\')">Rotate</button>'
+    +   '<div class="xv-btns"><button type="button" id="xvLook" onclick="' + PF_NS + 'xrTool(\'look\')">' + (xrEnhOn ? '\u2728 Enhanced' : 'Original') + '</button><button type="button" onclick="' + PF_NS + 'xrTool(\'inv\')">Invert</button><button type="button" onclick="' + PF_NS + 'xrTool(\'rot\')">Rotate</button>'
     +   '<button type="button" onclick="' + PF_NS + 'xrTool(\'flip\')">Flip</button><button type="button" onclick="' + PF_NS + 'xrTool(\'reset\')">Reset</button></div>'
     + '</div>'
     + '<div class="xv-strip">' + list.map(x => '<button type="button" class="xv-sth" data-k="' + escapeHtml(xrKey(x)) + '" onclick="' + PF_NS + 'xrShowKey(' + jsArg(xrKey(x)) + ')">'
@@ -5086,11 +5249,7 @@ async function xrShow(k){
       for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
       const img = xrPixels(u8);
       if(!img.ok){ if(xrV && xrV.i === k && msg) msg.textContent = 'This X-ray cannot be shown here (' + img.why + '). Open it at the desk.'; return; }
-      const hist = new Uint32Array(65536); for(let i = 0; i < img.data.length; i++) hist[img.data[i]]++;
-      const total = img.data.length; let acc = 0, lo = 0, hi = 65535;
-      for(let v = 0; v < 65536; v++){ acc += hist[v]; if(acc >= total * 0.005){ lo = v; break; } }
-      acc = 0; for(let v = 65535; v >= 0; v--){ acc += hist[v]; if(acc >= total * 0.005){ hi = v; break; } }
-      held = { k: xrKey(x), img: { w: img.width, h: img.height, data: img.data, lo, hi: Math.max(hi, lo + 1), mono1: img.photo === 'MONOCHROME1' } };
+      held = { k: xrKey(x), img: xrHeldImage(img, u8) };
       xrFileMem.push(held);
       while(xrFileMem.length > XR_KEEP_FILES) xrFileMem.shift();
     }
@@ -5108,20 +5267,11 @@ async function xrShow(k){
 }
 function xrRender(){
   if(!xrV || !xrV.img) return;
-  const I = xrV.img;
   const c = document.getElementById('xvCanvas');
   if(!c) return;
-  c.width = I.w; c.height = I.h;
-  const g = c.getContext('2d'); const im = g.createImageData(I.w, I.h);
-  const span = (I.hi - I.lo) * Math.pow(2, -xrV.contrast / 50);
-  const mid = (I.hi + I.lo) / 2 - (I.hi - I.lo) * (xrV.bright / 100);
-  const lo = mid - span / 2;
-  const flipTone = xrV.inv !== I.mono1;
-  const lut = new Uint8Array(65536);
-  for(let v = 0; v < 65536; v++){ let o = Math.round((v - lo) * 255 / span); o = o < 0 ? 0 : o > 255 ? 255 : o; lut[v] = flipTone ? 255 - o : o; }
-  const d = I.data, px = im.data;
-  for(let i = 0, j = 0; i < d.length; i++, j += 4){ const o = lut[d[i]]; px[j] = px[j + 1] = px[j + 2] = o; px[j + 3] = 255; }
-  g.putImageData(im, 0, 0);
+  xrDraw(c, xrV.img, xrEnhOn, xrV.bright, xrV.contrast, xrV.inv);
+  const b = document.getElementById('xvLook');
+  if(b) b.textContent = xrEnhOn ? '\u2728 Enhanced' : 'Original';
 }
 /* Fitted to the screen, then the fingers' zoom and pan on top. */
 function xrPlace(){
@@ -5143,6 +5293,13 @@ function xrAdjust(){
 function xrTool(t){
   if(!xrV) return;
   if(t === 'inv'){ xrV.inv = !xrV.inv; xrRender(); return; }
+  if(t === 'look'){
+    xrEnhOn = !xrEnhOn;
+    const msg = document.getElementById('xvMsg');
+    if(xrV.img && !xrV.img.looks[xrEnhOn ? 'e' : 'o'] && msg){ msg.textContent = 'Preparing\u2026'; msg.style.display = ''; }
+    setTimeout(() => { xrRender(); if(msg) msg.style.display = 'none'; }, 30);
+    return;
+  }
   if(t === 'rot') xrV.rot = (xrV.rot + 90) % 360;
   else if(t === 'flip') xrV.flip = !xrV.flip;
   else if(t === 'reset'){
