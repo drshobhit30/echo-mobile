@@ -937,7 +937,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.87';
+const LITE_VERSION = '4.88';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -5094,6 +5094,89 @@ function xrPaintBase(base, px, bright, contrast, invert){
    NEWEST X-ray is read ahead when the gallery opens - about the file's
    size (~1.4 MB) of mobile data per gallery opened, looked at or not. */
 const XR_LIST_MS = 2 * 60 * 1000;
+/* 4.88 (owner, 5 Oct: "i want their xray when taken on chair to appear
+   instantly everywhere on lan. instantly means instantly" ... "the phone
+   when on mobile data should get today patient's xray as early as
+   possible").
+   ON THE CLINIC WI-FI: the phone keeps one request open to the desk server
+   (2.4, GET /xrwait - no clinic data in it). The moment the list on the
+   reception PC changes, it answers, and the open gallery's patient and the
+   RVG buttons on screen (8 at most) are asked again - about a second from
+   the chair. With an older desk server, every 3 seconds instead. The list
+   is kept 3 seconds on the Wi-Fi, not 2 minutes.
+   ON MOBILE DATA: TODAY'S PATIENTS (booked or marked in today) are asked
+   again every 20 seconds while their gallery or button is on screen, and
+   their list is kept 20 seconds; everybody else 2 minutes, as before, to
+   spare data. Away from the clinic an X-ray also has to reach the clinic's
+   Drive first (Google Drive on the reception PC uploads it), usually well
+   under a minute. The gallery is redrawn only when its list changed. */
+const XR_LAN_LIVE_MS = 3000, XR_TODAY_MS = 20000;
+let xrPushSeq = null, xrPushOk = false, xrPushRunning = false;
+function xrOnLan(){ return typeof lanBase !== 'undefined' && !!lanBase && xrVia !== 'drive'; }
+function xrListSig(c){ return c ? (c.failed ? 'F' : '') + ((c.list || []).map(x => x.f + '/' + x.n).join('|')) : ''; }
+function xrTodaySet(){
+  const out = {};
+  try{
+    const held = (typeof mem !== 'undefined' && mem.days && typeof todayStr === 'function') ? mem.days[todayStr()] : null;
+    ((held && held.visits) || []).forEach(v => { if(v && v.patientId && !v.removedAt) out[String(v.patientId)] = 1; });
+    ((held && held.appointments) || []).forEach(a => { if(a && a.patientId) out[String(a.patientId)] = 1; });
+  }catch(e){}
+  return out;
+}
+function xrKeepMs(pid){ return xrOnLan() ? XR_LAN_LIVE_MS - 1000 : (xrTodaySet()[pid] ? XR_TODAY_MS - 500 : XR_LIST_MS); }
+function xrOnScreenPids(onlyToday){
+  if(xrSheetPid){ return (!onlyToday || xrTodaySet()[xrSheetPid]) ? [xrSheetPid] : []; }
+  const today = onlyToday ? xrTodaySet() : null, pids = [];
+  if(typeof document === 'undefined') return pids;
+  document.querySelectorAll('.xr-slot[data-pid]').forEach(el => {
+    const pid = el.getAttribute('data-pid');
+    if(pids.length < 8 && pid && pids.indexOf(pid) === -1 && el.offsetParent !== null && (!today || today[pid])) pids.push(pid);
+  });
+  return pids;
+}
+/* the fallback clock: every 3 s on the Wi-Fi with an older desk server;
+   every 20 s on mobile data, for today's patients only */
+let xrTickAt = 0;
+function xrLiveTick(){
+  if(typeof document === 'undefined' || document.hidden) return;
+  if(xrOnLan()){
+    if(xrPushOk) return;                       // the desk server says when
+    const p = xrOnScreenPids(false); if(p.length) xrAsk(p, false);
+    return;
+  }
+  if(Date.now() - xrTickAt < XR_TODAY_MS - 500) return;
+  xrTickAt = Date.now();
+  const p = xrOnScreenPids(true); if(p.length) xrAsk(p, false);
+}
+async function xrPushLoop(){
+  if(xrPushRunning) return;
+  xrPushRunning = true;
+  try{
+    while(typeof document !== 'undefined' && !document.hidden && xrOnLan()){
+      const base = lanBase;
+      let j = null;
+      const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+      const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, 35000) : null;
+      try{
+        const res = await fetch(base + '/xrwait?since=' + (xrPushSeq === null ? '' : xrPushSeq), { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+        j = await res.json().catch(() => null);
+      }catch(e){ j = null; }
+      finally{ if(timer) clearTimeout(timer); }
+      if(!j || !j.ok || typeof j.seq !== 'number'){ xrPushOk = false; break; }   // an older desk server, or no answer: the 3-second clock
+      xrPushOk = true;
+      const restart = xrPushSeq === null || j.seq < xrPushSeq;
+      xrPushSeq = j.seq;
+      if(restart) continue;
+      if(j.busy){ await new Promise(r => setTimeout(r, 2000)); continue; }
+      if(j.index || j.lost){ const p = xrOnScreenPids(false); if(p.length) xrAsk(p, true); }
+    }
+  }finally{ xrPushRunning = false; }
+}
+if(typeof setInterval === 'function' && typeof document !== 'undefined'){
+  setInterval(xrLiveTick, XR_LAN_LIVE_MS);
+  setInterval(() => { if(!xrPushRunning && !document.hidden && xrOnLan()) xrPushLoop(); }, 5000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden){ const p = xrOnScreenPids(false); if(p.length) xrAsk(p, true); if(xrOnLan()) xrPushLoop(); } });
+}
 const XR_KEEP_FILES = 3;   // 4.84: each now holds its looks too
 let xrLists = {};                      // pid -> { at, list: [{ f, n, d, t, w, h, icon }] } | { at, failed, why }
 const xrAskingNow = {};
@@ -5119,7 +5202,7 @@ function xrAsk(pids, force, withThumbs){
   (pids || []).map(String).forEach(pid => {
     if(!/^[A-Za-z0-9]{1,20}$/.test(pid) || xrAskingNow[pid]) return;
     const c = xrLists[pid];
-    if(!force && c && Date.now() - c.at < XR_LIST_MS) return;
+    if(!force && c && Date.now() - c.at < xrKeepMs(pid)) return;
     xrWantSet[pid] = 1;
     if(withThumbs) xrWantThumbs[pid] = 1;
   });
@@ -5132,6 +5215,7 @@ async function xrAskNow(){
   const withThumbs = xrWantThumbs; xrWantThumbs = {};
   if(!want.length) return;
   want.forEach(pid => { xrAskingNow[pid] = 1; });
+  const sheetSigBefore = xrSheetPid ? xrListSig(xrLists[xrSheetPid]) : null;   // 4.88: redraw only on a change
   /* 4.87: a gallery's patient is asked on their own, with the small
      pictures the relay holds riding along (one round trip, not two); the
      rest in batches as before. */
@@ -5159,7 +5243,10 @@ async function xrAskNow(){
     want.forEach(pid => { delete xrAskingNow[pid]; });
   }
   xrFillSlots();
-  if(xrSheetPid && want.indexOf(xrSheetPid) !== -1) xrSheetPaint();
+  if(xrSheetPid && want.indexOf(xrSheetPid) !== -1){
+    if(sheetSigBefore === null || sheetSigBefore === '' || xrListSig(xrLists[xrSheetPid]) !== sheetSigBefore) xrSheetPaint();
+    else xrThumbsFetch(xrSheetPid, (xrLists[xrSheetPid] && xrLists[xrSheetPid].list) || []);   // the same list: only pictures still missing
+  }
 }
 /* Small pictures that arrived (with a list, or asked for): remembered and
    drawn wherever that X-ray is on screen. */
