@@ -5714,7 +5714,9 @@ function forgetForLock(){
 }
 
 return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, bkEditOpen, bkRemove, photoLoad, photoRefresh, photoTake, photoUse, photoRetake, photoCancel, faceHtml, photoOf, photoRetry, photoUnsentHtml, photoDecline, photoNeedsList, historyHtml,
-  pfLoad, pfSheetOpen, pfSheetClose, pfFaceBig, pfFaceClose, pfShoot, pfPickType, pfPageDrop, pfShotCancel, pfShotSave, pfRetry, pfOpenFile, pfViewGo, pfViewClose, pfTodayHtml, pfBadgeHtml, pfListOf, pfCountOf, xrOpen, xrClose, xrView, xrViewClose, xrShowAt, xrShowKey, xrAdjust, xrTool, xrFillSlots, xrCompareToggle, xrThumbTap, hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
+  pfLoad, pfSheetOpen, pfSheetClose, pfFaceBig, pfFaceClose, pfShoot, pfPickType, pfPageDrop, pfShotCancel, pfShotSave, pfRetry, pfOpenFile, pfViewGo, pfViewClose, pfTodayHtml, pfBadgeHtml, pfListOf, pfCountOf, xrOpen, xrClose, xrView, xrViewClose, xrShowAt, xrShowKey, xrAdjust, xrTool, xrFillSlots, xrCompareToggle, xrThumbTap,
+  xrFindOpen, xrFindClose, xrFindType, xrOldOpen, xrOldBack,   // 4.91: find old X-rays - reachable by a tap here too
+  hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
   togglePatientRx, fullHistory, todayStr, getViewDay: () => viewDay, forgetForLock, idbClear, RX_YEARS, idleWork, ptRowHtml,
   resetFresh: () => { settingsFreshThisOpen = false; }, refillMoney, fmtAgeSex, toggleDrBill };
@@ -7850,7 +7852,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.91';
+const ADMIN_VERSION = '4.92';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
