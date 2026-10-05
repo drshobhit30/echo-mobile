@@ -664,6 +664,12 @@ body{ background:#FAF7F2 !important; }
 .xv-tools label{ display:flex; align-items:center; gap:10px; font-size:16px; }
 .xv-tools input[type=range]{ flex:1; }
 .xv-btns{ display:flex; gap:6px; }
+/* 4.90: find old X-rays */
+.xrf-q{ display:block; width:100%; box-sizing:border-box; margin:4px 0 8px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font:inherit; font-size:15px; }
+.xrf-n{ font-size:12px; color:var(--muted, #888); margin:2px 0 6px; }
+.xrf-row{ display:grid; grid-template-columns:1fr auto; gap:2px 8px; width:100%; text-align:left; background:#fff; border:1px solid var(--line); border-radius:10px; padding:9px 11px; margin:0 0 6px; font:inherit; cursor:pointer; }
+.xrf-row b{ font-size:14px; } .xrf-row span{ grid-column:1; font-size:12px; color:var(--muted, #888); } .xrf-row i{ grid-column:2; grid-row:1 / span 2; align-self:center; font-style:normal; font-size:13px; color:var(--brown); }
+.xr-old-tag{ display:inline-block; font-size:11px; padding:1px 7px; border-radius:999px; background:#f3ece0; color:var(--brown); margin-left:4px; }
 .xv-lv{ display:flex; gap:0; margin:0 0 6px; border:1px solid #444; border-radius:10px; overflow:hidden; }
 .xv-lv button{ flex:1; background:#262626; color:#bbb; border:0; padding:7px 0; font:inherit; font-size:12px; }
 .xv-lv button + button{ border-left:1px solid #444; }
@@ -1012,7 +1018,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.89';
+const LITE_VERSION = '4.90';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -1590,7 +1596,7 @@ setInterval(() => { lanStampTick(); }, LAN_STAMP_MS);
    picture waits 10 seconds, a whole X-ray 45. Away from the clinic Wi-Fi
    the answer is "clinic Wi-Fi only". A slow X-ray is not held against the
    PC: the other reads keep using it. */
-const XR_LAN_ONLY = { xrayFor: 1, xrayThumbs: 1, xrayGet: 1 };
+const XR_LAN_ONLY = { xrayFor: 1, xrayThumbs: 1, xrayGet: 1, xrayFind: 1 };
 const XR_LAN_WAIT_MS = 3000, XR_LIST_REQ_MS = 10000, XR_FILE_REQ_MS = 45000;
 const XR_GOOGLE_FILE_MS = 90000;       // a whole X-ray through Google
 let xrVia = '';                        // where the last X-ray answer came from: 'pc' or 'drive'
@@ -5447,6 +5453,91 @@ function xrTimeLabel(t){
   const hh = Number(t.slice(0, 2)), mm = Number(t.slice(2, 4));
   return isFinite(hh) && isFinite(mm) ? clock(hh * 60 + mm) : '';
 }
+/* ---- FIND OLD X-RAYS (4.90, owner 5 Oct 2026: "allow phone to find and
+   view old xrays. but leave link option") ---------------------------------
+   As Nexus's Find old X-rays, READ ONLY: from a patient's X-ray sheet, the
+   Carestream names on nobody (not matched, or kept off a patient by the
+   old-X-ray rule), searched by name, EDC or Carestream number; one opens
+   in a sheet of its own with the same gallery and viewer. NO LINKING from a
+   phone - that stays in Nexus. Asked of the desk server (2.5) on the Wi-Fi,
+   of the relay (r4.24) away. Each such person comes under a private code
+   ("U" + 12 hex), never a patient's number. */
+let xrOld = {};                        // code -> { name, from }
+let xrFindFor = '', xrFindQ = '', xrFindRes = null, xrFindBusy = false, xrFindTimer = null, xrFindSeq = 0;
+function xrIsOld(pid){ return /^U[0-9a-f]{12}$/.test(String(pid || '')); }
+function xrWho(pid){ return xrOld[pid] ? xrOld[pid].name : (nameOf(pid) || ('ID ' + pid)); }
+function xrFindNorm(n){ return String(n || '').replace(/\d+/g, ' ').toLowerCase().replace(/[^a-z]+/g, ' ').trim().replace(/\s+/g, ' '); }
+function xrFindOpen(pid){
+  xrFindFor = String(pid || xrSheetPid || '');
+  if(!xrFindFor) return;
+  xrFindQ = xrFindNorm(nameOf(xrFindFor) || '');
+  xrFindRes = null;
+  xrFindPaint(true);
+  xrFindRun();
+}
+function xrFindShow(){ if(xrFindFor) xrFindPaint(true); }
+function xrFindClose(){ xrFindFor = ''; xrFindRes = null; const w = document.getElementById('xrFindSheet'); if(w) w.classList.add('hidden'); }
+function xrFindType(v){ xrFindQ = String(v || ''); clearTimeout(xrFindTimer); xrFindTimer = setTimeout(() => { xrFindRun(); }, 450); }
+function xrFindWhy(e){
+  const b = (e && e.body) || {};
+  const m = String((e && e.message) || b.error || '');
+  if(b.relayOld || (/unknown action/.test(m) && xrVia === 'drive')) return 'Finding old X-rays away from the clinic needs the phone relay’s update (r4.24).';
+  if(/unknown action/.test(m)) return 'Finding old X-rays needs the reception PC’s desk server update (2.5).';
+  return 'Could not search just now. Try again in a moment.';
+}
+async function xrFindRun(){
+  const q = String(xrFindQ || '').trim();
+  const seq = ++xrFindSeq;
+  if(!q){ xrFindBusy = false; xrFindRes = { found: [], total: 0 }; xrFindPaint(false); return; }
+  xrFindBusy = true; xrFindPaint(false);
+  let r = null;
+  try{ r = await relay({ action: 'xrayFind', q }); }
+  catch(e){ r = { failed: true, why: xrFindWhy(e) }; }
+  if(seq !== xrFindSeq) return;                  // a newer search is on its way
+  xrFindBusy = false;
+  xrFindRes = (r && r.ok) ? r : (r && r.failed ? r : { failed: true, why: 'Could not search just now.' });
+  xrFindPaint(false);
+}
+function xrFindDays(u){
+  const a = xrDayLabel(u.first || ''), b = xrDayLabel(u.last || '');
+  return u.first && u.last && u.first !== u.last ? a + ' – ' + b : b;
+}
+function xrFindPaint(whole){
+  if(!xrFindFor) return;
+  const w = pfWrap('xrFindSheet', 'photo-wrap pf-wrap xr-wrap');
+  const res = xrFindRes;
+  const listHtml = !res ? '<div class="pf-none">' + (xrFindBusy ? 'Searching…' : '') + '</div>'
+    : res.failed ? '<div class="pf-none xr-why">' + escapeHtml(res.why) + '</div>'
+    : !String(xrFindQ || '').trim() ? '<div class="pf-none">Type a name, or an EDC or Carestream number.</div>'
+    : !res.found.length ? '<div class="pf-none">No old Carestream name matches “' + escapeHtml(String(xrFindQ).trim()) + '”. Try part of the name, or the number.</div>'
+    : '<div class="xrf-n">' + (res.total > res.found.length ? 'The newest ' + res.found.length + ' of ' + res.total : res.found.length) + ' Carestream name' + (res.total === 1 ? '' : 's') + ' not on any patient' + (xrFindBusy ? ' · searching…' : '') + '</div>'
+      + res.found.map(u => '<button type="button" class="xrf-row" onclick="' + PF_NS + 'xrOldOpen(' + jsArg(u.u) + ',' + jsArg(u.name) + ')"><b>' + escapeHtml(u.name) + '</b>'
+        + '<span>' + u.count + ' X-ray' + (u.count === 1 ? '' : 's') + ' · ' + escapeHtml(xrFindDays(u))
+        + (u.numPid ? ' · the number in it is ' + escapeHtml(u.numPid) + (u.numName ? ', ' + escapeHtml(u.numName) : '') : '') + '</span><i>View ›</i></button>').join('');
+  if(whole || !document.getElementById('xrFindList')){
+    w.innerHTML = '<div class="photo-sheet pf-sheet xr-sheet" onclick="event.stopPropagation()">'
+      + '<div class="pf-head"><div class="pf-who"><b>Find old X-rays</b><span>for ' + escapeHtml(nameOf(xrFindFor) || ('ID ' + xrFindFor)) + ' · read only</span></div>'
+      + '<button type="button" class="pf-x" onclick="' + PF_NS + 'xrFindClose()" aria-label="Close">×</button></div>'
+      + '<input type="search" id="xrFindQ" class="xrf-q" autocomplete="off" placeholder="Name as typed in Carestream, or a number" value="' + escapeHtml(xrFindQ) + '" oninput="' + PF_NS + 'xrFindType(this.value)">'
+      + '<div id="xrFindList">' + listHtml + '</div>'
+      + '<div class="xr-foot">Carestream names not on any patient - old ones (before 1 Oct 2026) included. Viewing only: linking a name to a patient is done in Nexus.</div>'
+      + '</div>';
+    w.onclick = () => xrFindClose();
+    w.classList.remove('hidden');
+  } else document.getElementById('xrFindList').innerHTML = listHtml;
+}
+function xrOldOpen(u, name){
+  if(!xrIsOld(u)) return;
+  xrOld[u] = { name: String(name || 'Carestream name'), from: xrFindFor };
+  const f = document.getElementById('xrFindSheet'); if(f) f.classList.add('hidden');
+  xrOpen(u);
+}
+function xrOldBack(){
+  const o = xrOld[xrSheetPid];
+  const from = o && o.from;
+  xrClose();
+  if(from){ xrOpen(from); if(xrFindFor) xrFindShow(); }
+}
 function xrOpen(pid){
   xrSheetPid = String(pid);
   xrAsk([xrSheetPid], true, true);
@@ -5466,7 +5557,7 @@ function xrSheetPaint(){
   let body;
   if(xrAskingNow[pid] && !list.length) body = '<div class="pf-none">' + (xrVia === 'drive' ? 'Asking the clinic’s Drive copy…' : 'Asking the reception PC…') + '</div>';
   else if(c && c.failed && !list.length) body = '<div class="pf-none xr-why">' + escapeHtml(c.why) + '</div>';
-  else if(!list.length) body = '<div class="pf-none">No X-rays from Carestream for this patient.</div>';
+  else if(!list.length) body = '<div class="pf-none">No X-rays from Carestream for this patient.' + (xrIsOld(pid) ? '' : ' Older ones (before 1 Oct 2026) are not linked by themselves - <a href="#" onclick="event.preventDefault(); ' + PF_NS + 'xrFindOpen(' + jsArg(pid) + ')">find them</a>.') + '</div>';
   else {
     const days = [];
     list.forEach((x, i) => {
@@ -5482,8 +5573,10 @@ function xrSheetPaint(){
         + '</div>').join('');
   }
   w.innerHTML = '<div class="photo-sheet pf-sheet xr-sheet" onclick="event.stopPropagation()">'
-    + '<div class="pf-head"><div class="pf-who"><b>RVG · ' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
-    + '<span>' + escapeHtml(pid) + (list.length ? ' · ' + list.length + ' X-ray' + (list.length === 1 ? '' : 's') + ' · newest first' : '') + '</span></div>'
+    + '<div class="pf-head">' + (xrIsOld(pid) ? '<button type="button" class="pf-badge" onclick="' + PF_NS + 'xrOldBack()">‹ Back</button>' : '')
+    + '<div class="pf-who"><b>RVG · ' + escapeHtml(xrWho(pid)) + (xrIsOld(pid) ? ' <span class="xr-old-tag">Carestream · not linked</span>' : '') + '</b>'
+    + '<span>' + (xrIsOld(pid) ? 'Not on any patient · read only' : escapeHtml(pid)) + (list.length ? ' · ' + list.length + ' X-ray' + (list.length === 1 ? '' : 's') + ' · newest first' : '') + '</span></div>'
+    + (xrIsOld(pid) ? '' : '<button type="button" class="pf-badge xr-find" onclick="' + PF_NS + 'xrFindOpen(' + jsArg(pid) + ')">🔍 Find old</button>')
     + (list.length >= 2 && xrCanCompare() ? '<button type="button" class="pf-badge xr-cmp' + (xrPickMode ? ' on' : '') + '" onclick="' + PF_NS + 'xrCompareToggle()">⇄ Compare</button>' : '')
     + '<button type="button" class="pf-x" onclick="' + PF_NS + 'xrClose()" aria-label="Close">×</button></div>'
     + (xrPickMode ? '<div class="pf-none xr-why">Tap two X-rays to see them side by side.' + (xrPicked.length ? ' One chosen — tap another.' : '') + '</div>' : '')
@@ -5625,7 +5718,7 @@ async function xrShow(k){
   xrV.i = k;
   const x = xrV.list[k];
   const who = document.getElementById('xvWho'), when = document.getElementById('xvWhen');
-  if(who) who.textContent = (nameOf(xrV.pid) || ('ID ' + xrV.pid)) + (xrV.i2 >= 0 ? ' · Compare' : '');
+  if(who) who.textContent = xrWho(xrV.pid) + (xrV.i2 >= 0 ? ' · Compare' : '');
   if(when) when.textContent = xrV.i2 >= 0
     ? 'A: ' + xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' ' + xrTimeLabel(x.t) : '') + ' · B: ' + xrDayLabel(xrV.list[xrV.i2].d) + (xrTimeLabel(xrV.list[xrV.i2].t) ? ' ' + xrTimeLabel(xrV.list[xrV.i2].t) : '')
     : xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '') + ' · ' + (k + 1) + ' of ' + xrV.list.length;
@@ -5735,7 +5828,7 @@ function xrTool(t){
 async function xrShare(){
   if(!xrV || !xrV.img) return;
   const x = xrV.list[xrV.i];
-  const who = nameOf(xrV.pid) || ('ID ' + xrV.pid);
+  const who = xrWho(xrV.pid);
   const pic = xrPictureOf(xrV.img, xrEnhOn, xrV.bright, xrV.contrast, xrV.inv, xrV.rot, xrV.flip,
     who + ' · EDC/' + xrV.pid, xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '') + ' · Echo Dental Clinic');
   const name = xrPictureName(xrV.pid, who, x.d, x.t);
