@@ -664,6 +664,10 @@ body{ background:#FAF7F2 !important; }
 .xv-tools label{ display:flex; align-items:center; gap:10px; font-size:16px; }
 .xv-tools input[type=range]{ flex:1; }
 .xv-btns{ display:flex; gap:6px; }
+.xv-lv{ display:flex; gap:0; margin:0 0 6px; border:1px solid #444; border-radius:10px; overflow:hidden; }
+.xv-lv button{ flex:1; background:#262626; color:#bbb; border:0; padding:7px 0; font:inherit; font-size:12px; }
+.xv-lv button + button{ border-left:1px solid #444; }
+.xv-lv button.on{ background:#3a3222; color:#F5D9A0; }
 .xv-btns button{ flex:1; background:#333; color:#fff; border:0; border-radius:10px; padding:9px 0; font:inherit; font-size:13px; }
 .xv-strip{ display:flex; gap:6px; overflow-x:auto; padding:6px 12px calc(8px + env(safe-area-inset-bottom)); background:#1b1b1b; }
 .xv-sth{ flex:0 0 64px; height:48px; border:2px solid transparent; border-radius:6px; background:#333; padding:0; overflow:hidden; }
@@ -937,7 +941,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.88';
+const LITE_VERSION = '4.89';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -4906,7 +4910,20 @@ function xrPixels(buf){
    "Original" shows the raw image as before. Only the screen changes - the
    file is never touched. */
 let xrEnhOn = true;                    // the look chosen, kept for the session
-const XR_ENH = { smooth: 0.8, fine: 3, fineK: 2.5, broad: 25, broadK: 1.5 };
+const XR_ENH = { smooth: 0.8, fine: 3, fineK: 2.5, broad: 25, broadK: 1.5 };   // "Strong" - the 4.84 look
+/* SOFT · NORMAL · STRONG (4.89 / Nexus v12.78, owner 5 Oct 2026: "this enhanced rvg is
+   not very clear"). Tuned on 28 of the clinic's own X-rays (not kept):
+   the fine sharpening doubled the sensor's grain along with the detail,
+   worst on a low-dose X-ray. Normal and Soft now
+     1. MEASURE each X-ray's noise (xrNoiseOf),
+     2. smooth by that much with an EDGE-KEEPING filter (xrGuided: flat
+        areas smoothed, edges - canals, margins, implant threads - kept),
+     3. sharpen only detail stronger than the noise (soft "coring").
+   Strong is the v12.57 look exactly. Each phone remembers its choice;
+   Normal by default. Only the screen changes - the file is never touched. */
+const XR_LEVELS = { soft: { k: 2.6, r: 2, fineK: 2.0, core: 2.5 }, normal: { k: 2.0, r: 2, fineK: 2.2, core: 2.0 } };
+const XR_LEVEL_KEY = 'echoPhone_xrLevel';
+let xrEnhLevel = (function(){ try{ const v = localStorage.getItem(XR_LEVEL_KEY); return (v === 'soft' || v === 'strong') ? v : 'normal'; }catch(e){ return 'normal'; } })();
 /* Gaussian blur, approximated by three box blurs (running sums), in place
    on a copy. */
 function xrBlur(src, w, h, sigma){
@@ -4939,7 +4956,40 @@ function xrBoxLine(s, d, start, stride, len, r){
 }
 function xrBoxH(s, d, w, h, r){ for(let i = 0; i < h; i++) xrBoxLine(s, d, i * w, 1, w, r); }
 function xrBoxV(s, d, w, h, r){ for(let i = 0; i < w; i++) xrBoxLine(s, d, i, w, h, r); }
-function xrSharpen(data, w, h){
+/* The sensor's noise in raw units (Immerkaer's estimate, every 2nd pixel). */
+function xrNoiseOf(d, w, h){
+  let s = 0, n = 0;
+  for(let y = 1; y < h - 1; y += 2){ const o = y * w;
+    for(let x = 1; x < w - 1; x += 2){ const i = o + x;
+      const v = d[i-w-1] - 2*d[i-w] + d[i-w+1] - 2*d[i-1] + 4*d[i] - 2*d[i+1] + d[i+w-1] - 2*d[i+w] + d[i+w+1];
+      s += Math.abs(v); n++; } }
+  return n ? Math.sqrt(Math.PI / 2) * s / (6 * n) : 0;
+}
+/* Edge-keeping smoothing (a guided filter, the image guiding itself):
+   where the local variation is below eps it is smoothed, above it kept. */
+function xrGuided(I, w, h, r, eps){
+  const n = I.length, II = new Float32Array(n);
+  for(let i = 0; i < n; i++) II[i] = I[i] * I[i];
+  const m = xrBlur(I, w, h, r), c = xrBlur(II, w, h, r);
+  const a = new Float32Array(n), b = new Float32Array(n);
+  for(let i = 0; i < n; i++){ const v = Math.max(0, c[i] - m[i] * m[i]); a[i] = v / (v + eps); b[i] = m[i] - a[i] * m[i]; }
+  const ma = xrBlur(a, w, h, r), mb = xrBlur(b, w, h, r), q = new Float32Array(n);
+  for(let i = 0; i < n; i++) q[i] = ma[i] * I[i] + mb[i];
+  return q;
+}
+function xrSharpen(data, w, h, level){
+  const P = XR_LEVELS[level];
+  if(P){
+    const sn = Math.max(1e-3, xrNoiseOf(data, w, h));
+    const b = xrGuided(Float32Array.from(data), w, h, P.r, (P.k * sn) * (P.k * sn));
+    const f = xrBlur(b, w, h, XR_ENH.fine), g = xrBlur(b, w, h, XR_ENH.broad);
+    const out = new Float32Array(b.length), T = (P.core * sn) * (P.core * sn) / 4;
+    for(let i = 0; i < b.length; i++){
+      const d = b[i] - f[i];
+      out[i] = b[i] + P.fineK * d * (d * d) / (d * d + T) + XR_ENH.broadK * (b[i] - g[i]);
+    }
+    return out;
+  }
   const b = xrBlur(data, w, h, XR_ENH.smooth);
   const f = xrBlur(b, w, h, XR_ENH.fine), g = xrBlur(b, w, h, XR_ENH.broad);
   const out = new Float32Array(b.length);
@@ -4969,25 +5019,50 @@ function xrToneFromIcon(data, w, h, icon, iw, ih){
     const k = Math.floor((sm[i] - lo) / (hi - lo) * NB);
     if(k >= 0 && k < NB) bins[k].push(icon[i]);
   }
-  const xs = [], ys = [];
-  let top = 0;
+  const xs = [], ys = [], ns = [];
   bins.forEach((b, k) => {
     if(b.length < 4) return;
     b.sort((p, q) => p - q);
-    top = Math.max(top, b[b.length >> 1] / 255);       // never falling
-    xs.push(lo + (k + 0.5) * (hi - lo) / NB); ys.push(top);
+    xs.push(lo + (k + 0.5) * (hi - lo) / NB); ys.push(b[b.length >> 1] / 255); ns.push(b.length);
   });
-  return xs.length >= 6 ? { x: xs, y: ys } : null;
+  return xs.length >= 6 ? { x: xs, y: xrToneSmooth(ys, ns) } : null;
+}
+/* v12.78: THE CURVE, SMOOTHED. Read off an 8-bit small picture, with few
+   samples in the dark range, it had flat stretches (detail erased) and
+   jumps (hard-edged grey patches, black specks - seen under a crown
+   margin). Now: a weighted rising fit (pool adjacent violators), a gentle
+   moving average, and a least rise per step so no part is flat; the two
+   ends stay where Carestream put them. */
+function xrToneSmooth(ys, ns){
+  const st = [];
+  ys.forEach((y, i) => {
+    st.push({ y, w: ns[i] || 1, c: 1 });
+    while(st.length > 1 && st[st.length - 2].y > st[st.length - 1].y){
+      const b2 = st.pop(), b1 = st.pop();
+      st.push({ y: (b1.y * b1.w + b2.y * b2.w) / (b1.w + b2.w), w: b1.w + b2.w, c: b1.c + b2.c });
+    }
+  });
+  let y = []; st.forEach(b => { for(let k = 0; k < b.c; k++) y.push(b.y); });
+  for(let pass = 0; pass < 2; pass++){
+    const z = y.slice();
+    for(let i = 0; i < y.length; i++){ let s = 0, c = 0; for(let j = -2; j <= 2; j++){ const k = i + j; if(k >= 0 && k < y.length){ s += y[k]; c++; } } z[i] = s / c; }
+    y = z;
+  }
+  const lo = y[0], hi = y[y.length - 1], minStep = 0.3 * (hi - lo) / Math.max(1, y.length - 1);
+  for(let i = 1; i < y.length; i++) if(y[i] < y[i - 1] + minStep) y[i] = y[i - 1] + minStep;
+  const top = y[y.length - 1];
+  if(top > lo) for(let i = 0; i < y.length; i++) y[i] = lo + (y[i] - lo) * (hi - lo) / (top - lo);
+  return y;
 }
 /* The picture to show, as 0..65535 per pixel (0 black), before the
    brightness and contrast sliders. */
-function xrBase(img, enhanced){
+function xrBase(img, enhanced, level){
   const n = img.width * img.height, out = new Uint16Array(n);
   if(!enhanced){
     for(let i = 0; i < n; i++){ let t = (img.data[i] - img.lo) / (img.hi - img.lo); out[i] = t <= 0 ? 0 : t >= 1 ? 65535 : Math.round(t * 65535); }
     return { px: out, display: false };
   }
-  const e = xrSharpen(img.data, img.width, img.height);
+  const e = xrSharpen(img.data, img.width, img.height, level || xrEnhLevel);
   const tone = xrToneFromIcon(img.data, img.width, img.height, img.icon, img.iconW, img.iconH);
   if(tone){
     /* a table over the raw range (one step per raw unit), then each pixel
@@ -5027,8 +5102,8 @@ function xrHeldImage(img, u8){
     icon: ic && u8 ? u8.slice(ic.off, ic.off + ic.rows * ic.cols) : null, iconW: ic ? ic.cols : 0, iconH: ic ? ic.rows : 0, looks: {} };
 }
 function xrLookOf(I, enhanced){
-  const k = enhanced ? 'e' : 'o';
-  if(!I.looks[k]) I.looks[k] = xrBase(I, enhanced);
+  const k = enhanced ? 'e:' + xrEnhLevel : 'o';
+  if(!I.looks[k]) I.looks[k] = xrBase(I, enhanced, xrEnhLevel);
   return I.looks[k];
 }
 /* Draw it: the look, the sliders, invert (a MONOCHROME1 file is shown the
@@ -5451,6 +5526,7 @@ function xrView(pid, i, i2){
     + '<div class="xv-tools">'
     +   '<label>☀️<input type="range" id="xvBright" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
     +   '<label>◐<input type="range" id="xvContrast" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
+    +   '<div class="xv-lv" id="xvLevel"' + (xrEnhOn ? '' : ' style="display:none"') + '>' + ['soft', 'normal', 'strong'].map(l => '<button type="button" data-lv="' + l + '"' + (l === xrEnhLevel ? ' class="on"' : '') + ' onclick="' + PF_NS + 'xrTool(\'lv:' + l + '\')">' + l.charAt(0).toUpperCase() + l.slice(1) + '</button>').join('') + '</div>'
     +   '<div class="xv-btns"><button type="button" id="xvLook" onclick="' + PF_NS + 'xrTool(\'look\')">' + (xrEnhOn ? '✨ Enhanced' : 'Original') + '</button><button type="button" onclick="' + PF_NS + 'xrTool(\'inv\')">Invert</button><button type="button" onclick="' + PF_NS + 'xrTool(\'rot\')">Rotate</button>'
     +   '<button type="button" onclick="' + PF_NS + 'xrTool(\'flip\')">Flip</button><button type="button" onclick="' + PF_NS + 'xrTool(\'reset\')">Reset</button>'
     +   (two ? '<button type="button" onclick="' + PF_NS + 'xrTool(\'swap\')">⇄ Swap</button><button type="button" onclick="' + PF_NS + 'xrTool(\'one\')">One</button>' : '')
@@ -5523,6 +5599,8 @@ function xrRender(){
   });
   const b = document.getElementById('xvLook');
   if(b) b.textContent = xrEnhOn ? '✨ Enhanced' : 'Original';
+  const lv = document.getElementById('xvLevel');
+  if(lv){ lv.style.display = xrEnhOn ? '' : 'none'; lv.querySelectorAll('button[data-lv]').forEach(x => x.classList.toggle('on', x.getAttribute('data-lv') === xrEnhLevel)); }
 }
 /* Fitted to its pane, then the fingers' zoom and pan on top. */
 function xrPlace(){
@@ -5549,10 +5627,21 @@ function xrTool(t){
   if(!xrV) return;
   if(t === 'inv'){ xrV.inv = !xrV.inv; xrRender(); return; }
   if(t === 'share'){ xrShare(); return; }
+  /* 4.89: Soft · Normal · Strong, remembered on this phone */
+  const lvm = /^lv:(soft|normal|strong)$/.exec(String(t));
+  if(lvm){
+    xrEnhLevel = lvm[1]; xrEnhOn = true;
+    try{ localStorage.setItem(XR_LEVEL_KEY, xrEnhLevel); }catch(e){}
+    const msg = document.getElementById('xvMsg');
+    const need = [0, 1].some(n => xrV.imgs[n] && !xrV.imgs[n].looks['e:' + xrEnhLevel]);
+    if(need && msg){ msg.textContent = 'Preparing…'; msg.style.display = ''; }
+    setTimeout(() => { xrRender(); if(msg) msg.style.display = 'none'; }, 30);
+    return;
+  }
   if(t === 'look'){
     xrEnhOn = !xrEnhOn;
     const msg = document.getElementById('xvMsg');
-    const need = [0, 1].some(n => xrV.imgs[n] && !xrV.imgs[n].looks[xrEnhOn ? 'e' : 'o']);
+    const need = [0, 1].some(n => xrV.imgs[n] && !xrV.imgs[n].looks[xrEnhOn ? 'e:' + xrEnhLevel : 'o']);
     if(need && msg){ msg.textContent = 'Preparing…'; msg.style.display = ''; }
     setTimeout(() => { xrRender(); if(msg) msg.style.display = 'none'; }, 30);
     return;
