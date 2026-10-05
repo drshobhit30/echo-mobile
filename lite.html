@@ -683,6 +683,7 @@ body{ background:#FAF7F2 !important; }
 .pf-sheet{ max-height:88vh; overflow-y:auto; }
 .pf-head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
 .pf-facebtn{ background:none; border:0; padding:0; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; flex:0 0 auto; }
+.face-tap{ background:none; border:0; padding:0; margin:0; display:inline-flex; cursor:pointer; flex:0 0 auto; font:inherit; color:inherit; }   /* 4.87: the face opens larger */
 .pf-facebtn small{ font-size:11px; color:#8A5F26; font-weight:600; }
 .pf-who{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .pf-who span{ font-size:12px; color:var(--muted); }
@@ -936,7 +937,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.86';
+const LITE_VERSION = '4.87';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -2692,7 +2693,7 @@ function hsHeadHtml(pid, backCall){
   /* THE FACE, AND THE CAMERA (4.38). */
   const cam = '<button type="button" class="hsh-cam" onclick="photoTake(' + jsArg(pid) + ')">\uD83D\uDCF7 '
     + (photoOf(pid) ? 'Retake' : 'Photo') + '</button>';
-  return '<div class="hs-head">' + photoUnsentHtml(pid) + '<div class="hsh-top">' + back + faceHtml(pid, 'face-lg') + '<div>'
+  return '<div class="hs-head">' + photoUnsentHtml(pid) + '<div class="hsh-top">' + back + faceTapHtml(pid, 'face-lg') + '<div>'
     + '<b>' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
     + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
     + '</div>' + cam + '</div>'
@@ -2978,7 +2979,7 @@ function openDrawer(day, kind, id){
   const bit = (t, cls, style) => t ? '<span class="dr-c' + (cls ? ' ' + cls : '') + '"'
     + (style ? ' style="' + style + '"' : '') + '>' + escapeHtml(t) + '</span>' : '';
   let h = '<div class="dr-grip"></div>'
-    + '<div class="dr-head">' + (r.patientId ? faceHtml(r.patientId, 'dr-face') : '') + '<div class="dr-hl"><div class="dr-name">' + escapeHtml(r.name) + '</div>'
+    + '<div class="dr-head">' + (r.patientId ? faceTapHtml(r.patientId, 'dr-face') : '') + '<div class="dr-hl"><div class="dr-name">' + escapeHtml(r.name) + '</div>'
       + '<div class="dr-cs">'
       +   bit(r.patientId ? String(r.patientId) : '')
       +   bit(as)
@@ -3695,6 +3696,14 @@ function faceInitials(name){
   const w = String(name || '').replace(/^(dr|mr|mrs|ms|miss)\.?\s+/i, '').trim().split(/\s+/).filter(Boolean);
   if(!w.length) return '?';
   return ((w[0][0] || '') + (w.length > 1 ? (w[w.length - 1][0] || '') : '')).toUpperCase();
+}
+/* THE FACE, TAPPABLE (4.87, owner: "make the pic openable"): on the
+   booking drawer and the record it opens larger, as it does in Files;
+   initials (no photo) stay as they are. */
+function faceTapHtml(pid, cls){
+  const ph = photoOf(pid);
+  if(!(ph && ph.id)) return faceHtml(pid, cls);
+  return '<button type="button" class="face-tap" onclick="event.stopPropagation(); ' + PF_NS + 'pfFaceBig(' + jsArg(pid) + ')" aria-label="Open the photo">' + faceHtml(pid, cls) + '</button>';
 }
 function faceHtml(pid, cls){
   const ph = photoOf(pid);
@@ -5079,12 +5088,17 @@ function xrPaintBase(base, px, bright, contrast, invert){
    nothing is ever written to the Carestream folder.
    Limits: the list is asked again after 2 minutes; at most 40 small
    pictures per ask; one X-ray up to 20 MB (the desk server's cap); the
-   last 3 X-rays opened are kept in memory, nothing is kept on the phone. */
+   last 3 X-rays opened are kept in memory, nothing is kept on the phone.
+   4.87 (owner, 4 Oct: "even faster without wifi"): the gallery's list ask
+   brings the small pictures the relay already holds (relay r4.19), and the
+   NEWEST X-ray is read ahead when the gallery opens - about the file's
+   size (~1.4 MB) of mobile data per gallery opened, looked at or not. */
 const XR_LIST_MS = 2 * 60 * 1000;
 const XR_KEEP_FILES = 3;   // 4.84: each now holds its looks too
 let xrLists = {};                      // pid -> { at, list: [{ f, n, d, t, w, h, icon }] } | { at, failed, why }
 const xrAskingNow = {};
 let xrWantSet = {}, xrWantTimer = null;
+let xrWantThumbs = {};                 // 4.87: pids whose small pictures should ride with the list (the gallery)
 const xrThumbMem = {};                 // 'folder/file' -> data URL
 const xrFileMem = [];                  // [{ k, img }] the last few opened
 let xrSheetPid = '';
@@ -5101,12 +5115,13 @@ function xrWhyText(e){
   if(/not on Drive yet/.test(m)) return 'This X-ray has not reached the clinic’s Drive copy yet. Try again in a few minutes.';
   return 'The X-rays could not be fetched just now. Try again in a moment.';
 }
-function xrAsk(pids, force){
+function xrAsk(pids, force, withThumbs){
   (pids || []).map(String).forEach(pid => {
     if(!/^[A-Za-z0-9]{1,20}$/.test(pid) || xrAskingNow[pid]) return;
     const c = xrLists[pid];
     if(!force && c && Date.now() - c.at < XR_LIST_MS) return;
     xrWantSet[pid] = 1;
+    if(withThumbs) xrWantThumbs[pid] = 1;
   });
   if(!Object.keys(xrWantSet).length || xrWantTimer) return;
   xrWantTimer = setTimeout(xrAskNow, 120);
@@ -5114,18 +5129,27 @@ function xrAsk(pids, force){
 async function xrAskNow(){
   xrWantTimer = null;
   const want = Object.keys(xrWantSet); xrWantSet = {};
+  const withThumbs = xrWantThumbs; xrWantThumbs = {};
   if(!want.length) return;
   want.forEach(pid => { xrAskingNow[pid] = 1; });
+  /* 4.87: a gallery's patient is asked on their own, with the small
+     pictures the relay holds riding along (one round trip, not two); the
+     rest in batches as before. */
+  const chunks = [];
+  want.filter(pid => withThumbs[pid]).forEach(pid => chunks.push({ pids: [pid], thumbs: true }));
+  const rest = want.filter(pid => !withThumbs[pid]);
+  for(let i = 0; i < rest.length; i += 60) chunks.push({ pids: rest.slice(i, i + 60), thumbs: false });
   try{
-    for(let i = 0; i < want.length; i += 60){
-      const chunk = want.slice(i, i + 60);
+    for(const ch of chunks){
+      const chunk = ch.pids;
       try{
-        const r = await relay({ action: 'xrayFor', pids: chunk.join(',') });
+        const r = ch.thumbs ? await relay({ action: 'xrayFor', pids: chunk.join(','), thumbs: '1' }) : await relay({ action: 'xrayFor', pids: chunk.join(',') });
         const got = (r && r.xrays) || {};
         chunk.forEach(pid => {
           const list = Array.isArray(got[pid]) ? got[pid].filter(x => x && /^[A-Za-z0-9_-]{1,80}$/.test(String(x.f || '')) && /^[A-Za-z0-9_.-]{1,40}\.rvg$/i.test(String(x.n || ''))) : [];
           xrLists[pid] = { at: Date.now(), list };
         });
+        xrTakeThumbs((r && r.thumbs) || {});
       }catch(e){
         const why = xrWhyText(e);
         chunk.forEach(pid => { xrLists[pid] = { at: Date.now(), failed: true, why, list: (xrLists[pid] && xrLists[pid].list) || null }; });
@@ -5136,6 +5160,20 @@ async function xrAskNow(){
   }
   xrFillSlots();
   if(xrSheetPid && want.indexOf(xrSheetPid) !== -1) xrSheetPaint();
+}
+/* Small pictures that arrived (with a list, or asked for): remembered and
+   drawn wherever that X-ray is on screen. */
+function xrTakeThumbs(got){
+  Object.keys(got || {}).forEach(k => {
+    if(xrThumbMem[k] || !/^[A-Za-z0-9_-]{1,80}\/[A-Za-z0-9_.-]{1,40}\.rvg$/i.test(k)) return;
+    const u = xrGreyUrl(got[k]);
+    if(!u) return;
+    xrThumbMem[k] = u;
+    if(typeof document === 'undefined') return;
+    document.querySelectorAll('.xr-th[data-k], .xv-sth[data-k]').forEach(el => {
+      if(el.getAttribute('data-k') === k) el.innerHTML = '<img alt="" src="' + u + '">' + (el.querySelector('small') ? el.querySelector('small').outerHTML : '');
+    });
+  });
 }
 /* The button. Drawn as a slot and filled when the PC has answered: with
    X-rays "RVG · N"; none, no button; away from the clinic Wi-Fi the full
@@ -5178,7 +5216,7 @@ function xrTimeLabel(t){
 }
 function xrOpen(pid){
   xrSheetPid = String(pid);
-  xrAsk([xrSheetPid], true);
+  xrAsk([xrSheetPid], true, true);
   xrSheetPaint();
 }
 function xrClose(){
@@ -5193,7 +5231,7 @@ function xrSheetPaint(){
   const c = xrLists[pid];
   const list = (c && c.list) || [];
   let body;
-  if(xrAskingNow[pid] && !list.length) body = '<div class="pf-none">Asking the reception PC…</div>';
+  if(xrAskingNow[pid] && !list.length) body = '<div class="pf-none">' + (xrVia === 'drive' ? 'Asking the clinic’s Drive copy…' : 'Asking the reception PC…') + '</div>';
   else if(c && c.failed && !list.length) body = '<div class="pf-none xr-why">' + escapeHtml(c.why) + '</div>';
   else if(!list.length) body = '<div class="pf-none">No X-rays from Carestream for this patient.</div>';
   else {
@@ -5221,7 +5259,11 @@ function xrSheetPaint(){
     + '</div>';
   w.onclick = () => xrClose();
   w.classList.remove('hidden');
-  xrThumbsFetch(pid, list);
+  /* 4.87: while the gallery's own list ask is pending or on its way, the
+     pictures are not asked for separately - they ride with that answer;
+     what is still missing is asked for when it comes. */
+  if(!xrWantSet[pid] && !xrAskingNow[pid]) xrThumbsFetch(pid, list);
+  xrPreloadNewest(pid, list);
 }
 /* COMPARE (4.85), on a screen wide enough (the iPad): pick two, see both. */
 let xrPickMode = false, xrPicked = [];
@@ -5243,17 +5285,41 @@ async function xrThumbsFetch(pid, list){
     for(let i = 0; i < want.length; i += (xrVia === 'drive' ? 10 : 40)){
       let r;
       try{ r = await relay({ action: 'xrayThumbs', pid, items: want.slice(i, i + (xrVia === 'drive' ? 10 : 40)).join(',') }); }catch(e){ break; }
-      const got = (r && r.thumbs) || {};
-      Object.keys(got).forEach(k => {
-        const u = xrGreyUrl(got[k]);
-        if(!u) return;
-        xrThumbMem[k] = u;
-        document.querySelectorAll('.xr-th[data-k], .xv-sth[data-k]').forEach(el => {
-          if(el.getAttribute('data-k') === k) el.innerHTML = '<img alt="" src="' + u + '">' + (el.querySelector('small') ? el.querySelector('small').outerHTML : '');
-        });
-      });
+      xrTakeThumbs((r && r.thumbs) || {});
     }
   }finally{ xrThumbBusy = false; }
+}
+/* ONE FILE, fetched and decoded, shared by the viewer and the read-ahead
+   (4.87): a file already on its way is waited for, never fetched twice. */
+const xrFileLoading = {};              // 'folder/file' -> promise
+async function xrHold(pid, x){
+  const k = xrKey(x);
+  const held = xrFileMem.find(o => o.k === k);
+  if(held) return held;
+  if(xrFileLoading[k]) return xrFileLoading[k];
+  const p = (async () => {
+    const r = await relay({ action: 'xrayGet', pid: String(pid), f: x.f, n: x.n });
+    if(!r || !r.ok || !r.b64) throw new RelayError((r && r.error) || 'no file', r || {});
+    const bin = atob(r.b64); const u8 = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const img = xrPixels(u8);
+    const h = { k, img: img.ok ? xrHeldImage(img, u8) : null, why: img.ok ? '' : img.why };
+    if(h.img){ xrFileMem.push(h); while(xrFileMem.length > XR_KEEP_FILES) xrFileMem.shift(); }
+    return h;
+  })();
+  xrFileLoading[k] = p;
+  try{ return await p; }
+  finally{ delete xrFileLoading[k]; }
+}
+/* READ AHEAD (4.87, owner's call): the newest X-ray is fetched as the
+   gallery opens, so the one most often opened is there at once. One file;
+   not while a viewer is open; never twice. */
+function xrPreloadNewest(pid, list){
+  const x = list && list[0];
+  if(!x || xrV) return;
+  const k = xrKey(x);
+  if(xrFileMem.some(o => o.k === k) || xrFileLoading[k]) return;
+  xrHold(pid, x).catch(() => {});
 }
 /* 8-bit grey from the file, stretched to its own range, as on the desk. */
 function xrGreyUrl(t){
@@ -5345,19 +5411,9 @@ async function xrShowPane(n, k){
   xrPaneLabel(n, k);
   if(msg){ msg.textContent = 'Opening…'; msg.style.display = ''; }
   try{
-    let held = xrFileMem.find(o => o.k === xrKey(x));
-    if(!held){
-      const r = await relay({ action: 'xrayGet', pid: xrV ? xrV.pid : '', f: x.f, n: x.n });
-      if(!r || !r.ok || !r.b64) throw new RelayError((r && r.error) || 'no file', r || {});
-      const bin = atob(r.b64); const u8 = new Uint8Array(bin.length);
-      for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-      const img = xrPixels(u8);
-      if(!img.ok){ if(xrV && xrV.loading[n] === xrKey(x) && msg) msg.textContent = 'This X-ray cannot be shown here (' + img.why + '). Open it at the desk.'; return; }
-      held = { k: xrKey(x), img: xrHeldImage(img, u8) };
-      xrFileMem.push(held);
-      while(xrFileMem.length > XR_KEEP_FILES) xrFileMem.shift();
-    }
+    const held = await xrHold(xrV.pid, x);
     if(!xrV || xrV.loading[n] !== xrKey(x)) return;
+    if(!held.img){ if(msg) msg.textContent = 'This X-ray cannot be shown here (' + held.why + '). Open it at the desk.'; return; }
     xrV.imgs[n] = held.img; if(!n) xrV.img = held.img;
     xrV.panes[n] = xrPaneState();
     if(!n && xrV.i2 < 0){
