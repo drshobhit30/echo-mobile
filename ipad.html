@@ -665,6 +665,7 @@ body{ background:#FAF7F2 !important; }
 .xv-tools input[type=range]{ flex:1; }
 .xv-btns{ display:flex; gap:6px; }
 /* 4.90: find old X-rays */
+.xr-btn-find{ opacity:.75; }
 .xrf-q{ display:block; width:100%; box-sizing:border-box; margin:4px 0 8px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font:inherit; font-size:15px; }
 .xrf-n{ font-size:12px; color:var(--muted, #888); margin:2px 0 6px; }
 .xrf-row{ display:grid; grid-template-columns:1fr auto; gap:2px 8px; width:100%; text-align:left; background:#fff; border:1px solid var(--line); border-radius:10px; padding:9px 11px; margin:0 0 6px; font:inherit; cursor:pointer; }
@@ -1018,7 +1019,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.90';
+const LITE_VERSION = '4.91';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -5427,8 +5428,14 @@ function xrSlotInner(pid, cls, short){
   const c = xrLists[pid];
   if(!c) return '';                    // not answered yet: no button that might vanish
   const n = Array.isArray(c.list) ? c.list.length : -1;
-  if(n === 0 && !(c && c.failed)) return '';
   if(n <= 0 && short) return '';
+  /* 4.91 (owner 5 Oct 2026: "how do i find old xrays in phone" - a patient
+     with nothing linked had no button, so no way in): none linked, a quiet
+     "RVG · find old" that opens Find old X-rays at once, as Nexus does. */
+  if(n === 0 && !(c && c.failed)){
+    if(xrIsOld(pid)) return '';
+    return '<button type="button" class="' + escapeHtml(cls) + ' xr-btn xr-btn-find" onclick="event.stopPropagation(); ' + PF_NS + 'xrOpen(' + jsArg(pid) + '); ' + PF_NS + 'xrFindOpen(' + jsArg(pid) + ')"><span class=\"rvg-ico dim\"></span> RVG · find old</button>';
+  }
   const label = '<span class=\"rvg-ico\"></span> ' + (short ? n : 'RVG' + (n > 0 ? ' · ' + n : ''));
   return '<button type="button" class="' + escapeHtml(cls) + ' xr-btn' + (n > 0 ? '' : ' xr-btn-off') + '" onclick="event.stopPropagation(); ' + PF_NS + 'xrOpen(' + jsArg(pid) + ')">' + label + '</button>';
 }
