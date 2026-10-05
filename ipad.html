@@ -671,6 +671,14 @@ body{ background:#FAF7F2 !important; }
 .xrf-row{ display:grid; grid-template-columns:1fr auto; gap:2px 8px; width:100%; text-align:left; background:#fff; border:1px solid var(--line); border-radius:10px; padding:9px 11px; margin:0 0 6px; font:inherit; cursor:pointer; }
 .xrf-row b{ font-size:14px; } .xrf-row span{ grid-column:1; font-size:12px; color:var(--muted, #888); } .xrf-row i{ grid-column:2; grid-row:1 / span 2; align-self:center; font-style:normal; font-size:13px; color:var(--brown); }
 .xr-old-tag{ display:inline-block; font-size:11px; padding:1px 7px; border-radius:999px; background:#f3ece0; color:var(--brown); margin-left:4px; }
+/* 4.93: X-ray to WhatsApp Business */
+.xv-btns button.xv-wa{ background:#1f6b44; }
+.xv-wa-ask{ margin:0 0 6px; }
+.xv-wa-say{ background:#1f2a22; color:#e8f3ec; border:1px solid #2f8f5b; border-radius:10px; padding:9px 11px; font-size:13px; line-height:1.45; }
+.xv-wa-say.bad{ background:#3a2320; border-color:#A04A2E; }
+.xv-wa-row{ display:flex; gap:6px; margin-top:7px; }
+.xv-wa-row button{ flex:1; background:#333; color:#fff; border:0; border-radius:9px; padding:8px 0; font:inherit; font-size:13px; }
+.xv-wa-row button.xv-wa-go{ background:#1f6b44; }
 .xv-lv{ display:flex; gap:0; margin:0 0 6px; border:1px solid #444; border-radius:10px; overflow:hidden; }
 .xv-lv button{ flex:1; background:#262626; color:#bbb; border:0; padding:7px 0; font:inherit; font-size:12px; }
 .xv-lv button + button{ border-left:1px solid #444; }
@@ -1019,7 +1027,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.92';
+const LITE_VERSION = '4.93';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -5694,13 +5702,14 @@ function xrView(pid, i, i2){
     + (two ? '' : '<button type="button" class="xv-nav" onclick="' + PF_NS + 'xrShowAt(-1)" aria-label="Previous">←</button>'
       + '<button type="button" class="xv-nav" onclick="' + PF_NS + 'xrShowAt(1)" aria-label="Next">→</button>') + '</div>'
     + '<div class="xv-stage' + (two ? ' xv-two' : '') + '" id="xvStage">' + pane(0) + (two ? pane(1) : '') + '<div class="xv-msg" id="xvMsg"></div></div>'
-    + '<div class="xv-tools">'
+    + '<div class="xv-tools"><div class="xv-wa-ask" id="xvWaAsk" style="display:none"></div>'
     +   '<label>☀️<input type="range" id="xvBright" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
     +   '<label>◐<input type="range" id="xvContrast" min="-100" max="100" value="0" oninput="' + PF_NS + 'xrAdjust()"></label>'
     +   '<div class="xv-lv" id="xvLevel"' + (xrEnhOn ? '' : ' style="display:none"') + '>' + ['soft', 'normal', 'strong'].map(l => '<button type="button" data-lv="' + l + '"' + (l === xrEnhLevel ? ' class="on"' : '') + ' onclick="' + PF_NS + 'xrTool(\'lv:' + l + '\')">' + l.charAt(0).toUpperCase() + l.slice(1) + '</button>').join('') + '</div>'
     +   '<div class="xv-btns"><button type="button" id="xvLook" onclick="' + PF_NS + 'xrTool(\'look\')">' + (xrEnhOn ? '✨ Enhanced' : 'Original') + '</button><button type="button" onclick="' + PF_NS + 'xrTool(\'inv\')">Invert</button><button type="button" onclick="' + PF_NS + 'xrTool(\'rot\')">Rotate</button>'
     +   '<button type="button" onclick="' + PF_NS + 'xrTool(\'flip\')">Flip</button><button type="button" onclick="' + PF_NS + 'xrTool(\'reset\')">Reset</button>'
     +   (two ? '<button type="button" onclick="' + PF_NS + 'xrTool(\'swap\')">⇄ Swap</button><button type="button" onclick="' + PF_NS + 'xrTool(\'one\')">One</button>' : '')
+    +   (xrIsOld(pid) ? '' : '<button type="button" class="xv-wa" id="xvWa" onclick="' + PF_NS + 'xrWaAsk()">WhatsApp</button>')
     +   '<button type="button" id="xvShare" onclick="' + PF_NS + 'xrTool(\'share\')">↗ Share</button></div>'
     + '</div>'
     + (two ? '' : '<div class="xv-strip">' + list.map(x => '<button type="button" class="xv-sth" data-k="' + escapeHtml(xrKey(x)) + '" onclick="' + PF_NS + 'xrShowKey(' + jsArg(xrKey(x)) + ')">'
@@ -5832,6 +5841,71 @@ function xrTool(t){
 /* SHARE (4.85): a JPEG of what is on screen - the look, the sliders, the
    turn - with a caption strip (name, number, date, the clinic), through the
    phone's share sheet; a browser without one gets the file to save. */
+/* WHATSAPP, AS THE PATIENT CARD (4.93, owner 6 Oct 2026: "android. and
+   whatsapp buisness"). The phone's own WhatsApp Business: the X-ray as it is
+   on screen (captioned, sized for chat) goes to the clipboard, and that
+   person's chat opens - straight into WhatsApp Business on Android (waOpen's
+   intent) - with the message typed. In the chat: long-press the message box,
+   Paste, send. The number is the WhatsApp one ticked in Nexus, else the
+   primary (waNumberOf). First tap shows who it goes to; the second sends -
+   the copy needs a fresh tap. ↗ Share stays as the way round. */
+function xrWaPhoneMsg(pid, x){
+  const who = String(nameOf(pid) || '').replace(/[\(\[][^)\]]*[\)\]]/g, ' ').replace(/\s+/g, ' ').trim();   // the name as recorded, no bracketed notes
+  return 'Hello ' + (who ? who + ' ji' : 'there') + ', here is your X-ray from Echo Dental Clinic, taken on ' + xrDayLabel(x.d) + '.';
+}
+function xrWaAsk(){
+  if(!xrV || !xrV.img || xrIsOld(xrV.pid)) return;
+  const d = waNumberOf(xrV.pid);
+  const box = document.getElementById('xvWaAsk');
+  if(!box) return;
+  if(!d){ box.innerHTML = '<div class="xv-wa-say bad">No mobile number on file for ' + escapeHtml(xrWho(xrV.pid)) + ' - add one in Nexus first.</div>'; box.style.display = ''; return; }
+  box.innerHTML = '<div class="xv-wa-say">Send ' + (xrV.i2 >= 0 ? 'these X-rays' : 'this X-ray') + ' to <b>' + escapeHtml(xrWho(xrV.pid)) + ' ji</b> on <b>' + escapeHtml(fmtNum(d)) + '</b>?'
+    + '<div class="xv-wa-row"><button type="button" class="xv-wa-go" onclick="' + PF_NS + 'xrWaSend()">Copy & open WhatsApp</button><button type="button" onclick="' + PF_NS + 'xrWaCancel()">Cancel</button></div></div>';
+  box.style.display = '';
+}
+function xrWaCancel(){ const b = document.getElementById('xvWaAsk'); if(b){ b.style.display = 'none'; b.innerHTML = ''; } }
+function xrWaPicture(){
+  const v = xrV, who = xrWho(v.pid) + ' · EDC/' + v.pid;
+  const one = (I, x) => xrPictureOf(I, xrEnhOn, v.bright, v.contrast, v.inv, v.rot, v.flip, who, xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '') + ' · Echo Dental Clinic');
+  let c = one(v.imgs[0] || v.img, v.list[v.i]);
+  if(v.i2 >= 0 && v.imgs[1] && v.list[v.i2]){
+    const b = one(v.imgs[1], v.list[v.i2]), gap = 12, j = document.createElement('canvas');
+    j.width = c.width + gap + b.width; j.height = Math.max(c.height, b.height);
+    const g = j.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, j.width, j.height); g.drawImage(c, 0, 0); g.drawImage(b, c.width + gap, 0);
+    c = j;
+  }
+  /* sized for chat, opaque - as the card (Nexus v12.05) */
+  const k = Math.min(1, 1600 / Math.max(c.width, c.height));
+  const o = document.createElement('canvas'); o.width = Math.round(c.width * k); o.height = Math.round(c.height * k);
+  const g2 = o.getContext('2d'); g2.fillStyle = '#fff'; g2.fillRect(0, 0, o.width, o.height); g2.drawImage(c, 0, 0, o.width, o.height);
+  return o;
+}
+function xrWaSend(){
+  if(!xrV || !xrV.img) return null;
+  const d = waNumberOf(xrV.pid);
+  const box = document.getElementById('xvWaAsk');
+  if(!d) return null;
+  const x = xrV.list[xrV.i];
+  let copying;
+  try{
+    if(!(navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem !== 'undefined')) throw new Error('this phone cannot copy pictures');
+    const pic = new Promise((res, rej) => xrWaPicture().toBlob(b => b ? res(b) : rej(new Error('the picture could not be made')), 'image/png'));
+    copying = navigator.clipboard.write([new ClipboardItem({ 'image/png': pic })]);
+  }catch(e){ copying = Promise.reject(e); }
+  const text = xrWaPhoneMsg(xrV.pid, x);
+  const url = 'https://wa.me/' + d + '?text=' + encodeURIComponent(text);
+  const say = (h, bad) => { if(box){ box.innerHTML = '<div class="xv-wa-say' + (bad ? ' bad' : '') + '">' + h + '<div class="xv-wa-row"><button type="button" onclick="' + PF_NS + 'xrWaCancel()">OK</button></div></div>'; box.style.display = ''; } };
+  return copying.then(() => {
+    say('✅ <b>Copied.</b> WhatsApp Business is opening on the chat with the message typed: long-press the message box, <b>Paste</b>, then send.');
+    if(/Android/i.test(String((navigator && navigator.userAgent) || ''))){
+      try{ location.href = 'intent://send?phone=' + d + '&text=' + encodeURIComponent(text) + '#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url=' + encodeURIComponent(url) + ';end'; }catch(e){ location.href = url; }
+    } else { try{ window.open(url, '_blank'); }catch(e){ location.href = url; } }
+    return { url, text, copied: true };
+  }, err => {
+    say('This phone could not copy the picture (' + escapeHtml((err && err.message) || String(err)) + '). Use <b>↗ Share</b> and pick WhatsApp Business instead.', true);
+    return { copied: false };
+  });
+}
 async function xrShare(){
   if(!xrV || !xrV.img) return;
   const x = xrV.list[xrV.i];
