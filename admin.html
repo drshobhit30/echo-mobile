@@ -68,6 +68,12 @@ body{ padding-bottom:28px; }
 .nt-opt b{ display:block; font-size:0.9rem; color:var(--ink); }
 .nt-opt span{ display:block; font-size:0.74rem; color:var(--muted); margin-top:1px; }
 .nt-opt.on{ border-color:var(--gold); background:var(--gold-pale); }
+/* 4.96: the reception PC's heartbeat - green when heard in the last 3 minutes. */
+.beat-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:1px; background:transparent; }
+.beat-dot.live{ background:#3FAE6A; box-shadow:0 0 0 2px rgba(63,174,106,0.25); }
+.beat-dot.quiet{ background:#B4B2A9; }
+.nt-pref b::before{ content:'\2610  '; }
+.nt-pref.on b::before{ content:'\2611  '; }
 .nt-warn{ font-size:0.76rem; line-height:1.4; background:#FCEBEB; color:#791F1F; border-radius:10px; padding:9px 11px; margin:2px 0 10px; }
 .nt-tip{ font-size:0.74rem; line-height:1.45; background:var(--cream); color:var(--muted); border-radius:10px; padding:9px 11px; margin:2px 0 10px; }
 .nt-tip b{ color:var(--ink); }
@@ -1075,7 +1081,7 @@ body{ background:#FAF7F2 !important; }
          why it read as empty. -->
     <div class="hd-mark">
       <button type="button" class="hd-bell" id="hdBell" onclick="notifOpen()" aria-label="Notifications">🔔</button>
-      <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version">Nexus <b>A</b> &middot; <span id="appVer"></span><span id="lanMark" class="lan-mark"></span></div>
+      <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version"><span id="beatDot" class="beat-dot" title=""></span>Nexus <b>A</b> &middot; <span id="appVer"></span><span id="lanMark" class="lan-mark"></span></div>
     </div>
   </div>
   <div class="tabbar">
@@ -1094,6 +1100,10 @@ body{ background:#FAF7F2 !important; }
     <button type="button" class="nt-opt" data-m="on" onclick="notifPick('on')"><b>On</b><span>Sound and vibration, as this phone is set</span></button>
     <button type="button" class="nt-opt" data-m="silent" onclick="notifPick('silent')"><b>Silent</b><span>Shows on the screen, makes no sound</span></button>
     <button type="button" class="nt-opt" data-m="off" onclick="notifPick('off')"><b>Off</b><span>Nothing is sent to this phone at all</span></button>
+    <!-- 4.96 (owner, 12 Oct 2026): the reception PC's heartbeat. Off until turned on. -->
+    <div class="nt-sub" style="margin-top:12px;"><b>Also tell me when</b></div>
+    <button type="button" class="nt-opt nt-pref" data-p="live" onclick="notifPrefToggle('live')"><b>Reception is live</b><span>Nexus opens on the reception PC after half an hour or more without it</span></button>
+    <button type="button" class="nt-opt nt-pref" data-p="quiet" onclick="notifPrefToggle('quiet')"><b>Reception went quiet</b><span>Nothing heard from Nexus on the reception PC for 10 minutes, between 9:00 and 21:30</span></button>
     <div class="nt-warn" id="notifBroken" style="display:none;"></div>
     <div class="nt-tip" id="notifAndroid" style="display:none;">
       <b>Android puts apps to sleep.</b> If a notification ever arrives late or not at all, open the phone&rsquo;s
@@ -6065,6 +6075,42 @@ try{ lanInfo = JSON.parse(localStorage.getItem(LAN_INFO_KEY) || 'null'); }catch(
 function lanOnCellular(){
   try{ const c = navigator.connection; return !!(c && c.type === 'cellular'); }catch(e){ return false; }
 }
+/* ==== FROM ANYWHERE, THROUGH TAILSCALE (4.96; owner's choice B, 12 Oct 2026) ====
+   On mobile data a phone used never to try the reception PC - so with
+   Tailscale on, the phone still went the long way, through the relay. Now:
+   on mobile data the PC is tried ONCE when the app opens, in the
+   background (nothing waits for it); if it answers, mobile data is allowed
+   to use it for the next 12 hours, and each answer renews that. If it does
+   not answer, nothing is tried again on mobile data until the next opening,
+   so a phone without Tailscale never waits.
+
+   THE MARK: the PC tells the phone which address the request came from
+   (/whoami). Through Tailscale that is the PC's own address or a 100.x
+   address - no phone on the clinic Wi-Fi arrives as either - and the mark
+   is then a small globe ("Remote - via Tailscale") instead of the lightning. */
+const LAN_CELL_OK_KEY = 'echoLan_cellOkAt';
+const LAN_CELL_OK_MS = 12 * 3600 * 1000;
+let lanCellTry = false;               // one background look on mobile data, set at opening
+let lanRemote = false;                // the PC sees us through Tailscale
+function lanCellOkRecently(){
+  try{ return Date.now() - Number(localStorage.getItem(LAN_CELL_OK_KEY) || 0) < LAN_CELL_OK_MS; }catch(e){ return false; }
+}
+function lanCellularBlocked(){ return lanOnCellular() && !lanCellOkRecently(); }
+async function lanWhoamiCheck(base){
+  lanRemote = false;
+  try{
+    const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, LAN_PROBE_MS) : null;
+    const r = await fetch(base + '/whoami', { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+    if(tm) clearTimeout(tm);
+    const j = await r.json();
+    const ip = String((j && j.ip) || '');
+    const own = (lanInfo && Array.isArray(lanInfo.ips)) ? lanInfo.ips.map(String) : [];
+    /* on mobile data, an answer can only have come through Tailscale */
+    lanRemote = lanOnCellular() || (!!ip && ip !== '127.0.0.1' && (own.indexOf(ip) !== -1 || /^100\./.test(ip)));
+  }catch(e){ lanRemote = lanOnCellular(); }
+  lanPaint();
+}
 /* ==== SEALED ON THE WI-FI (4.67, owner's call) ====
    Everything a phone says to the reception PC over the clinic Wi-Fi, and
    everything the PC says back, is encrypted (AES-256-CBC) and signed
@@ -6299,7 +6345,8 @@ async function lanProbeNow(){
   /* Admin's own secret missing: the PC is still used for what a locked app
      reads, and the admin secret is asked for behind it. */
   if(lanInfo && lanInfo.key && !lanInfo.akey) lanSecretAsk();
-  if(!lanInfo || !lanInfo.key || !lanInfo.skey || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
+  if(!lanInfo || !lanInfo.key || !lanInfo.skey || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || (lanCellularBlocked() && !lanCellTry)){ lanMarkDown(); return false; }
+  lanCellTry = false;   // 4.96: the one look at opening is spent
   /* THE SECURE DOOR (4.71). An iPhone or iPad may only talk to https from an
      https page, so it uses the desk server's secure port when the PC has one
      (desk server 1.9, relay r4.13). Every other phone keeps the plain door. */
@@ -6315,7 +6362,9 @@ async function lanProbeNow(){
   }, e => { if(e && /not trusted/.test(String(e.message))) distrust = String(e.message); throw e; });
   let got = '';
   try{ got = await lanFirst(bases.map(one)); }catch(e){ got = ''; }
-  if(got){ lanBase = got; lanState = 'up'; lanCheckedAt = Date.now(); lanPaint(); return true; }
+  if(got){ lanBase = got; lanState = 'up'; lanCheckedAt = Date.now();
+    if(lanOnCellular()){ try{ localStorage.setItem(LAN_CELL_OK_KEY, String(Date.now())); }catch(e){} }   // 4.96: worked on mobile data - for 12 hours
+    lanPaint(); lanWhoamiCheck(got); return true; }
   if(distrust) lanNote(distrust);
   else lanNote('the PC did not answer at ' + bases.map(b => b.replace(/^https?:\/\//, '')).join(', ')
     + (tls ? ' (secure door - is the clinic certificate installed on this iPhone?)' : ''));
@@ -6359,6 +6408,7 @@ function lanSecretAsk(){
   if(Date.now() - Number((lanInfo && lanInfo.gotAt) || 0) > LAN_SECRET_RECHECK_MS) lanInfoRefresh(true);
 }
 function lanStart(){
+  if(lanOnCellular()) lanCellTry = true;   // 4.96: one look at opening, in the background
   /* 4.66: a card from before the admin secret existed is asked for again
      (at most every ten minutes, in case the relay is older too). */
   const noSecret = lanInfo && lanInfo.key && (!lanInfo.skey || !lanInfo.akey) && Date.now() - Number(lanInfo.gotAt || 0) > LAN_SECRET_RECHECK_MS;
@@ -6366,7 +6416,7 @@ function lanStart(){
   if(lanInfo) lanEnsure();
 }
 /* A new network is a new question. */
-function lanNetworkChanged(){ lanState = 'unknown'; lanBase = ''; lanCheckedAt = 0; lanPaint(); if(lanInfo) lanEnsure(); }
+function lanNetworkChanged(){ lanRemote = false; lanState = 'unknown'; lanBase = ''; lanCheckedAt = 0; lanPaint(); if(lanInfo) lanEnsure(); }
 try{ if(navigator.connection && navigator.connection.addEventListener) navigator.connection.addEventListener('change', lanNetworkChanged); }catch(e){}
 try{ window.addEventListener('online', lanNetworkChanged); }catch(e){}
 try{
@@ -6377,7 +6427,7 @@ try{
 /* Is the PC answering right now? Waits for the first look at most
    LAN_WAIT_MS, never longer. */
 async function lanReadyNow(){
-  if(!lanInfo || lanOnCellular()) return false;
+  if(!lanInfo || lanCellularBlocked()) return false;   // 4.96: on mobile data only once the PC has answered on it
   let up = false;
   try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), LAN_WAIT_MS))]); }catch(e){ up = false; }
   return !!(up && lanBase);
@@ -6387,14 +6437,16 @@ function lanPaint(){
     const up = lanState === 'up';
     const el = document.getElementById('lanMark');
     if(el){
-      el.textContent = up ? ' \u26A1' : '';
-      el.title = up ? 'Connected on the Wi-Fi LAN: reading straight from the reception PC' : '';
+      /* 4.96: the globe when the PC is reached through Tailscale (drawing 1). */
+      if(up && lanRemote) el.innerHTML = ' <svg class="lan-globe" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-2px"><g fill="none" stroke="#3B8F5A" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="2.7" ry="6.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/></g></svg>';
+      else el.textContent = up ? ' \u26A1' : '';
+      el.title = up ? (lanRemote ? 'Remote \u2014 via Tailscale: reading straight from the reception PC' : 'Connected on the Wi-Fi LAN: reading straight from the reception PC') : '';
     }
     const why = document.getElementById('lanWhy');
     if(why){
       const when = lanWhy.at ? new Date(lanWhy.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '';
       why.textContent = !lanInfo ? 'Clinic PC: not set up yet \u2014 everything goes through the relay.'
-        : up ? 'Clinic PC: connected on the Wi-Fi LAN \u26A1' + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
+        : up ? (lanRemote ? 'Clinic PC: connected remotely, via Tailscale' : 'Clinic PC: connected on the Wi-Fi LAN \u26A1') + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
         : lanSecretMissing() ? 'Clinic PC: waiting for the Wi-Fi secret from the relay \u2014 it arrives by itself within a few minutes. Everything goes through the relay meanwhile.'
         : 'Clinic PC: not in use' + (lanWhy.text ? ' \u2014 ' + lanWhy.text + (when ? ' (' + when + ')' : '') : '') + '. Everything goes through the relay.';
     }
@@ -6419,7 +6471,7 @@ function lanPaint(){
    session arrives behind it, for when the phone leaves the building. */
 const SEALED_ACTIONS = { batch: 1, list: 1, week: 1, settings: 1 };
 const SEALED_BATCH_MAX = 48;
-function sealedUsable(){ return !!(pcSession && lanInfo && lanInfo.akey && lanInfo.skey && lanState === 'up' && lanBase && !lanOnCellular()); }
+function sealedUsable(){ return !!(pcSession && lanInfo && lanInfo.akey && lanInfo.skey && lanState === 'up' && lanBase && !lanCellularBlocked()); }   // 4.96: Tailscale on mobile data too
 /* One sealed admin request, with the admin secret. Resolves with the PC's
    answer; throws when there is no answer (err.answered false) or the PC
    refused the seal itself. */
@@ -7956,7 +8008,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.95';
+const ADMIN_VERSION = '4.96';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -8164,7 +8216,7 @@ async function notifApply(mode){
   const j = sub.toJSON();
   try{
     await relay({ action: 'pushSub', dev: phoneTag(), app: appLetter(), ver: appVersion(), mode: mode,
-      name: notifPhoneName(), sub: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }) });
+      name: notifPhoneName(), sub: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }), prefs: JSON.stringify(notifPrefs()) });
   }catch(e){ return { ok: false, error: 'The clinic would not register this phone: ' + notifWhy(e) }; }
   notifStore(mode);
   return { ok: true };
@@ -8189,11 +8241,27 @@ function notifMsg(text, kind){
   el.textContent = text || '';
   el.className = 'nt-msg' + (kind ? ' nt-' + kind : '');
 }
+/* 4.96: the admin phone's own switches, sent with its subscription. */
+const NOTIF_PREFS_KEY = 'echoAdmin_notifPrefs';
+function notifPrefs(){ try{ const o = JSON.parse(localStorage.getItem(NOTIF_PREFS_KEY) || '{}') || {}; return { live: !!o.live, quiet: !!o.quiet }; }catch(e){ return { live: false, quiet: false }; } }
+async function notifPrefToggle(what){
+  const m = notifMode();
+  if(m !== 'on' && m !== 'silent'){ notifMsg('Turn notifications On (or Silent) first.', 'bad'); return; }
+  const before = notifPrefs();
+  const next = Object.assign({}, before, { [what]: !before[what] });
+  try{ localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(next)); }catch(e){}
+  notifPaint();
+  notifMsg('Saving\u2026', '');
+  const r = await notifApply(m);
+  if(!r.ok){ try{ localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(before)); }catch(e){} notifPaint(); notifMsg(r.error, 'bad'); return; }
+  notifMsg(next[what] ? (what === 'live' ? 'On. You will hear when Nexus opens on the reception PC.' : 'On. You will hear if the reception PC goes quiet during clinic hours.') : 'Off.', 'good');
+}
 function notifPaint(){
+  try{ const pr = notifPrefs(); document.querySelectorAll('.nt-pref').forEach(b => b.classList.toggle('on', !!pr[b.getAttribute('data-p')])); }catch(e){}
   const m = notifMode();
   const h = notifHealth();
   const broken = !!h && (m === 'on' || m === 'silent');
-  document.querySelectorAll('.nt-opt').forEach(b => b.classList.toggle('on', b.getAttribute('data-m') === m));
+  document.querySelectorAll('.nt-opt[data-m]').forEach(b => b.classList.toggle('on', b.getAttribute('data-m') === m));
   const bell = document.getElementById('hdBell');
   if(bell){
     bell.classList.toggle('nt-quiet', m === 'silent');
@@ -8220,6 +8288,36 @@ function androidLike(){
   const ua = String((navigator && navigator.userAgent) || '');
   return /Android/i.test(ua);
 }
+/* ==== RECEPTION LIVE (4.96) ====
+   The reception PC's Nexus touches its filing file every minute; the relay
+   gives the time (r4.27). Green within 3 minutes (Drive is a minute or two
+   behind on mobile data), grey after, each with the time last heard. Asked
+   when the app opens or comes back, and every minute while it is on screen. */
+const BEAT_LIVE_MS = 3 * 60 * 1000;
+let beatAt = 0, beatAskedAt = 0, beatBusy = false;
+function beatPaint(){
+  const el = document.getElementById('beatDot');
+  if(!el) return;
+  if(!beatAskedAt){ el.className = 'beat-dot'; el.title = ''; return; }
+  const live = beatAt && Date.now() - beatAt < BEAT_LIVE_MS;
+  const when = beatAt ? new Date(beatAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '';
+  el.className = 'beat-dot ' + (live ? 'live' : 'quiet');
+  el.title = (live ? 'Reception live' : 'Reception quiet') + (when ? ' · last heard ' + when : ' · not heard yet');
+}
+async function beatAsk(){
+  if(beatBusy || document.visibilityState === 'hidden') return;
+  beatBusy = true;
+  try{
+    const r = await relayViaGoogle({ action: 'beat' });
+    if(r && r.ok){ beatAt = Date.parse(r.at || '') || 0; beatAskedAt = Date.now(); }
+  }catch(e){}
+  finally{ beatBusy = false; beatPaint(); }
+}
+try{
+  setInterval(() => { beatPaint(); if(Date.now() - beatAskedAt > 55 * 1000) beatAsk(); }, 20 * 1000);
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') beatAsk(); });
+  setTimeout(beatAsk, 3000);
+}catch(e){}
 function notifOpen(){
   const w = document.getElementById('notifWrap');
   if(!w) return;
@@ -8292,7 +8390,7 @@ async function notifRefresh(){
     }
     const j = sub.toJSON();
     await relay({ action: 'pushSub', dev: phoneTag(), app: appLetter(), ver: appVersion(), mode: m,
-      name: notifPhoneName(), sub: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }) });
+      name: notifPhoneName(), sub: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }), prefs: JSON.stringify(notifPrefs()) });
     notifSetHealth('');
     notifPaint();
     /* WHAT THE WORKER NEEDS IF THE BROWSER RETIRES THIS SUBSCRIPTION. It

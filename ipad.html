@@ -1029,7 +1029,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.95';
+const LITE_VERSION = '4.96';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -1229,6 +1229,42 @@ try{ lanInfo = JSON.parse(localStorage.getItem(LAN_INFO_KEY) || 'null'); }catch(
 
 function lanOnCellular(){
   try{ const c = navigator.connection; return !!(c && c.type === 'cellular'); }catch(e){ return false; }
+}
+/* ==== FROM ANYWHERE, THROUGH TAILSCALE (4.96; owner's choice B, 12 Oct 2026) ====
+   On mobile data a phone used never to try the reception PC - so with
+   Tailscale on, the phone still went the long way, through the relay. Now:
+   on mobile data the PC is tried ONCE when the app opens, in the
+   background (nothing waits for it); if it answers, mobile data is allowed
+   to use it for the next 12 hours, and each answer renews that. If it does
+   not answer, nothing is tried again on mobile data until the next opening,
+   so a phone without Tailscale never waits.
+
+   THE MARK: the PC tells the phone which address the request came from
+   (/whoami). Through Tailscale that is the PC's own address or a 100.x
+   address - no phone on the clinic Wi-Fi arrives as either - and the mark
+   is then a small globe ("Remote - via Tailscale") instead of the lightning. */
+const LAN_CELL_OK_KEY = 'echoLan_cellOkAt';
+const LAN_CELL_OK_MS = 12 * 3600 * 1000;
+let lanCellTry = false;               // one background look on mobile data, set at opening
+let lanRemote = false;                // the PC sees us through Tailscale
+function lanCellOkRecently(){
+  try{ return Date.now() - Number(localStorage.getItem(LAN_CELL_OK_KEY) || 0) < LAN_CELL_OK_MS; }catch(e){ return false; }
+}
+function lanCellularBlocked(){ return lanOnCellular() && !lanCellOkRecently(); }
+async function lanWhoamiCheck(base){
+  lanRemote = false;
+  try{
+    const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    const tm = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, LAN_PROBE_MS) : null;
+    const r = await fetch(base + '/whoami', { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+    if(tm) clearTimeout(tm);
+    const j = await r.json();
+    const ip = String((j && j.ip) || '');
+    const own = (lanInfo && Array.isArray(lanInfo.ips)) ? lanInfo.ips.map(String) : [];
+    /* on mobile data, an answer can only have come through Tailscale */
+    lanRemote = lanOnCellular() || (!!ip && ip !== '127.0.0.1' && (own.indexOf(ip) !== -1 || /^100\./.test(ip)));
+  }catch(e){ lanRemote = lanOnCellular(); }
+  lanPaint();
 }
 /* ==== SEALED ON THE WI-FI (4.67, owner's call) ====
    Everything a phone says to the reception PC over the clinic Wi-Fi, and
@@ -1461,7 +1497,8 @@ async function lanProbeNow(){
      every two minutes at most, on any look, not only when the app is
      opened afresh - and said so in the bell sheet meanwhile. */
   if(lanSecretMissing()){ lanSecretAsk(); lanMarkDown(); return false; }
-  if(!lanInfo || !lanInfo.key || !lanInfo.skey || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || lanOnCellular()){ lanMarkDown(); return false; }
+  if(!lanInfo || !lanInfo.key || !lanInfo.skey || !Array.isArray(lanInfo.ips) || !lanInfo.ips.length || (lanCellularBlocked() && !lanCellTry)){ lanMarkDown(); return false; }
+  lanCellTry = false;   // 4.96: the one look at opening is spent
   /* THE SECURE DOOR (4.71). An iPad or iPhone may only talk to https from an
      https page, so it uses the desk server's secure port when the PC has one
      (desk server 1.9, relay r4.13). Every other phone keeps the plain door. */
@@ -1477,7 +1514,9 @@ async function lanProbeNow(){
   }, e => { if(e && /not trusted/.test(String(e.message))) distrust = String(e.message); throw e; });
   let got = '';
   try{ got = await lanFirst(bases.map(one)); }catch(e){ got = ''; }
-  if(got){ lanBase = got; lanState = 'up'; lanCheckedAt = Date.now(); lanPaint(); return true; }
+  if(got){ lanBase = got; lanState = 'up'; lanCheckedAt = Date.now();
+    if(lanOnCellular()){ try{ localStorage.setItem(LAN_CELL_OK_KEY, String(Date.now())); }catch(e){} }   // 4.96: worked on mobile data - for 12 hours
+    lanPaint(); lanWhoamiCheck(got); return true; }
   if(distrust) lanNote(distrust);
   else lanNote('the PC did not answer at ' + bases.map(b => b.replace(/^https?:\/\//, '')).join(', ')
     + (tls ? ' (secure door - is the clinic certificate installed on this iPad?)' : ''));
@@ -1521,6 +1560,7 @@ function lanSecretAsk(){
   if(Date.now() - Number((lanInfo && lanInfo.gotAt) || 0) > LAN_SECRET_RECHECK_MS) lanInfoRefresh(true);
 }
 function lanStart(){
+  if(lanOnCellular()) lanCellTry = true;   // 4.96: one look at opening, in the background
   /* 4.67: a card from before the Wi-Fi was sealed is asked for again (at
      most every ten minutes, in case the relay is older too). */
   const noSecret = lanSecretMissing() && Date.now() - Number(lanInfo.gotAt || 0) > LAN_SECRET_RECHECK_MS;
@@ -1528,7 +1568,7 @@ function lanStart(){
   if(lanInfo) lanEnsure();
 }
 /* A new network is a new question. */
-function lanNetworkChanged(){ lanState = 'unknown'; lanBase = ''; lanCheckedAt = 0; lanPaint(); if(lanInfo) lanEnsure(); }
+function lanNetworkChanged(){ lanRemote = false; lanState = 'unknown'; lanBase = ''; lanCheckedAt = 0; lanPaint(); if(lanInfo) lanEnsure(); }
 try{ if(navigator.connection && navigator.connection.addEventListener) navigator.connection.addEventListener('change', lanNetworkChanged); }catch(e){}
 try{ window.addEventListener('online', lanNetworkChanged); }catch(e){}
 try{
@@ -1539,7 +1579,7 @@ try{
 /* Is the PC answering right now? Waits for the first look at most
    LAN_WAIT_MS, never longer. */
 async function lanReadyNow(){
-  if(!lanInfo || lanOnCellular()) return false;
+  if(!lanInfo || lanCellularBlocked()) return false;   // 4.96: on mobile data only once the PC has answered on it
   let up = false;
   try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), LAN_WAIT_MS))]); }catch(e){ up = false; }
   return !!(up && lanBase);
@@ -1549,14 +1589,16 @@ function lanPaint(){
     const up = lanState === 'up';
     const el = document.getElementById('lanMark');
     if(el){
-      el.textContent = up ? ' \u26A1' : '';
-      el.title = up ? 'Connected on the Wi-Fi LAN: reading straight from the reception PC' : '';
+      /* 4.96: the globe when the PC is reached through Tailscale (drawing 1). */
+      if(up && lanRemote) el.innerHTML = ' <svg class="lan-globe" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-2px"><g fill="none" stroke="#3B8F5A" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="2.7" ry="6.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/></g></svg>';
+      else el.textContent = up ? ' \u26A1' : '';
+      el.title = up ? (lanRemote ? 'Remote \u2014 via Tailscale: reading straight from the reception PC' : 'Connected on the Wi-Fi LAN: reading straight from the reception PC') : '';
     }
     const why = document.getElementById('lanWhy');
     if(why){
       const when = lanWhy.at ? new Date(lanWhy.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '';
       why.textContent = !lanInfo ? 'Clinic PC: not set up yet \u2014 everything goes through the relay.'
-        : up ? 'Clinic PC: connected on the Wi-Fi LAN \u26A1' + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
+        : up ? (lanRemote ? 'Clinic PC: connected remotely, via Tailscale' : 'Clinic PC: connected on the Wi-Fi LAN \u26A1') + (lanWhy.text ? ' (last hitch ' + when + ': ' + lanWhy.text + ')' : '')
         : lanSecretMissing() ? 'Clinic PC: waiting for the Wi-Fi secret from the relay \u2014 it arrives by itself within a few minutes. Everything goes through the relay meanwhile.'
         : 'Clinic PC: not in use' + (lanWhy.text ? ' \u2014 ' + lanWhy.text + (when ? ' (' + when + ')' : '') : '') + '. Everything goes through the relay.';
     }
