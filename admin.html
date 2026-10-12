@@ -6356,7 +6356,9 @@ async function lanProbeNow(){
      signed with the PC's key, or not for this request) is said as that -
      not as "did not answer". */
   let distrust = '';
-  const one = (b) => lanFetch(lanUrl(b, 'ping'), LAN_PROBE_MS).then(j => {
+  /* 4.97: on mobile data the look is in the background and Tailscale adds a
+     hop, so it may take longer than on the clinic Wi-Fi. */
+  const one = (b) => lanFetch(lanUrl(b, 'ping'), lanOnCellular() ? 4000 : LAN_PROBE_MS).then(j => {
     if(j.echo === 'echo-nexus-desk' && j.id === lanInfo.id) return b;
     throw new Error('not this clinic');
   }, e => { if(e && /not trusted/.test(String(e.message))) distrust = String(e.message); throw e; });
@@ -6416,12 +6418,12 @@ function lanStart(){
   if(lanInfo) lanEnsure();
 }
 /* A new network is a new question. */
-function lanNetworkChanged(){ lanRemote = false; lanState = 'unknown'; lanBase = ''; lanCheckedAt = 0; lanPaint(); if(lanInfo) lanEnsure(); }
+function lanNetworkChanged(){ lanRemote = false; if(lanOnCellular()) lanCellTry = true; lanState = 'unknown'; lanBase = ''; lanCheckedAt = 0; lanPaint(); if(lanInfo) lanEnsure(); }
 try{ if(navigator.connection && navigator.connection.addEventListener) navigator.connection.addEventListener('change', lanNetworkChanged); }catch(e){}
 try{ window.addEventListener('online', lanNetworkChanged); }catch(e){}
 try{
   document.addEventListener('visibilitychange', () => {
-    if(document.visibilityState === 'visible' && lanInfo && lanState !== 'up' && Date.now() - lanCheckedAt > 30000){ lanState = 'unknown'; lanEnsure(); }
+    if(document.visibilityState === 'visible' && lanInfo && lanState !== 'up' && Date.now() - lanCheckedAt > 30000){ if(lanOnCellular()) lanCellTry = true; lanState = 'unknown'; lanEnsure(); }   // 4.97: coming back to the app is an opening too
   });
 }catch(e){}
 /* Is the PC answering right now? Waits for the first look at most
@@ -8008,7 +8010,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.96';
+const ADMIN_VERSION = '4.97';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
