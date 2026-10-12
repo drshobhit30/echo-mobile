@@ -68,6 +68,8 @@ body{ padding-bottom:28px; }
 .nt-opt b{ display:block; font-size:0.9rem; color:var(--ink); }
 .nt-opt span{ display:block; font-size:0.74rem; color:var(--muted); margin-top:1px; }
 .nt-opt.on{ border-color:var(--gold); background:var(--gold-pale); }
+.xr-linkbar{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin:10px 0 4px; font-size:0.86rem; }
+.xr-link-go{ width:100%; }
 /* 4.96: the reception PC's heartbeat - green when heard in the last 3 minutes. */
 .beat-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:1px; background:transparent; }
 .beat-dot.live{ background:#3FAE6A; box-shadow:0 0 0 2px rgba(63,174,106,0.25); }
@@ -5190,6 +5192,7 @@ function xrSheetPaint(){
     + '<button type="button" class="pf-x" onclick="' + PF_NS + 'xrClose()" aria-label="Close">×</button></div>'
     + (xrPickMode ? '<div class="pf-none xr-why">Tap two X-rays to see them side by side.' + (xrPicked.length ? ' One chosen — tap another.' : '') + '</div>' : '')
     + body
+    + (typeof xrLinkBar === 'function' ? xrLinkBar(pid, list) : '')   // 4.98: the admin app's Link (defined after this block)
     + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy of Carestream (a few minutes behind the reception PC).' : 'From Carestream on the reception PC.') + ' Read only — measuring and enhancing stay in CS Imaging.</div>'
     + '</div>';
   w.onclick = () => xrClose();
@@ -5570,6 +5573,53 @@ function xrWireStage(){
   st.addEventListener('pointercancel', up);
 }
 /* ================================================== end RVG X-rays == */
+/* ==== LINK AN OLD X-RAY PERSON (4.98; owner, 12 Oct 2026) ====
+   The admin app, unlocked, may link an old Carestream person (on nobody) to
+   the patient whose sheet Find old was opened from. The ask goes through the
+   relay to the reception PC, which files it as the desk would - refusing if
+   that person also has X-rays on another patient - and says so in Nexus's
+   bell. It reaches every screen in a minute or two. Undo for ten minutes. */
+const XR_LINK_UNDO_MS = 10 * 60 * 1000;
+const XR_LINK_KEY = 'echoAdmin_xrLinked';
+function xrLinkedMem(){ try{ return JSON.parse(localStorage.getItem(XR_LINK_KEY) || '{}') || {}; }catch(e){ return {}; } }
+function xrLinkedSave(m){ try{ localStorage.setItem(XR_LINK_KEY, JSON.stringify(m)); }catch(e){} }
+let xrLinkMsg = {};
+function xrLinkBar(pid, list){
+  if(!xrIsOld(pid) || !adminOn()) return '';
+  const o = xrOld[pid] || {};
+  const to = o.from || '';
+  if(!to) return '';
+  const who = nameOf(to) || ('ID ' + to);
+  const done = xrLinkedMem()[pid];
+  const fresh = done && Date.now() - done.at < XR_LINK_UNDO_MS;
+  const msg = xrLinkMsg[pid] ? '<div class="pf-none xr-why">' + escapeHtml(xrLinkMsg[pid]) + '</div>' : '';
+  if(done && done.pid === to){
+    return '<div class="xr-linkbar"><span>✓ Linked to <b>' + escapeHtml(who) + '</b> — it reaches every screen in a minute or two.</span>'
+      + (fresh ? '<button type="button" class="pf-badge" onclick="' + PF_NS + 'xrLinkSend(' + jsArg(pid) + ', true)">Undo</button>' : '') + '</div>' + msg;
+  }
+  if(!list.length) return msg;
+  return '<div class="xr-linkbar"><button type="button" class="btn xr-link-go" onclick="' + PF_NS + 'xrLinkSend(' + jsArg(pid) + ', false)">Link '
+    + (list.length === 1 ? 'this X-ray' : 'these ' + list.length + ' X-rays') + ' to ' + escapeHtml(who) + '</button></div>' + msg;
+}
+async function xrLinkSend(pid, undo){
+  const o = xrOld[pid] || {};
+  const to = undo ? ((xrLinkedMem()[pid] || {}).pid || '') : (o.from || '');
+  if(!to) return;
+  if(!adminSession){ xrLinkMsg[pid] = 'This needs the relay: lock admin, then unlock it again with a signal.'; xrSheetPaint(); return; }
+  const who = nameOf(to) || ('ID ' + to);
+  if(!undo && !confirm('Link the X-rays of “' + (o.name || 'this Carestream name') + '” to ' + who + ' (' + to + ')?\n\nThe reception PC files it within a minute or two. You can undo it here for ten minutes.')) return;
+  xrLinkMsg[pid] = undo ? 'Undoing…' : 'Linking…'; xrSheetPaint();
+  try{
+    const r = await relayViaGoogle({ action: 'xrLink', tok: pid, pid: to, undo: undo ? '1' : '0', name: o.name || '', byName: (typeof notifPhoneName === 'function' ? notifPhoneName() : 'Admin phone') });
+    if(!r || !r.ok) throw new Error((r && r.error) || 'refused');
+    const m = xrLinkedMem();
+    if(undo) delete m[pid]; else m[pid] = { pid: to, at: Date.now() };
+    xrLinkedSave(m);
+    xrLinkMsg[pid] = undo ? 'Undo sent — the reception PC takes the link back within a minute or two.' : '';
+  }catch(e){ xrLinkMsg[pid] = 'Not sent: ' + ((e && e.message) || 'no connection') + '.'; }
+  xrSheetPaint();
+}
+
 
 /* ------------------------------------------------------------ patients -- */
 /* THE NAMES ARE PREPARED ONCE (4.27). Every keystroke used to walk the whole
@@ -5829,6 +5879,7 @@ function forgetForLock(){
 return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkPhoneIn, bkSubmit, bkLoad, bkSend, bkEditOpen, bkRemove, photoLoad, photoRefresh, photoTake, photoUse, photoRetake, photoCancel, faceHtml, photoOf, photoRetry, photoUnsentHtml, photoDecline, photoNeedsList, historyHtml,
   pfLoad, pfSheetOpen, pfSheetClose, pfFaceBig, pfFaceClose, pfShoot, pfPickType, pfPageDrop, pfShotCancel, pfShotSave, pfRetry, pfOpenFile, pfViewGo, pfViewClose, pfTodayHtml, pfBadgeHtml, pfListOf, pfCountOf, xrOpen, xrClose, xrView, xrViewClose, xrShowAt, xrShowKey, xrAdjust, xrTool, xrFillSlots, xrCompareToggle, xrThumbTap,
   xrFindOpen, xrFindClose, xrFindType, xrOldOpen, xrOldBack,   // 4.91: find old X-rays - reachable by a tap here too
+  xrLinkSend,   // 4.98: link an old X-ray person, admin unlocked
   xrWaAsk, xrWaSend, xrWaCancel,   // 4.93: X-ray to WhatsApp Business
   hooks, hydrate, refreshSettings, ensureWeek, renderCalendar, goDay, openDatePicker, wireStripSwipe, wireDrawer, setStatusFilter,
   openDrawer, closeDrawer, openPrevRx, togglePrev, closePrevRx, onSearch, openPatient, backToSearch, renderPatients,
@@ -8010,7 +8061,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.97';
+const ADMIN_VERSION = '4.98';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */

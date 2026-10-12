@@ -958,7 +958,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '4.97';
+const LITE_VERSION = '4.98';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -5598,6 +5598,7 @@ function xrSheetPaint(){
     + '<button type="button" class="pf-x" onclick="' + PF_NS + 'xrClose()" aria-label="Close">×</button></div>'
     + (xrPickMode ? '<div class="pf-none xr-why">Tap two X-rays to see them side by side.' + (xrPicked.length ? ' One chosen — tap another.' : '') + '</div>' : '')
     + body
+    + (typeof xrLinkBar === 'function' ? xrLinkBar(pid, list) : '')   // 4.98: the admin app's Link (defined after this block)
     + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy of Carestream (a few minutes behind the reception PC).' : 'From Carestream on the reception PC.') + ' Read only — measuring and enhancing stay in CS Imaging.</div>'
     + '</div>';
   w.onclick = () => xrClose();
