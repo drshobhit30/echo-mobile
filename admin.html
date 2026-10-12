@@ -523,6 +523,7 @@ body{ padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
 .kv-n{ display:inline-block; width:4px; height:4px; border-radius:50%; background:#B0D98F; }
 .kv-n2{ background:#E8C98F; box-shadow:6px 0 0 #E8C98F; margin-right:6px; }
 .kv-n3{ background:#E8A798; box-shadow:6px 0 0 #E8A798, 12px 0 0 #E8A798; margin-right:12px; }
+.kv-m{ display:inline-block; width:5px; height:5px; border-radius:50%; background:#A8A49B; margin-right:4px; }
 .kv-x{ font-size:0.62rem; font-weight:800; font-style:normal; color:#E8A798; line-height:1; }
 .row-num.is-hit b{ background:#F7E9BF; border-radius:3px; padding:0 1px; color:#4A3B28; }
 .row-num2{ font-size:0.66rem; color:var(--muted); margin-left:6px; }
@@ -788,6 +789,7 @@ body{ background:#FAF7F2 !important; }
 .bk-slot small{ font-size:0.62rem; margin-left:2px; color:#8A7A63; }
 .bk-slot i{ display:block; font-style:normal; font-size:0.6rem; color:#A32D2D; }
 .bk-slot.bk-booked{ background:#F1EFE8; color:#8A7A63; }
+.bk-slot.bk-marked{ background:#F1EFEA; color:#8F8B82; }
 .bk-slot.bk-closed{ background:repeating-linear-gradient(45deg,#F1EAE0,#F1EAE0 4px,#fff 4px,#fff 8px); color:#B4B2A9; }
 .bk-slot.bk-past{ opacity:0.35; }
 .bk-slot.sel{ background:#3B2A1A !important; color:#F5EDE1 !important; border-color:#3B2A1A !important; }
@@ -1405,7 +1407,7 @@ async function idbClear(){
 /* What the page draws from. Filled from IndexedDB at boot, before anything
    is asked of the relay. */
 const mem = { settings: {}, days: {}, rxCounts: null, rxMeta: null, conBrief: null };
-const SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-blocks.json'];
+const SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-marks.json'];
 const RX_INDEX = 'prescriptions-index.json';
 const KEEP_PAST_DAYS = 60, KEEP_FUTURE_DAYS = 30;
 /* THE SAME TRICK FOR CONTACTS (4.27). The file carries every number, every
@@ -1952,8 +1954,14 @@ function effectiveStatus(v, day){
   if(day === todayStr() || raw === 'done') return raw;
   return 'done';
 }
+/* 4.95 (owner, 12 Oct 2026: "show marked appointment on phone too"). Since
+   Nexus v12.20 the calendar's marks live in calendar-marks.json and the old
+   closures file is empty, so the phones showed none. A mark ONLY DRAWS, here
+   as in Nexus: a card in the day list, a light shade on the times it covers
+   in the booking sheet, a grey dot on the date strip for an all-day one. It
+   never warns, never stops a booking, and cannot be changed from a phone. */
 function blocksOn(day){
-  const list = S('calendar-blocks.json') || [];
+  const list = S('calendar-marks.json') || [];
   const dow = dateOf(day).getDay();
   return (Array.isArray(list) ? list : []).filter(b => {
     if(!b) return false;
@@ -1964,8 +1972,17 @@ function blocksOn(day){
       if(Array.isArray(b.skip) && b.skip.indexOf(day) !== -1) return false;
       return true;
     }
+    if(b.to && b.to > (b.date || '')) return day >= b.date && day <= b.to;   // one mark, several days
     return b.date === day;
   });
+}
+/* What a mark says: who it is for, then the note - as Nexus's calMarkLabel. */
+function markLabel(b){
+  const who = String((b && b.doctor) || '').trim();
+  const note = String((b && b.title) || '').trim();
+  if(!who) return note ? 'Clinic \u00b7 ' + note : 'Clinic';
+  if(!note) return who;
+  return note.toLowerCase().indexOf(who.toLowerCase()) === 0 ? note : who + ' \u00b7 ' + note;
 }
 const STATUS_CHIP = {
   waiting:  ['Waiting',  'st-wait'],
@@ -2039,8 +2056,8 @@ function rowsFor(day){
       status: effectiveStatus(v, day), struck: false, rough: false, chair: v.chair });
   });
   blocksOn(day).forEach(b => {
-    rows.push({ kind: b.kind === 'leave' ? 'leave' : 'block', id: b.id, mins: b.allDay ? 24 * 60 : minsOf(b.start),
-      end: minsOf(b.end), allDay: !!b.allDay, title: b.title || '' });
+    rows.push({ kind: 'mark', id: b.id, mins: b.allDay ? 24 * 60 : minsOf(b.start),
+      end: minsOf(b.end), allDay: !!b.allDay, title: markLabel(b), doctor: b.doctor || '' });
   });
   /* EARLIEST FIRST (owner's call, a4.1 / lite 3.1 - latest-first undone). An
      all-day closure leads the day; a booking with no time closes it. */
@@ -2054,16 +2071,15 @@ const AV_TONES = [['#EEEDFE','#3C3489'],['#E1F5EE','#085041'],['#FBEAF0','#72243
    doctor, reason and prescriptions on one quiet line beneath. */
 const BAND = { booked:'#EF9F27', waiting:'#BA7517', ongoing:'#378ADD', done:'#639922', came:'#639922', noshow:'#E24B4A', rough:'#B4B2A9' };
 function rowHtml(r, day){
-  if(r.kind === 'block' || r.kind === 'leave'){
-    const away = r.kind === 'leave';
+  if(r.kind === 'mark'){
     const when = r.allDay ? 'All day'
       : (Number.isFinite(r.mins) ? clock(r.mins) + (Number.isFinite(r.end) ? ' \u2013 ' + clock(r.end) : '') : 'All day');
-    return '<div class="ka-card is-event">'
-      + '<div class="ka-band" style="background:' + (away ? '#A2865F' : '#8C7A63') + ';"></div>'
+    return '<div class="ka-card is-event is-mark">'
+      + '<div class="ka-band" style="background:' + (r.doctor ? '#A99BC4' : '#B4B2A9') + ';"></div>'
       + '<div class="ka-in">'
         + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span>'
-          + '<span><span class="cal-chip st-event">' + (away ? 'Away' : 'Clinic event') + '</span></span></div>'
-        + '<div class="ka-name">' + escapeHtml(r.title || (away ? 'Doctor away' : 'All appointments blocked')) + '</div>'
+          + '<span><span class="cal-chip st-event">Mark</span></span></div>'
+        + '<div class="ka-name">' + escapeHtml(r.title || 'Clinic') + '</div>'
       + '</div></div>';
   }
   const chip = STATUS_CHIP[r.status] || STATUS_CHIP.booked;
@@ -2460,16 +2476,15 @@ const FMT_MONTH_YEAR = new Intl.DateTimeFormat('en-IN', { month: 'short', year: 
    and was only ever drawn on the day you were already looking at, which is
    one day too late to stop a booking being made into it. */
 function stripDayMark(d){
-  /* A doctor being away is not the clinic being shut: the diary still takes
-     bookings, so it must not read as closed here. */
-  const shut = blocksOn(d).some(b => b && b.allDay && b.kind !== 'leave');
-  if(shut) return '<i class="kv-x" title="All appointments blocked">\u00d7</i>';
+  /* 4.95: an all-day mark is a quiet grey dot - a mark, never "closed". */
+  const allDay = blocksOn(d).filter(b => b && b.allDay);
+  const dot = allDay.length ? '<i class="kv-m" title="' + escapeHtml(allDay.map(markLabel).join(', ')) + '"></i>' : '';
   const held = mem.days[d];
-  if(!held) return '';                       // not on this phone: say nothing
+  if(!held) return dot;                      // not on this phone: only the mark
   const n = (held.appointments || []).filter(a =>
     a && !a.rough && (a.status || 'scheduled') !== 'cancelled').length;
-  if(!n) return '';
-  return '<i class="kv-n kv-n' + (n <= 4 ? 1 : n <= 8 ? 2 : 3) + '" title="'
+  if(!n) return dot;
+  return dot + '<i class="kv-n kv-n' + (n <= 4 ? 1 : n <= 8 ? 2 : 3) + '" title="'
     + n + (n === 1 ? ' booked' : ' booked') + '"></i>';
 }
 /* Written into a holder made once, and only when it has changed - this runs
@@ -2792,13 +2807,13 @@ function bkSlotState(t){
   const busy = appts.some(a => a && !a.rough && (a.status || 'scheduled') !== 'cancelled' && a.status !== 'noshow'
     && bk.doctor && a.doctor === bk.doctor && (() => { const s1 = minsOf(a.time); return Number.isFinite(s1) && t < s1 + (Number(a.mins) || 15) && t + bk.mins > s1; })());
   if(busy) return 'booked';
-  return bkBlockAt(t) ? 'closed' : 'free';
+  return bkBlockAt(t) ? 'marked' : 'free';
 }
 /* WHICH closure covers this slot, so the warning can name it (4.19). A
    closure never refuses the booking - it only says what else is on. */
 function bkBlockAt(t){
   return blocksOn(bk.date).filter(b => {
-    if(b.kind === 'leave' && (!bk.doctor || b.doctor !== bk.doctor)) return false;
+    if(b.doctor && b.doctor !== bk.doctor) return false;   // 4.95: a doctor's mark shades only that doctor's times
     if(b.allDay) return true;
     const s0 = minsOf(b.start), e0 = minsOf(b.end);
     return Number.isFinite(s0) && Number.isFinite(e0) && t < e0 && t + bk.mins > s0;
@@ -2838,6 +2853,11 @@ function bkRender(){
     + '<input class="bk-in" id="bkQ" autocomplete="off" value="' + escapeHtml(bk.q) + '" oninput="Cal.bkSearch(this.value)" placeholder="' + (rough ? 'e.g. Mr Verma' : 'Search') + '">'
     + (bk.pid ? '<div class="bk-picked">\u2713 ' + escapeHtml(nameOf(bk.pid)) + ' \u00b7 ' + escapeHtml(bk.pid) + '</div>' : '')
     + '<div class="bk-hits" id="bkHits"></div>'
+    /* 4.94 (owner, 6 Oct): a rough slot for somebody not on file can carry a
+       WhatsApp number, saved as the booking's number exactly as the desk does,
+       so it gets the 8:30 reminder like one made at the desk. */
+    + (rough && !bk.pid ? '<div class="bk-f">WhatsApp number <span>optional — for the 8:30 reminder</span></div>'
+        + '<input class="bk-in" id="bkPhone" type="tel" inputmode="tel" autocomplete="off" value="' + escapeHtml(bk.phone || '') + '" oninput="Cal.bkPhoneIn(this.value)" placeholder="e.g. 98765 43210">' : '')
     + '<div class="bk-f">Doctor' + (rough ? ' <span>optional</span>' : '') + '</div>'
     + '<div class="bk-seg">' + docs.map(d => '<button type="button" class="' + (bk.doctor === d ? 'on' : '') + '" onclick="Cal.bkSet(\'doctor\',' + jsArg(d) + ')"><i style="background:' + doctorColor(d) + ';"></i>' + escapeHtml(d.replace(/^Dr\.?\s*/i, '')) + '</button>').join('')
       + (rough ? '<button type="button" class="' + (!bk.doctor ? 'on' : '') + '" onclick="Cal.bkSet(\'doctor\',\'\')">None</button>' : '') + '</div>'
@@ -2846,23 +2866,28 @@ function bkRender(){
     + (bk.time && !rough ? (() => {
         const st = bkSlotState(minsOf(bk.time));
         if(st === 'booked') return '<div class="bk-warn">\u26A0 ' + escapeHtml(bk.doctor) + ' already has a booking at this time. It will be double-booked, and Nexus will flag it.</div>';
-        if(st === 'closed'){
-          const b = bkBlockAt(minsOf(bk.time));
-          const what = (b && b.title) ? escapeHtml(b.title) + ' is at this time'
-            : ((b && b.kind === 'leave') ? 'The doctor is away at this time' : 'All appointments are blocked at this time');
-          return '<div class="bk-warn">\u26A0 ' + what + '. It will still be booked.</div>';
-        }
         return '';
       })() : '')
     + '<div class="bk-f">Reason <span>optional</span></div><input class="bk-in" id="bkReason" value="' + escapeHtml(bk.reason) + '" oninput="Cal.bkReason(this.value)" placeholder="e.g. RCT second sitting">'
     + '<div class="bk-msg">' + escapeHtml(bk.msg || '') + '</div>'
     + '<button type="button" class="bk-go' + (rough ? ' rough' : '') + '" onclick="Cal.bkSubmit()">'
       + (bk.editId ? 'Save change' : (rough ? 'Add rough' : 'Book')) + (bk.time ? ' \u00b7 ' + escapeHtml(dayTitle(bk.date)) + ' ' + clock(minsOf(bk.time)) : '')
-      + (bk.time && !rough && bkSlotState(minsOf(bk.time)) !== 'free' ? ' \u00b7 anyway' : '') + '</button>'
+      + (bk.time && !rough && bkSlotState(minsOf(bk.time)) === 'booked' ? ' \u00b7 anyway' : '') + '</button>'
     + (bk.editId ? '<button type="button" class="bk-remove" onclick="Cal.bkRemove(' + jsArg(bk.editId) + ')">Remove this rough slot</button>' : '');
   bkRenderHits();
 }
 function bkReason(v){ if(bk) bk.reason = v; }
+function bkPhoneIn(v){ if(bk) bk.phone = v; }
+/* 4.94: the number as it travels - digits, a leading + kept; '' for none;
+   null for one that cannot be a phone number (said before it is sent). */
+function bkPhoneClean(v){
+  const s = String(v == null ? '' : v).trim();
+  if(!s) return '';
+  const plus = s.charAt(0) === '+';
+  const d = s.replace(/\D/g, '');
+  if(d.length < 10 || d.length > 15) return null;
+  return (plus ? '+' : '') + d;
+}
 function bkId(){ return 'ph-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
 function bkWho(){ try{ return localStorage.getItem('echoLite_name') || localStorage.getItem('echoAdmin_name') || ''; }catch(e){ return ''; } }
 async function bkSubmit(){
@@ -2872,7 +2897,9 @@ async function bkSubmit(){
   if(!rough && !bk.pid){ bk.msg = 'Choose a patient from the list \u2014 new patients are registered at the desk.'; return bkRender(); }
   if(!rough && !bk.doctor){ bk.msg = 'Choose a doctor.'; return bkRender(); }
   if(!bk.time){ bk.msg = 'Pick a time.'; return bkRender(); }
-  const rec = { id: bkId(), date: bk.date, time: bk.time, mins: bk.mins, patientId: bk.pid, newName: rough && !bk.pid ? String(bk.q || '').trim() : '',
+  const phone = (rough && !bk.pid) ? bkPhoneClean(bk.phone) : '';
+  if(phone === null){ bk.msg = 'That WhatsApp number does not look right \u2014 10 digits for an Indian mobile.'; return bkRender(); }
+  const rec = { id: bkId(), date: bk.date, time: bk.time, mins: bk.mins, patientId: bk.pid, newName: rough && !bk.pid ? String(bk.q || '').trim() : '', newPhone: phone || '',
     doctor: bk.doctor, cameFor: bk.reason, rough, bookedBy: bkWho() || (typeof ADMIN_VERSION !== 'undefined' ? 'admin phone' : 'lite phone'),
     status: 'scheduled', pending: true, sent: false, madeAt: Date.now() };
   bkPending.push(rec); bkSave();
@@ -2904,7 +2931,7 @@ function bkEditOpen(id){
   try{ closeDrawer(); }catch(e){}
   bk = { mode: 'rough', editId: p.id, date: p.date, q: p.patientId ? (nameOf(p.patientId) || p.patientId) : (p.newName || ''),
     pid: p.patientId || '', name: '', doctor: p.doctor || '', time: p.time, mins: Number(p.mins) || 15,
-    reason: p.cameFor || '', lookup: [], msg: '' };
+    reason: p.cameFor || '', phone: p.newPhone || '', lookup: [], msg: '' };
   document.getElementById('bkWrap').classList.remove('hidden');
   bkRender();
 }
@@ -2920,8 +2947,10 @@ async function bkAmend(){
   if(!bkEditable(p)){ bk.msg = 'The desk already has it — change it there.'; return bkRender(); }
   if(!bk.time){ bk.msg = 'Pick a time.'; return bkRender(); }
   if(bkSending && !p.sent){ bk.msg = 'It is being sent right now — try again in a moment.'; return bkRender(); }
+  if(!bk.pid && bkPhoneClean(bk.phone) === null){ bk.msg = 'That WhatsApp number does not look right \u2014 10 digits for an Indian mobile.'; return bkRender(); }
   const next = { date: bk.date, time: bk.time, mins: bk.mins, patientId: bk.pid,
-    newName: bk.pid ? '' : String(bk.q || '').trim(), doctor: bk.doctor, cameFor: bk.reason, rough: true };
+    newName: bk.pid ? '' : String(bk.q || '').trim(), doctor: bk.doctor, cameFor: bk.reason, rough: true,
+    newPhone: bk.pid ? '' : (bkPhoneClean(bk.phone) || '') };   // 4.94: the number is kept through a change
   if(!p.sent){
     Object.assign(p, next); bkSave();
     bkClose(); toast('Rough slot changed · sending to the desk');
@@ -5787,7 +5816,7 @@ function forgetForLock(){
   idbDel('set:' + CONTACTS);
 }
 
-return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkSubmit, bkLoad, bkSend, bkEditOpen, bkRemove, photoLoad, photoRefresh, photoTake, photoUse, photoRetake, photoCancel, faceHtml, photoOf, photoRetry, photoUnsentHtml, photoDecline, photoNeedsList, historyHtml,
+return { waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkPhoneIn, bkSubmit, bkLoad, bkSend, bkEditOpen, bkRemove, photoLoad, photoRefresh, photoTake, photoUse, photoRetake, photoCancel, faceHtml, photoOf, photoRetry, photoUnsentHtml, photoDecline, photoNeedsList, historyHtml,
   pfLoad, pfSheetOpen, pfSheetClose, pfFaceBig, pfFaceClose, pfShoot, pfPickType, pfPageDrop, pfShotCancel, pfShotSave, pfRetry, pfOpenFile, pfViewGo, pfViewClose, pfTodayHtml, pfBadgeHtml, pfListOf, pfCountOf, xrOpen, xrClose, xrView, xrViewClose, xrShowAt, xrShowKey, xrAdjust, xrTool, xrFillSlots, xrCompareToggle, xrThumbTap,
   xrFindOpen, xrFindClose, xrFindType, xrOldOpen, xrOldBack,   // 4.91: find old X-rays - reachable by a tap here too
   xrWaAsk, xrWaSend, xrWaCancel,   // 4.93: X-ray to WhatsApp Business
@@ -6567,7 +6596,7 @@ async function driveFindChild(parentId, name, isFolder){
 }
 async function driveFindChildFresh(parentId, name, isFolder){ return driveFindChild(parentId, name, isFolder); }
 let lastFoundModifiedTime = null;
-const CAL_SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-blocks.json'];
+const CAL_SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-marks.json'];
 async function driveReadJson(fileId, opts){
   const m = /^file:([a-z-]+)\/(.+)$/.exec(String(fileId || ''));
   if(!m) return null;
@@ -7927,7 +7956,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.93';
+const ADMIN_VERSION = '4.95';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
