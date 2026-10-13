@@ -1106,6 +1106,8 @@ body{ background:#FAF7F2 !important; }
     <div class="nt-sub" style="margin-top:12px;"><b>Also tell me when</b></div>
     <button type="button" class="nt-opt nt-pref" data-p="live" onclick="notifPrefToggle('live')"><b>Reception is live</b><span>Nexus opens on the reception PC after half an hour or more without it</span></button>
     <button type="button" class="nt-opt nt-pref" data-p="quiet" onclick="notifPrefToggle('quiet')"><b>Reception went quiet</b><span>Nothing heard from Nexus on the reception PC for 10 minutes, between 9:00 and 21:30</span></button>
+    <!-- 5.02 (owner, 13 Oct 2026): each staff member's first punch on the attendance machine. Off until turned on. -->
+    <button type="button" class="nt-opt nt-pref" data-p="arrived" onclick="notifPrefToggle('arrived')"><b>Staff arrived</b><span>The first punch of each staff member on the attendance machine &mdash; within about 5 minutes</span></button>
     <div class="nt-warn" id="notifBroken" style="display:none;"></div>
     <div class="nt-tip" id="notifAndroid" style="display:none;">
       <b>Android puts apps to sleep.</b> If a notification ever arrives late or not at all, open the phone&rsquo;s
@@ -8124,7 +8126,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '5.01';
+const ADMIN_VERSION = '5.02';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -8357,7 +8359,7 @@ function notifMsg(text, kind){
 }
 /* 4.96: the admin phone's own switches, sent with its subscription. */
 const NOTIF_PREFS_KEY = 'echoAdmin_notifPrefs';
-function notifPrefs(){ try{ const o = JSON.parse(localStorage.getItem(NOTIF_PREFS_KEY) || '{}') || {}; return { live: !!o.live, quiet: !!o.quiet }; }catch(e){ return { live: false, quiet: false }; } }
+function notifPrefs(){ try{ const o = JSON.parse(localStorage.getItem(NOTIF_PREFS_KEY) || '{}') || {}; return { live: !!o.live, quiet: !!o.quiet, arrived: !!o.arrived }; }catch(e){ return { live: false, quiet: false, arrived: false }; } }   // 5.02: arrived
 async function notifPrefToggle(what){
   const m = notifMode();
   if(m !== 'on' && m !== 'silent'){ notifMsg('Turn notifications On (or Silent) first.', 'bad'); return; }
@@ -8368,7 +8370,7 @@ async function notifPrefToggle(what){
   notifMsg('Saving\u2026', '');
   const r = await notifApply(m);
   if(!r.ok){ try{ localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(before)); }catch(e){} notifPaint(); notifMsg(r.error, 'bad'); return; }
-  notifMsg(next[what] ? (what === 'live' ? 'On. You will hear when Nexus opens on the reception PC.' : 'On. You will hear if the reception PC goes quiet during clinic hours.') : 'Off.', 'good');
+  notifMsg(next[what] ? (what === 'live' ? 'On. You will hear when Nexus opens on the reception PC.' : what === 'arrived' ? 'On. You will hear when each staff member first punches in on the attendance machine.' : 'On. You will hear if the reception PC goes quiet during clinic hours.') : 'Off.', 'good');
 }
 function notifPaint(){
   try{ const pr = notifPrefs(); document.querySelectorAll('.nt-pref').forEach(b => b.classList.toggle('on', !!pr[b.getAttribute('data-p')])); }catch(e){}
