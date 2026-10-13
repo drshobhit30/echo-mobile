@@ -1532,6 +1532,14 @@ function heldLanModified(name){
   return '';
 }
 function storeSetting(name, v, fromLan){
+  /* 4.99 (audit M1): A FILE THAT DID NOT ARRIVE NEVER REPLACES ONE THIS
+     PHONE HOLDS. The relay used to hand back a Drive hiccup as "no value"
+     with the file's real time stamp; stored, it emptied the patient list
+     (or a setting) and every later ask answered "not modified". The relay
+     (r4.29) now reports the hiccup as an error; and here a missing value is
+     simply not stored - what the phone holds stays, and the next ask reads
+     the file again. */
+  if(!v || v.value === null || v.value === undefined) return;
   const rec = fromLan
     ? { value: v.value, modified: heldModified(name), lanModified: v.modified, at: Date.now() }
     : { value: v.value, modified: v.modified, at: Date.now() };
@@ -1583,7 +1591,7 @@ const SETTINGS_WORKER_SRC = "self.onmessage = async (e) => {\n"
  + " const light = {}; let counts = null, meta = null, brief = null;\n"
  + " Object.keys(values).forEach(function(name){\n"
  + "  const v = values[name];\n"
- + "  if(!v || v.error || v.notModified) return;\n"
+ + "  if(!v || v.error || v.notModified || v.value === null || v.value === undefined) return;\n"
  + "  const rec = lan ? { value: v.value, modified: keep[name] || '', lanModified: v.modified, at: Date.now() } : { value: v.value, modified: v.modified, at: Date.now() };\n"
  + "  put('set:' + name, rec);\n"
  + "  if(name === heavy){ counts = (v.value && v.value.counts) || {}; meta = lan ? { modified: keep[name] || '', lanModified: v.modified, at: rec.at } : { modified: v.modified, at: rec.at };\n"
@@ -5446,8 +5454,28 @@ function xrTool(t){
    Paste, send. The number is the WhatsApp one ticked in Nexus, else the
    primary (waNumberOf). First tap shows who it goes to; the second sends -
    the copy needs a fresh tap. ↗ Share stays as the way round. */
+/* 4.99 (audit L9): THE NAME THAT GOES OUT WITH AN X-RAY - in the message,
+   in the caption under the picture and in the file name - is the name as
+   the patient would read it: a bracketed note ("(nirvan)") and anything
+   but letters, spaces and . ' - , / are left out, as Nexus's waSendName.
+   The caption used the raw record name, so the note went out under the
+   X-ray. A Carestream person on nobody keeps the name Carestream gives. */
+function xrOutName(full){
+  let s = String(full || '');
+  s = s.replace(/[\(\[][^)\]]*[\)\]]/g, ' ').replace(/[\(\[].*$/, ' ');
+  s = s.replace(/[\u2018\u2019\u02BC\u2032`]/g, "'").replace(/_/g, ' ');
+  s = s.replace(/[^\p{L}\p{M} .'\-,\/]/gu, '');
+  const words = s.split(/\s+/).filter(w => /\p{L}/u.test(w));
+  let out = '';
+  for(const w of words){ const next = out ? out + ' ' + w : w; if(next.length > 40){ if(!out) out = w.slice(0, 40); break; } out = next; }
+  return out.trim();
+}
+function xrOutWho(pid){ return xrIsOld(pid) ? xrWho(pid) : (xrOutName(nameOf(pid)) || ('ID ' + pid)); }
+/* 4.99 (audit L8): Compare with the second X-ray still opening sent only
+   the first, while saying "these X-rays". */
+function xrWaSecondMissing(v){ return !!(v && v.i2 >= 0 && !(v.imgs && v.imgs[1] && v.list[v.i2])); }
 function xrWaPhoneMsg(pid, x){
-  const who = String(nameOf(pid) || '').replace(/[\(\[][^)\]]*[\)\]]/g, ' ').replace(/\s+/g, ' ').trim();   // the name as recorded, no bracketed notes
+  const who = xrOutName(nameOf(pid));
   return 'Hello ' + (who ? who + ' ji' : 'there') + ', here is your X-ray from Echo Dental Clinic, taken on ' + xrDayLabel(x.d) + '.';
 }
 function xrWaAsk(){
@@ -5456,13 +5484,14 @@ function xrWaAsk(){
   const box = document.getElementById('xvWaAsk');
   if(!box) return;
   if(!d){ box.innerHTML = '<div class="xv-wa-say bad">No mobile number on file for ' + escapeHtml(xrWho(xrV.pid)) + ' - add one in Nexus first.</div>'; box.style.display = ''; return; }
+  if(xrWaSecondMissing(xrV)){ box.innerHTML = '<div class="xv-wa-say bad">The second X-ray (B) is still opening - wait until both show, then tap WhatsApp again.</div>'; box.style.display = ''; return; }
   box.innerHTML = '<div class="xv-wa-say">Send ' + (xrV.i2 >= 0 ? 'these X-rays' : 'this X-ray') + ' to <b>' + escapeHtml(xrWho(xrV.pid)) + ' ji</b> on <b>' + escapeHtml(fmtNum(d)) + '</b>?'
     + '<div class="xv-wa-row"><button type="button" class="xv-wa-go" onclick="' + PF_NS + 'xrWaSend()">Copy & open WhatsApp</button><button type="button" onclick="' + PF_NS + 'xrWaCancel()">Cancel</button></div></div>';
   box.style.display = '';
 }
 function xrWaCancel(){ const b = document.getElementById('xvWaAsk'); if(b){ b.style.display = 'none'; b.innerHTML = ''; } }
 function xrWaPicture(){
-  const v = xrV, who = xrWho(v.pid) + ' · EDC/' + v.pid;
+  const v = xrV, who = xrOutWho(v.pid) + ' · EDC/' + v.pid;
   const one = (I, x) => xrPictureOf(I, xrEnhOn, v.bright, v.contrast, v.inv, v.rot, v.flip, who, xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '') + ' · Echo Dental Clinic');
   let c = one(v.imgs[0] || v.img, v.list[v.i]);
   if(v.i2 >= 0 && v.imgs[1] && v.list[v.i2]){
@@ -5482,6 +5511,7 @@ function xrWaSend(){
   const d = waNumberOf(xrV.pid);
   const box = document.getElementById('xvWaAsk');
   if(!d) return null;
+  if(xrWaSecondMissing(xrV)){ xrWaAsk(); return null; }
   const x = xrV.list[xrV.i];
   let copying;
   try{
@@ -5506,7 +5536,7 @@ function xrWaSend(){
 async function xrShare(){
   if(!xrV || !xrV.img) return;
   const x = xrV.list[xrV.i];
-  const who = xrWho(xrV.pid);
+  const who = xrOutWho(xrV.pid);   // 4.99 (L9)
   const pic = xrPictureOf(xrV.img, xrEnhOn, xrV.bright, xrV.contrast, xrV.inv, xrV.rot, xrV.flip,
     who + ' · EDC/' + xrV.pid, xrDayLabel(x.d) + (xrTimeLabel(x.t) ? ' · ' + xrTimeLabel(x.t) : '') + ' · Echo Dental Clinic');
   const name = xrPictureName(xrV.pid, who, x.d, x.t);
@@ -5961,7 +5991,54 @@ function adminOn(){ return !!(adminSession || pcSession); }
    own. A phone whose key the relay turned down is not "working": its new
    link is taken at once, as before. */
 const RELAY_URL_RE = /^https:\/\/script\.google\.com\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?macros\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?s\/[A-Za-z0-9_-]{10,200}\/exec$/;
-function relayLinkOk(r, k){ return RELAY_URL_RE.test(String(r || '')) && /^[A-Za-z0-9_-]{16,200}$/.test(String(k || '')); }
+/* 5.00 (audit L16; owner, 12 Oct 2026: "Do A"): ONLY THE CLINIC'S OWN
+   RELAY. Any Google Apps Script address used to pass, so a setup link from
+   someone else's script was taken silently by a new phone (or one whose key
+   had been refused). Now the address must be the clinic relay's own
+   deployment. The id itself is not written here - these files are public on
+   GitHub Pages - only its SHA-256, checked against the id in the link.
+   CONSEQUENCE: the relay is always updated as Manage deployments -> Edit ->
+   New version on the SAME deployment. A NEW deployment has a new id, and its
+   setup links are refused until the phone apps carry its fingerprint.
+   A phone already set up keeps working whatever address it holds - only a
+   link being TAKEN is checked. */
+const RELAY_ID_SHA256 = '6e551d7fae9178fc6a3ddc86429752707ec3784d888bb1aa607dce1abc4eb5ba';
+function relaySha256Hex(str){
+  const bytes = unescape(encodeURIComponent(String(str))).split('').map(c => c.charCodeAt(0));
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const l = bytes.length;
+  bytes.push(0x80);
+  while(bytes.length % 64 !== 56) bytes.push(0);
+  const bits = l * 8;
+  for(let i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (bits >>> (i * 8)) & 0xff);
+  const W = new Array(64);
+  const rr = (x, n) => (x >>> n) | (x << (32 - n));
+  for(let o = 0; o < bytes.length; o += 64){
+    for(let i = 0; i < 16; i++) W[i] = (bytes[o + 4 * i] << 24) | (bytes[o + 4 * i + 1] << 16) | (bytes[o + 4 * i + 2] << 8) | bytes[o + 4 * i + 3];
+    for(let i = 16; i < 64; i++){
+      const s0 = rr(W[i - 15], 7) ^ rr(W[i - 15], 18) ^ (W[i - 15] >>> 3), s1 = rr(W[i - 2], 17) ^ rr(W[i - 2], 19) ^ (W[i - 2] >>> 10);
+      W[i] = (W[i - 16] + s0 + W[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for(let i = 0; i < 64; i++){
+      const t1 = (h + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + W[i]) | 0;
+      const t2 = ((rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+  }
+  return H.map(x => ('00000000' + (x >>> 0).toString(16)).slice(-8)).join('');
+}
+function relayIsClinics(r){
+  const m = /\/s\/([A-Za-z0-9_-]{10,200})\/exec$/.exec(String(r || ''));
+  return !!m && relaySha256Hex(m[1]) === RELAY_ID_SHA256;
+}
+function relayLinkOk(r, k){ return RELAY_URL_RE.test(String(r || '')) && relayIsClinics(r) && /^[A-Za-z0-9_-]{16,200}$/.test(String(k || '')); }
 function setupSay(text){
   const el = document.getElementById('setupMsg');
   if(el && !isSetUp()){ el.textContent = text; return; }
@@ -6699,7 +6776,6 @@ async function driveFindChild(parentId, name, isFolder){
   if(String(parentId).indexOf('dir:') === 0) return 'file:' + parentId.slice(4) + '/' + name;
   return null;
 }
-async function driveFindChildFresh(parentId, name, isFolder){ return driveFindChild(parentId, name, isFolder); }
 let lastFoundModifiedTime = null;
 const CAL_SETTINGS = ['patients.json', 'patient-contacts.json', 'prescriptions-index.json', 'doctors.json', 'calendar-marks.json'];
 async function driveReadJson(fileId, opts){
@@ -6918,9 +6994,7 @@ async function driveListChildren(parentId){
   const r = await relay({ action: 'list', folder });
   return (r.files || []).map(f => ({ id: 'file:' + folder + '/' + f.name, name: f.name, modifiedTime: f.modified }));
 }
-async function driveFetch(){ throw new RelayError('not used'); }
 function forgetIds(){}
-function cacheIdsNoop(){}
 
 /* ---- the lock ---- */
 /* A tag for this phone (random, kept), so PIN lockouts are per phone. */
@@ -7078,7 +7152,6 @@ setInterval(() => {
    so a session that dies mid-use can re-authenticate; "there was never a token
    this session" is a different thing and must not travel that path, or every
    render would throw before it could show the copy already on the device. */
-function noteTokenNeeded(){}
 /* TWO DIFFERENT SILENCES (a3.4). "Waiting on the clinic PC" means the desk
    has not written the file yet — a real thing that happens. It is NOT what
    happens when the hour on a Google token runs out, and saying it then sends
@@ -7538,15 +7611,6 @@ async function ensureDataFolder(){
   if(!cachedDataFolderId) cachedDataFolderId = await driveFindChild(driveFolderId, 'data', true);
   return cachedDataFolderId;
 }
-async function listRecentDays(){
-  /* NO LISTING (4.15). This listed the whole data/ folder - every day book
-     the clinic has ever written, each with its modified time - to learn the
-     ids of at most seven recent files. Through the relay that was the
-     single slowest thing the Payment tab did, and it grew with every day.
-     Returning null makes loadAllEntries ask for each candidate day directly;
-     a day with no file answers null in one quick round. */
-  return null;
-}
 
 /* KEPT ON THE DEVICE (a2.7). Opening one patient's record read twelve
    indexes, and ten of them went to Drive every time — on a phone, over
@@ -7831,7 +7895,6 @@ function rxMedCount(rec){
   const n = ((rec && rec.medicines) || []).filter(m => m && m.name).length;
   return n ? (n + (n === 1 ? ' medicine' : ' medicines')) : 'no medicines';
 }
-function visitWasRemoved(v){ return !!(v && v.removedAt); }
 /* A visit removed at the desk keeps its last status in the file — it is
    struck, not deleted — so the raw status of a removed visit still says what
    the patient was doing when somebody took them off the day. It must never
@@ -8061,7 +8124,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '4.98';
+const ADMIN_VERSION = '5.01';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -8069,8 +8132,6 @@ let openAllFor = null;
 /* Which prescription inside the open card is expanded. null means "the
    newest one", which is what a freshly opened card shows. */
 let openLine = null;
-function showAllFor(pid){ openAllFor = String(pid); repaint(); }
-function toggleLine(k){ openLine = (openLine === k) ? '' : k; repaint(); }
 
 /* WHOSE APP THIS IS. The name is kept on the device, so the same file greets
    whoever is holding it — the associate by name, reception by theirs. Tapping
@@ -8854,12 +8915,6 @@ function rxDetailHtml(rec){
     + '</div>';
 }
 /* The Patients page still shows one prescription at a time in its own box. */
-function toggleRx(key){
-  openRx = (openRx === key) ? null : key;
-  openAllFor = null;          // closing a patient folds their history again
-  openLine = null;            // and the next one opens on its newest again
-  repaint();
-}
 function closeRx(){ openRx = null; repaint(); }
 function repaint(){ renderCurrent(); }
 
