@@ -96,6 +96,8 @@ body{ padding-bottom:28px; }
 .st-r:first-child{ border-top:0; }
 .st-n{ flex:1; font-weight:600; min-width:0; }
 .st-n small{ display:block; font-weight:400; color:var(--muted); font-size:0.74rem; margin-top:2px; }
+.st-n .st-streak{ display:block; font-weight:500; color:#2E6B45; font-size:0.72rem; margin-top:2px; }   /* 5.04: the on-time streak */
+.st-n .st-streak.gold{ color:var(--gold-deep); font-weight:600; }
 .st-f{ width:64px; text-align:right; font-variant-numeric:tabular-nums; }
 .st-p{ font-size:0.74rem; padding:3px 8px; border-radius:999px; font-weight:600; text-align:center; white-space:nowrap; }
 .st-p.ok{ background:#E3F3E8; color:#2E6B45; } .st-p.mark{ background:#FFF1DC; color:#9A5A12; }
@@ -8155,7 +8157,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '5.03';
+const ADMIN_VERSION = '5.04';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -8539,7 +8541,8 @@ function staffPaint(r){
   else if(writtenAt && Date.now() - writtenAt > STAFF_STALE_MS) warns.push('Last updated ' + escapeHtml(staffClock(b.writtenAt)) + ' — is Nexus open on the reception PC?');
   if(rd.kind === 'bad') warns.push('⚠ ' + escapeHtml(String(rd.text || 'Machine not answering').split(' — ')[0]));
   if(b.machineOn === false) warns.push('Reading the machine is switched off in Nexus → Settings → Attendance machine.');
-  const rows = b.rows.map(x => '<div class="st-r"><div class="st-n">' + escapeHtml(String(x.name || '')) + '<small>shift ' + escapeHtml(staffTime(x.shift)) + '</small></div>'
+  const rows = b.rows.map(x => '<div class="st-r"><div class="st-n">' + escapeHtml(String(x.name || '')) + '<small>shift ' + escapeHtml(staffTime(x.shift)) + '</small>'
+    + (x.streakText ? '<span class="st-streak' + ((Number(x.streak) || 0) % 30 === 0 ? ' gold' : '') + '">' + escapeHtml(String(x.streakText)) + '</span>' : '') + '</div>'
     + '<div class="st-f">' + (x.first ? escapeHtml(staffTime(x.first)) : '—') + '</div>'
     + '<span class="st-p ' + (/^(ok|mark|half|full|wait|off)$/.test(String(x.cls)) ? x.cls : 'wait') + '">' + escapeHtml(String(x.text || '')) + '</span></div>').join('');
   const un = Array.isArray(b.unmatched) ? b.unmatched : [];
