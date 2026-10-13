@@ -80,6 +80,28 @@ body{ padding-bottom:28px; }
 .nt-tip{ font-size:0.74rem; line-height:1.45; background:var(--cream); color:var(--muted); border-radius:10px; padding:9px 11px; margin:2px 0 10px; }
 .nt-tip b{ color:var(--ink); }
 .hd-bell.nt-broken{ opacity:1; filter:none; }
+/* 5.03 (owner, 13 Oct 2026): the staff button beside the bell - admin only.
+   Drawn, not an emoji: the phones draw emoji each their own way. */
+.hd-staff{ border:0; background:transparent; padding:2px 4px; margin-right:2px; cursor:pointer; color:var(--gold-deep); vertical-align:middle; line-height:1; }
+.hd-staff.hidden{ display:none; }
+.hd-staff svg{ width:21px; height:21px; display:block; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.st-card{ max-height:88vh; overflow:auto; }
+.st-h{ display:flex; align-items:center; gap:8px; }
+.st-h .nt-h{ flex:1; }
+.st-btn{ border:1px solid var(--line); background:var(--white); color:var(--gold-deep); border-radius:8px; padding:4px 9px; font-size:0.8rem; cursor:pointer; }
+.st-sub{ font-size:0.78rem; color:var(--muted); margin:4px 0 10px; }
+.st-warn{ font-size:0.8rem; color:#B5521B; background:#FFF1DC; border-radius:8px; padding:7px 10px; margin:0 0 10px; }
+.st-t{ border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.st-r{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-top:1px solid var(--line); }
+.st-r:first-child{ border-top:0; }
+.st-n{ flex:1; font-weight:600; min-width:0; }
+.st-n small{ display:block; font-weight:400; color:var(--muted); font-size:0.74rem; margin-top:2px; }
+.st-f{ width:64px; text-align:right; font-variant-numeric:tabular-nums; }
+.st-p{ font-size:0.74rem; padding:3px 8px; border-radius:999px; font-weight:600; text-align:center; white-space:nowrap; }
+.st-p.ok{ background:#E3F3E8; color:#2E6B45; } .st-p.mark{ background:#FFF1DC; color:#9A5A12; }
+.st-p.half,.st-p.full{ background:#FBE3DD; color:#A63A2B; } .st-p.wait,.st-p.off{ background:#F0EDE6; color:#7A7061; }
+.st-note{ font-size:0.76rem; color:var(--muted); margin-top:10px; line-height:1.45; }
+.st-rules{ font-size:0.72rem; color:var(--muted); margin-top:12px; padding:9px 11px; border:1px dashed var(--line); border-radius:10px; line-height:1.5; }
 .nt-msg{ font-size:0.76rem; color:var(--muted); min-height:16px; margin:2px 2px 10px; }
 .nt-msg.nt-good{ color:#3E6B14; }
 .nt-msg.nt-bad{ color:#9A2F2C; }
@@ -1082,6 +1104,9 @@ body{ background:#FAF7F2 !important; }
          small print. The corner used to hold only a version number, which is
          why it read as empty. -->
     <div class="hd-mark">
+      <!-- 5.03 (owner, 13 Oct 2026): "give a section to check staff todays
+           punch ... place a button next to the bell icon". Admin only. -->
+      <button type="button" class="hd-staff hidden" id="hdStaff" onclick="staffOpen()" aria-label="Staff today" title="Staff today"><svg viewBox="0 0 24 24"><path d="M12 11a2 2 0 0 0-2 2c0 2.5-.5 5-1.5 7"/><path d="M12 11a2 2 0 0 1 2 2c0 3-.4 5.6-1.2 8"/><path d="M8.5 9.5a5 5 0 0 1 8.5 3.5c0 2.3-.3 4.5-.8 6.5"/><path d="M6.8 12.5a5 5 0 0 1 .2-1.5"/><path d="M5.5 7.5A8 8 0 0 1 18.5 7.5"/><path d="M4.3 11.3A8 8 0 0 1 4.5 9.9"/><path d="M19.6 10.5a8 8 0 0 1 .4 2.5c0 1.8-.2 3.5-.5 5.2"/><path d="M7 14.5c0 2.2-.4 4.3-1.2 6"/><path d="M3.5 15.5c.1 1.5-.1 3-.5 4.5"/></svg></button>
       <button type="button" class="hd-bell" id="hdBell" onclick="notifOpen()" aria-label="Notifications">🔔</button>
       <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version"><span id="beatDot" class="beat-dot" title=""></span>Nexus <b>A</b> &middot; <span id="appVer"></span><span id="lanMark" class="lan-mark"></span></div>
     </div>
@@ -1095,6 +1120,9 @@ body{ background:#FAF7F2 !important; }
 </div>
 
 <div id="pullCue" class="pull-cue"><span id="pullText">Pull to refresh</span></div>
+<div id="staffWrap" class="nt-wrap hidden" onclick="if(event.target===this) staffClose()">
+  <div class="nt-card st-card" id="staffCard"></div>
+</div>
 <div id="notifWrap" class="nt-wrap hidden" onclick="if(event.target===this) notifClose()">
   <div class="nt-card">
     <div class="nt-h">Notifications on this phone</div>
@@ -7005,6 +7033,7 @@ function paintLock(){
   const b = document.getElementById('adminBtn');
   if(!b) return;
   b.classList.toggle('unlocked', adminOn());
+  { const sb = document.getElementById('hdStaff'); if(sb) sb.classList.toggle('hidden', !adminOn()); if(!adminOn()) staffClose(); }   // 5.03
   b.setAttribute('aria-label', adminOn() ? 'Lock admin' : 'Admin');
   b.title = adminOn() ? 'Admin is open \u2014 tap to lock' : 'Tap for admin';
 }
@@ -8126,7 +8155,7 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '5.02';
+const ADMIN_VERSION = '5.03';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -8434,6 +8463,125 @@ try{
   document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') beatAsk(); });
   setTimeout(beatAsk, 3000);
 }catch(e){}
+/* ==== STAFF TODAY (5.03; owner, 13 Oct 2026: "in admin app. give a section
+   to check staff todays punch. when admin logged in ... place a button next
+   to the bell icon") =====================================================
+   The same rows as the desk's Attendance page: each staff member's shift
+   start, first punch today and the policy's reading. The phone cannot read
+   payroll's file (salaries) nor the punch history, so the reception PC's
+   Nexus (v13.06) works the page out every minute and writes just the result
+   to settings/attendance-board.json; this reads that one file - from the
+   PC on the clinic Wi-Fi (desk 2.9), through Google away from it (r4.31).
+   Read only; nothing here changes anything. Admin only: the button hides
+   when admin locks, and the relay refuses the file to a locked phone. */
+const STAFF_FILE = 'attendance-board.json';
+const STAFF_KEY = 'settings/' + STAFF_FILE;
+const STAFF_TICK_MS = 60 * 1000;         // re-asked every minute while the sheet is open
+const STAFF_STALE_MS = 30 * 60 * 1000;   // a board older than this is said to be old
+let staffTimer = null, staffBusy = false, staffSeq = 0;
+function staffTime(hhmm){
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ''));
+  if(!m) return '—';
+  const h = Number(m[1]);
+  return (h % 12 || 12) + ':' + m[2] + ' ' + (h < 12 ? 'am' : 'pm');
+}
+function staffClock(iso){
+  const t = Date.parse(iso || '');
+  if(!t) return '';
+  return new Date(t).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+}
+/* The board, read fresh. A desk server before 2.9 or a relay before r4.31
+   answers "not allowed": the desk's refusal is tried again through Google,
+   so the sheet works with the old desk server still installed. */
+async function staffBoardRead(){
+  try{
+    const held = relayHeld[STAFF_KEY];
+    if(held) held.modified = null;   // always the file itself, never "not modified"
+    const v = await driveReadJson('file:' + STAFF_KEY);
+    return { board: v };
+  }catch(e){
+    const msg = String((e && e.message) || e || '');
+    if(!/not allowed/i.test(msg)) return { error: msg || 'could not be read' };
+  }
+  try{
+    const r = await relayViaGoogle({ action: 'batch', items: JSON.stringify([{ t: 'set', n: STAFF_FILE }]), rxYears: String(Cal.RX_YEARS) });
+    const one = r && r.results && r.results[0];
+    if(one && one.ok) return { board: one.value };
+    const why = String((one && one.error) || (r && r.error) || 'relay');
+    return { error: /not allowed/i.test(why) ? 'needs relay r4.31' : why };
+  }catch(e){ return { error: String((e && e.message) || e || 'could not be read') }; }
+}
+function staffPaint(r){
+  const card = document.getElementById('staffCard');
+  if(!card) return;
+  const head = '<div class="st-h"><div class="nt-h">Staff · today</div>'
+    + '<button type="button" class="st-btn" onclick="staffRefresh()">↻ Refresh</button>'
+    + '<button type="button" class="st-btn" onclick="staffClose()" aria-label="Close">✕</button></div>';
+  if(r && r.loading){ card.innerHTML = head + '<div class="st-sub">Reading…</div>'; return; }
+  const b = r && r.board;
+  if(!b || b.echo !== 'attendance-board' || !Array.isArray(b.rows)){
+    const why = r && r.error ? r.error : 'no board yet';
+    const say = /needs relay/i.test(why) ? 'The relay needs its r4.31 update.'
+      : /session ended|unlock/i.test(why) ? 'Unlock admin with the PIN first.'
+      : why === 'no board yet' ? 'Nothing written yet — Nexus v13.06 on the reception PC writes the board every minute while it is open.'
+      : 'Could not be read just now (' + escapeHtml(why) + ').';
+    card.innerHTML = head + '<div class="st-warn">' + say + '</div>';
+    return;
+  }
+  const today = todayStr();
+  const d = new Date(String(b.date) + 'T00:00:00');
+  const dayLabel = isNaN(d) ? String(b.date) : d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
+  const rd = b.read || {};
+  const readSay = rd.kind === 'ok' ? 'read ' + staffClock(rd.at) : rd.kind === 'retry' ? 'last read ' + (rd.okAt ? staffClock(rd.okAt) : '—') + ' · trying again' : rd.kind === 'bad' ? '' : 'not read yet';
+  const writtenAt = Date.parse(b.writtenAt || '') || 0;
+  const warns = [];
+  if(b.date !== today) warns.push('This board is from ' + escapeHtml(dayLabel) + ' — today’s has not been written yet. Is Nexus open on the reception PC?');
+  else if(writtenAt && Date.now() - writtenAt > STAFF_STALE_MS) warns.push('Last updated ' + escapeHtml(staffClock(b.writtenAt)) + ' — is Nexus open on the reception PC?');
+  if(rd.kind === 'bad') warns.push('⚠ ' + escapeHtml(String(rd.text || 'Machine not answering').split(' — ')[0]));
+  if(b.machineOn === false) warns.push('Reading the machine is switched off in Nexus → Settings → Attendance machine.');
+  const rows = b.rows.map(x => '<div class="st-r"><div class="st-n">' + escapeHtml(String(x.name || '')) + '<small>shift ' + escapeHtml(staffTime(x.shift)) + '</small></div>'
+    + '<div class="st-f">' + (x.first ? escapeHtml(staffTime(x.first)) : '—') + '</div>'
+    + '<span class="st-p ' + (/^(ok|mark|half|full|wait|off)$/.test(String(x.cls)) ? x.cls : 'wait') + '">' + escapeHtml(String(x.text || '')) + '</span></div>').join('');
+  const un = Array.isArray(b.unmatched) ? b.unmatched : [];
+  const unSay = un.length ? '<div class="st-note">Also punched today: ' + un.map(u => 'no. ' + Number(u.n) + ' at ' + escapeHtml(staffTime(u.first))).join(', ') + ' — not matched to anyone (match in Nexus → Payroll → Employees).</div>' : '';
+  const P = b.rules || { graceMin: 15, marksPerHalfDay: 3 };
+  card.innerHTML = head
+    + '<div class="st-sub">' + escapeHtml(dayLabel) + ' · from the attendance machine' + (readSay ? ' · ' + escapeHtml(readSay) : '') + '</div>'
+    + warns.map(w => '<div class="st-warn">' + w + '</div>').join('')
+    + (b.rows.length ? '<div class="st-t">' + rows + '</div>' : '<div class="st-note">No staff are matched to the attendance machine yet — Nexus → Payroll → Employees.</div>')
+    + unSay
+    + '<div class="st-rules">Rules: up to ' + Number(P.graceMin) + ' min late is on time · ' + Number(P.graceMin) + ' min to 1 hour = a late mark · over 1 hour = half day · after 2 pm (noon on Thursday) = full day · every ' + Number(P.marksPerHalfDay) + ' late marks = half a day.</div>';
+}
+async function staffRefresh(){
+  if(staffBusy) return;
+  const w = document.getElementById('staffWrap');
+  if(!w || w.classList.contains('hidden')) return;
+  staffBusy = true;
+  const seq = ++staffSeq;
+  let r;
+  try{ r = await staffBoardRead(); }catch(e){ r = { error: String((e && e.message) || e || '') }; }
+  staffBusy = false;
+  if(seq !== staffSeq) return;
+  if(w.classList.contains('hidden')) return;
+  staffPaint(r);
+}
+function staffOpen(){
+  if(!adminOn()){ openPinPad(); return; }
+  const w = document.getElementById('staffWrap');
+  if(!w) return;
+  try{ notifClose(); }catch(e){}
+  w.classList.remove('hidden');
+  staffPaint({ loading: true });
+  staffRefresh();
+  if(!staffTimer) staffTimer = setInterval(() => { if(document.visibilityState !== 'hidden') staffRefresh(); }, STAFF_TICK_MS);
+}
+function staffClose(){
+  const w = document.getElementById('staffWrap');
+  if(w) w.classList.add('hidden');
+  if(staffTimer){ clearInterval(staffTimer); staffTimer = null; }
+  staffSeq++;
+}
+try{ document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') staffRefresh(); }); }catch(e){}
 function notifOpen(){
   const w = document.getElementById('notifWrap');
   if(!w) return;
