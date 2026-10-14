@@ -790,6 +790,28 @@ body{ background:#FAF7F2 !important; }
 .hs-more{ display:block; width:100%; margin:6px 0 10px; border:1px dashed #C9A56B; background:#fff; border-radius:12px;
   padding:11px; font:inherit; font-size:0.84rem; color:#8A5F26; cursor:pointer; }
 .hs-more[disabled]{ opacity:0.6; }
+/* 5.06: the old KIVI prescriptions - a quieter, dashed card under the
+   clinic's own; read only. */
+.ko-wait{ font-size:0.78rem; color:#8A7B66; margin:14px 2px 6px; }
+.hs-sec.ko-sec{ margin-top:18px; }
+.ko-card{ background:#fff; border:1px dashed #D8C7A6; border-radius:12px; padding:10px 12px; margin-bottom:7px; cursor:pointer; }
+.ko-card b{ font-size:0.9rem; color:#2C2116; }
+.ko-card small{ display:block; color:#8A7B66; font-size:0.8rem; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ko-chip{ font-size:0.6rem; font-weight:700; color:#8A5F26; border:1px solid #C9A56B; border-radius:6px; padding:1px 5px; margin-left:7px; vertical-align:2px; letter-spacing:0.04em; }
+.ko-view{ position:fixed; inset:0; z-index:9000; background:#FBF7F0; display:none; flex-direction:column; }
+.ko-view.open{ display:flex; }
+.ko-bar{ display:flex; align-items:center; gap:10px; background:#4A3319; color:#F5EDE1; padding:calc(12px + env(safe-area-inset-top, 0px)) 14px 12px; }
+.ko-bar b{ display:block; font-size:1rem; }
+.ko-bar span{ font-size:0.78rem; opacity:0.8; }
+.ko-back{ flex:none; width:34px; height:34px; border-radius:10px; border:1px solid rgba(245,237,225,0.35); background:transparent; color:inherit; font:inherit; font-size:1.2rem; cursor:pointer; }
+.ko-scroll{ flex:1; overflow:auto; padding:14px 13px calc(20px + env(safe-area-inset-bottom, 0px)); }
+.ko-sheet{ background:#fff; border:1px solid #E8DCC6; border-radius:14px; padding:14px; max-width:640px; margin:0 auto; }
+.ko-head{ display:flex; align-items:center; margin-bottom:9px; }
+.ko-head b{ font-size:1.02rem; color:#2C2116; }
+.ko-ro{ margin-left:auto; font-size:0.75rem; color:#8A7B66; }
+.ko-note{ font-size:0.78rem; color:#8A7B66; background:#FBF4E6; border-radius:9px; padding:8px 10px; margin-bottom:11px; }
+.ko-body{ white-space:pre-wrap; font-size:0.9rem; line-height:1.5; color:#2C2116; overflow-wrap:anywhere; }
+.ko-h{ color:#8A5F26; font-size:0.72rem; letter-spacing:0.07em; text-transform:uppercase; }
 
 /* ==== WHATSAPP (4.25) ==== */
 .wa-btn, .wa-chip{ display:inline-flex; align-items:center; justify-content:center; gap:7px;
@@ -958,7 +980,7 @@ body{ background:#FAF7F2 !important; }
    the phone already.
    ========================================================================== */
 /* One number for both phone apps from 4.6 (owner's call). */
-const LITE_VERSION = '5.05';
+const LITE_VERSION = '5.06';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -1178,10 +1200,10 @@ async function relayViaGoogle(params){
    unlocked, it reads through the relay as before. Bookings and photos
    still go through the relay. */
 const LAN_INFO_KEY = 'echoPhone_lan';
-const LAN_ACTIONS = { week: 1, photoIndex: 1, faceThumbs: 1, bookingStatus: 1, lookup: 1, filesFor: 1, fileThumbs: 1, fileGet: 1 };
+const LAN_ACTIONS = { week: 1, photoIndex: 1, faceThumbs: 1, bookingStatus: 1, lookup: 1, filesFor: 1, fileThumbs: 1, fileGet: 1, kivi: 1 };   // 5.06: kivi
 /* Patient files (4.70) are staff reading, whatever the app: asked of the PC
    on the clinic Wi-Fi even while admin is unlocked. */
-const LAN_ANY_LEVEL = { bookingStatus: 1, lookup: 1, filesFor: 1, fileThumbs: 1, fileGet: 1 };
+const LAN_ANY_LEVEL = { bookingStatus: 1, lookup: 1, filesFor: 1, fileThumbs: 1, fileGet: 1, kivi: 1 };
 /* WRITES (4.62): a booking, a rough slot changed or removed, go to the PC's
    own inbox - Nexus files them in seconds instead of after Drive. The PC
    applies the relay's rules exactly. If the PC does not answer, the same
@@ -2817,13 +2839,13 @@ function historyHtml(pid, openIdx, toggleCall, backCall){
   /* RECEPTION: the person and the ways to reach them - no prescriptions. */
   if(RECEPTION){
     withContacts(() => { if(tabShown('patients')) repaint(); });
-    return hsHeadHtml(pid, backCall);
+    return hsHeadHtml(pid, backCall) + kvHtml(pid);     // 5.06: the old KIVI prescriptions - reception too
   }
   /* The list is fetched from the store on first need (4.27); say so rather
      than claim this patient has nothing written. */
   if(!rxReady && !rxFull[String(pid)]){
     ensureRx();
-    return hsHeadHtml(pid, backCall) + '<div class="empty-state">Reading\u2026</div>';
+    return hsHeadHtml(pid, backCall) + '<div class="empty-state">Reading\u2026</div>' + kvHtml(pid);
   }
   withContacts(() => { if(tabShown('patients') || prevPid) repaint(); });
   const mine = rxFor(pid).slice().sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')));
@@ -2842,7 +2864,7 @@ function historyHtml(pid, openIdx, toggleCall, backCall){
     return h + moreBtn + '<div class="hs-none"><b>'
       + (n ? 'None on this phone' : 'None written yet') + '</b>'
       + '<span>' + (n ? 'Tap above to load the older ones.'
-                      : 'Anything written at the desk shows here, newest first.') + '</span></div>';
+                      : 'Anything written at the desk shows here, newest first.') + '</span></div>' + kvHtml(pid);
   }
   let month = '';
   mine.forEach((r, i) => {
@@ -2869,7 +2891,7 @@ function historyHtml(pid, openIdx, toggleCall, backCall){
           }), '') : '')
       + '</div>';
   });
-  return h + '</div>' + moreBtn;
+  return h + '</div>' + moreBtn + kvHtml(pid);
 }
 let rxLoadingFor = '';
 async function rxShowOlder(pid){
@@ -2886,6 +2908,109 @@ async function rxShowOlder(pid){
   repaint();
   if(document.getElementById('prevRx') && !document.getElementById('prevRx').classList.contains('hidden')) renderPrevRx(pid);
 }
+
+/* ==== THE OLD KIVI PRESCRIPTIONS (5.06; owner, 13 Oct 2026: "Kivi history
+   should be read by reception, lite, admin and iPad apps" + "I don't want the
+   phone app to be slow" -> previewed -> "Ok. Go") ====
+   A second section under the patient's prescriptions. NOTHING at opening:
+   one patient's records are asked for when that patient's page is drawn - of
+   the reception PC on the clinic Wi-Fi (desk 2.11), of Google elsewhere
+   (relay r4.33) - and kept until the app closes. The page never waits: it is
+   drawn at once and this section fills in when the answer comes. Read only:
+   no print, no share, no edit. A relay or Nexus not yet updated shows
+   nothing at all. */
+const KV_NS = '';
+const KV_FIRST = 3;
+const KV_HEADS = { 'Complaints': 1, 'H & E': 1, 'Advice': 1, 'Medicines': 1, 'Tests': 1 };
+const kvMem = {};        // pid -> { state: 'loading'|'ok'|'failed'|'none', list, all }
+function kvFirstLine(rec){
+  const lines = String((rec && rec.body) || '').split('\n');
+  for(let i = 0; i < lines.length; i++){
+    const s = lines[i].trim();
+    if(!s || KV_HEADS[s]) continue;
+    return s;
+  }
+  return '';
+}
+function kvDate(rec){
+  const d = localDayOf(rec && (rec.date || rec.createdAt));
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return '—';
+  return dateOf(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+async function kvLoad(pid){
+  pid = String(pid);
+  const had = kvMem[pid];
+  if(had && (had.state === 'loading' || had.state === 'ok' || had.state === 'none')) return;
+  kvMem[pid] = { state: 'loading', list: [], all: false };
+  try{
+    const r = await relay({ action: 'kivi', pid: pid });
+    const list = (r && Array.isArray(r.list)) ? r.list.filter(x => x && typeof x === 'object') : [];
+    list.sort((a, b) => (String(b.date || '') + String(b.createdAt || '')).localeCompare(String(a.date || '') + String(a.createdAt || '')));
+    kvMem[pid] = { state: list.length ? 'ok' : 'none', list: list, all: false };
+  }catch(e){
+    /* An older relay says "unknown action": nothing to show, nothing to say. */
+    const old = /unknown action|relay old/i.test(String((e && e.message) || ''));
+    kvMem[pid] = { state: old ? 'none' : 'failed', list: [], all: false };
+  }
+  kvRepaint(pid);
+}
+/* Only this section is redrawn when the answer comes - never the page. */
+function kvRepaint(pid){
+  document.querySelectorAll('.ko-wrap').forEach(el => {
+    if(el.getAttribute('data-pid') === String(pid)) el.outerHTML = kvHtml(pid);
+  });
+}
+function kvHtml(pid){
+  pid = String(pid);
+  const m = kvMem[pid];
+  if(!m){ setTimeout(() => { kvLoad(pid); }, 0); }
+  const open = '<div class="ko-wrap" data-pid="' + escapeHtml(pid) + '">';
+  if(!m || m.state === 'loading') return open + '<div class="ko-wait">Old prescriptions · reading…</div></div>';
+  if(m.state === 'none') return open + '</div>';
+  if(m.state === 'failed'){
+    return open + '<button type="button" class="hs-more" onclick="' + KV_NS + 'kvRetry(' + jsArg(pid) + ')">'
+      + 'Old prescriptions could not be read · tap to try again</button></div>';
+  }
+  const shown = m.all ? m.list : m.list.slice(0, KV_FIRST);
+  let h = open + '<div class="hs-sec ko-sec">Old prescriptions · KIVI<span>' + m.list.length + '</span></div>';
+  shown.forEach(r => {
+    const i = m.list.indexOf(r);
+    h += '<div class="ko-card" onclick="' + KV_NS + 'kvOpen(' + jsArg(pid) + ',' + i + ')">'
+      + '<b>' + escapeHtml(kvDate(r)) + '</b><span class="ko-chip">OLD</span>'
+      + '<small>' + escapeHtml(kvFirstLine(r) || 'Old prescription') + '</small></div>';
+  });
+  const more = m.list.length - shown.length;
+  if(more > 0){
+    h += '<button type="button" class="hs-more" onclick="' + KV_NS + 'kvMore(' + jsArg(pid) + ')">'
+      + more + ' more old prescription' + (more === 1 ? '' : 's') + ' · tap to show</button>';
+  }
+  return h + '</div>';
+}
+function kvRetry(pid){ pid = String(pid); delete kvMem[pid]; kvLoad(pid); kvRepaint(pid); }
+function kvMore(pid){ const m = kvMem[String(pid)]; if(!m) return; m.all = true; kvRepaint(String(pid)); }
+function kvBodyHtml(body){
+  return String(body || '').split('\n').map(line => {
+    const s = line.trim();
+    return KV_HEADS[s] ? '<b class="ko-h">' + escapeHtml(s) + '</b>' : escapeHtml(line);
+  }).join('\n');
+}
+function kvOpen(pid, i){
+  const m = kvMem[String(pid)];
+  const r = m && m.list[i];
+  if(!r) return;
+  let v = document.getElementById('koView');
+  if(!v){ v = document.createElement('div'); v.id = 'koView'; v.className = 'ko-view'; document.body.appendChild(v); }
+  const who = nameOf(pid);
+  v.innerHTML = '<div class="ko-bar"><button type="button" class="ko-back" onclick="' + KV_NS + 'kvClose()" aria-label="Back">‹</button>'
+    + '<div><b>Old prescription</b><span>' + escapeHtml((who ? who + ' · ' : '') + pid) + '</span></div></div>'
+    + '<div class="ko-scroll"><div class="ko-sheet">'
+    + '<div class="ko-head"><b>' + escapeHtml(kvDate(r)) + '</b><span class="ko-chip">OLD</span><span class="ko-ro">Read only</span></div>'
+    + '<div class="ko-note">From the previous software (KIVI). Kept exactly as it was written.</div>'
+    + '<div class="ko-body">' + kvBodyHtml(r.body) + '</div>'
+    + '</div></div>';
+  v.classList.add('open');
+}
+function kvClose(){ const v = document.getElementById('koView'); if(v){ v.classList.remove('open'); v.innerHTML = ''; } }
 
 /* ---------------------------------------------------------- the calendar -- */
 let currentTab = 'calendar';
