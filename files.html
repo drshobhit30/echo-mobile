@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f5c63">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Echo Files">
+<meta name="robots" content="noindex">
+<link rel="manifest" href="files.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>Echo Files</title>
+<!-- ECHO FILES (5.10; owner, 13-14 Oct 2026, previewed; "remove the pin. and build").
+     A staff member's own phone: today's marked-in patients (name and ID only)
+     and adding photos for them - nothing else. The relay (r4.35) decides
+     everything that matters: 9 am to 8 pm, punched in and not yet out, this
+     person's link not revoked, the patient marked in today, 20 a day. Every
+     photo waits for the doctor's check on the Mac before it is filed.
+     Nothing sent is kept on the phone, and nothing comes back to it. -->
+<style>
+  :root{ --teal:#0f5c63; --ink:#1d2733; --mute:#7a8692; --line:#edf0f2; --ok:#1c8a4b; --warn:#b07a12; --bad:#b5521b; }
+  *{ box-sizing:border-box; }
+  html, body{ margin:0; height:100%; background:#fff; color:var(--ink); font-family:-apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-text-size-adjust:100%; }
+  body{ display:flex; flex-direction:column; min-height:100%; }
+  .hd{ background:var(--teal); color:#fff; padding:calc(16px + env(safe-area-inset-top, 0px)) 18px 13px; }
+  .hd b{ display:block; font-size:18px; }
+  .hd span{ font-size:13px; opacity:.85; }
+  main{ flex:1; display:flex; flex-direction:column; }
+  .center{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; }
+  .center .ic{ font-size:42px; margin-bottom:10px; }
+  .center p{ margin:4px 0; font-size:15px; }
+  .center small{ color:var(--mute); font-size:13px; line-height:1.4; }
+  .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:15px 18px; border-bottom:1px solid var(--line); font-size:16px; cursor:pointer; }
+  .row:active{ background:#f5f8f9; }
+  .row i{ font-style:normal; color:var(--mute); font-size:14px; margin-left:4px; }
+  .row .ch{ color:#b6bec6; font-size:20px; }
+  .row .w{ color:var(--warn); font-size:12.5px; font-weight:600; white-space:nowrap; }
+  .ft{ font-size:12px; color:#8a95a0; text-align:center; padding:12px 14px calc(16px + env(safe-area-inset-bottom, 0px)); margin-top:auto; }
+  .btn{ border:0; border-radius:12px; padding:13px 16px; font:inherit; font-size:15px; font-weight:600; cursor:pointer; }
+  .again{ margin-top:16px; background:#eef4f5; color:var(--teal); }
+  .dim{ position:fixed; inset:0; background:rgba(15,25,35,.45); display:none; z-index:10; }
+  .dim.open{ display:block; }
+  .sh{ position:fixed; left:0; right:0; bottom:0; background:#fff; border-radius:20px 20px 0 0; padding:18px 18px calc(18px + env(safe-area-inset-bottom, 0px)); z-index:11; display:none; max-height:92vh; overflow:auto; }
+  .sh.open{ display:block; }
+  .sh h3{ margin:0 0 2px; font-size:17px; }
+  .sh .sub{ font-size:13px; color:var(--mute); margin-bottom:14px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:7px; margin-bottom:14px; }
+  .chip{ border:1px solid #cdd5dc; border-radius:16px; padding:7px 12px; font:inherit; font-size:13px; color:#33404c; background:#fff; cursor:pointer; }
+  .chip.on{ background:var(--teal); color:#fff; border-color:var(--teal); }
+  .big{ display:flex; gap:10px; margin-bottom:12px; }
+  .big button{ flex:1; border:1.5px dashed #9fb3bd; border-radius:12px; padding:15px 6px; background:#fff; font:inherit; font-size:15px; color:var(--teal); font-weight:600; cursor:pointer; }
+  .pages{ font-size:13px; color:#33404c; background:#f3f6f8; border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+  .pages button{ border:0; background:none; color:var(--bad); font:inherit; font-size:13px; cursor:pointer; }
+  .send{ width:100%; background:var(--ok); color:#fff; font-size:16px; padding:15px; }
+  .send[disabled]{ opacity:.45; }
+  .cancel{ width:100%; background:none; color:var(--mute); margin-top:6px; }
+  .msg{ font-size:13px; color:var(--bad); min-height:18px; margin:8px 0 0; text-align:center; }
+  .tick{ width:74px; height:74px; border-radius:50%; background:#fdf3df; color:var(--warn); font-size:40px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+</style>
+</head>
+<body>
+<div class="hd"><b>Echo Files</b><span id="hdSub">&nbsp;</span></div>
+<main id="main"><div class="center"><small>Opening&hellip;</small></div></main>
+<div class="dim" id="dim" onclick="sheetClose()"></div>
+<div class="sh" id="sheet"></div>
+<input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="inPick" accept="image/*" multiple style="display:none">
+<script>
+'use strict';
+const FILES_VERSION = '5.10';
+const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
+const MAX_PAGES = 10, LONG_EDGE = 2400, PAGE_MAX_CHARS = 1400000;
+const TYPES = [['xray', 'X-ray / OPG'], ['cbct', 'CBCT'], ['lab-report', 'Lab report'], ['outside-rx', 'Outside Rx'], ['consent', 'Consent'], ['warranty', 'Warranty card'], ['other', 'Other']];
+const RELAY_URL_RE = /^https:\/\/script\.google\.com\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?macros\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?s\/[A-Za-z0-9_-]{10,200}\/exec$/;
+/* Only the clinic's own relay deployment (as the other apps, 5.00). */
+const RELAY_ID_SHA256 = '6e551d7fae9178fc6a3ddc86429752707ec3784d888bb1aa607dce1abc4eb5ba';
+function relaySha256Hex(str){
+  const bytes = unescape(encodeURIComponent(String(str))).split('').map(c => c.charCodeAt(0));
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const l = bytes.length;
+  bytes.push(0x80);
+  while(bytes.length % 64 !== 56) bytes.push(0);
+  const bits = l * 8;
+  for(let i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (bits >>> (i * 8)) & 0xff);
+  const W = new Array(64);
+  const rr = (x, n) => (x >>> n) | (x << (32 - n));
+  for(let o = 0; o < bytes.length; o += 64){
+    for(let i = 0; i < 16; i++) W[i] = (bytes[o + 4 * i] << 24) | (bytes[o + 4 * i + 1] << 16) | (bytes[o + 4 * i + 2] << 8) | bytes[o + 4 * i + 3];
+    for(let i = 16; i < 64; i++){
+      const s0 = rr(W[i - 15], 7) ^ rr(W[i - 15], 18) ^ (W[i - 15] >>> 3), s1 = rr(W[i - 2], 17) ^ rr(W[i - 2], 19) ^ (W[i - 2] >>> 10);
+      W[i] = (W[i - 16] + s0 + W[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for(let i = 0; i < 64; i++){
+      const t1 = (h + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + W[i]) | 0;
+      const t2 = ((rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+  }
+  return H.map(x => ('00000000' + (x >>> 0).toString(16)).slice(-8)).join('');
+}
+function relayIsClinics(r){
+  const m = /\/s\/([A-Za-z0-9_-]{10,200})\/exec$/.exec(String(r || ''));
+  return !!m && relaySha256Hex(m[1]) === RELAY_ID_SHA256;
+}
+function esc(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function lsGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+function todayStr(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+/* ---- the link ---------------------------------------------------------- */
+function takeLink(){
+  const h = String(location.hash || '').replace(/^#/, '');
+  if(!h) return '';
+  let said = '';
+  try{
+    const p = new URLSearchParams(h);
+    const r = p.get('relay'), k = p.get('key');
+    if(r && k){
+      if(RELAY_URL_RE.test(r) && relayIsClinics(r) && /^[A-Za-z0-9_-]{24,200}$/.test(k)){ lsSet(K_RELAY, r); lsSet(K_KEY, k); }
+      else said = 'That link is not the clinic’s own — it was not used.';
+    }
+  }catch(e){}
+  /* The key does not stay in the address bar. */
+  try{ history.replaceState(null, '', location.pathname); }catch(e){}
+  return said;
+}
+const setUp = () => !!(lsGet(K_RELAY) && lsGet(K_KEY));
+
+/* ---- the relay --------------------------------------------------------- */
+function reqUrl(action){
+  const u = new URL(lsGet(K_RELAY));
+  u.searchParams.set('key', lsGet(K_KEY));
+  u.searchParams.set('action', action);
+  u.searchParams.set('v', FILES_VERSION);
+  return u.toString();
+}
+async function call(action, body, ms){
+  const ctl = new AbortController();
+  const timer = setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms || 25000);
+  let text = '';
+  try{
+    const res = await fetch(reqUrl(action), body
+      ? { method: 'POST', redirect: 'follow', cache: 'no-store', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), signal: ctl.signal }
+      : { method: 'GET', redirect: 'follow', cache: 'no-store', signal: ctl.signal });
+    text = await res.text();
+  }catch(e){ return { ok: false, offline: true, error: 'No connection — try again.' }; }
+  finally{ clearTimeout(timer); }
+  try{ return JSON.parse(text); }catch(e){ return { ok: false, error: 'The clinic did not answer properly — try again.' }; }
+}
+
+/* ---- what has been sent today, on this phone (counts only) --------------- */
+function sentMap(){
+  let o = {};
+  try{ o = JSON.parse(lsGet(K_SENT) || '{}') || {}; }catch(e){ o = {}; }
+  if(o.date !== todayStr()) o = { date: todayStr(), n: {} };
+  return o;
+}
+function sentAdd(pid, pages){ const o = sentMap(); o.n[pid] = (o.n[pid] || 0) + pages; lsSet(K_SENT, JSON.stringify(o)); }
+
+/* ---- screens ----------------------------------------------------------- */
+let who = '', list = [], loading = false;
+const main = () => document.getElementById('main');
+function sub(t){ document.getElementById('hdSub').textContent = t || ' '; }
+function screen(icon, title, line, again){
+  main().innerHTML = '<div class="center">' + (icon ? '<div class="ic">' + icon + '</div>' : '') + '<p><b>' + esc(title) + '</b></p>'
+    + (line ? '<small>' + line + '</small>' : '')
+    + (again ? '<button type="button" class="btn again" onclick="load()">Check again</button>' : '') + '</div>';
+}
+function dateLine(){ return new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }); }
+async function load(){
+  if(loading) return;
+  if(!setUp()){ sub(''); screen('🔗', 'Open your Echo Files link', 'Open the link the clinic sent you on this phone, then add it to the Home screen.'); return; }
+  loading = true;
+  const j = await call('filesToday');
+  loading = false;
+  if(j && j.name){ who = j.name; }
+  if(!j || !j.ok){
+    sub(who);
+    const e = String((j && j.error) || '');
+    if(j && j.locked === 'hours') return screen('🔒', new Date().getHours() < 9 ? 'Opens at 9 am' : 'Closed for today', 'Echo Files works 9 am – 8 pm.', false);
+    if(j && j.locked === 'punch') return screen('☝️', 'Punch in first', 'You’re not on today’s attendance yet.<br>It shows a few minutes after you punch.', true);
+    if(j && j.locked === 'out') return screen('👋', 'You’ve punched out', 'Echo Files is closed for you until tomorrow.', false);
+    if(j && j.locked === 'board') return screen('⏳', 'Not ready yet', esc(e) + '<br>Try again in a few minutes.', true);
+    if(e === 'bad key' || e === 'not allowed') return screen('⛔', 'This link no longer works', 'Ask the clinic for a new link.', false);
+    return screen('⚠️', 'Could not open', esc(e || 'Try again.'), true);
+  }
+  list = Array.isArray(j.list) ? j.list : [];
+  sub(who + ' · ' + dateLine() + ' · ' + list.length + ' in');
+  paintList();
+}
+function paintList(){
+  const sent = sentMap().n;
+  if(!list.length){ screen('', 'Nobody marked in yet', 'Patients appear here once reception marks them in.', true); return; }
+  main().innerHTML = list.map((p, i) => '<div class="row" onclick="sheetOpen(' + i + ')"><span>' + esc(p.name) + '<i>(' + esc(p.pid) + ')</i></span>'
+      + (sent[p.pid] ? '<span class="w">' + sent[p.pid] + ' sent · waiting</span>' : '<span class="ch">›</span>') + '</div>').join('')
+    + '<div class="ft">Marked in today · names and IDs only · everything is checked before it is filed</div>';
+}
+
+/* ---- adding photos ----------------------------------------------------- */
+let cur = null;      // { p, type, pages:[{url, thumb}] }
+function sheetOpen(i){
+  const p = list[i];
+  if(!p) return;
+  cur = { p: p, type: '', pages: [] };
+  paintSheet();
+  document.getElementById('dim').classList.add('open');
+  document.getElementById('sheet').classList.add('open');
+}
+function sheetClose(force){
+  if(!force && cur && cur.pages.length && !confirm('Leave without sending? The pages are not kept.')) return;
+  cur = null;
+  document.getElementById('dim').classList.remove('open');
+  document.getElementById('sheet').classList.remove('open');
+}
+function paintSheet(msg){
+  if(!cur) return;
+  const n = cur.pages.length;
+  document.getElementById('sheet').innerHTML = '<h3>' + esc(cur.p.name) + ' (' + esc(cur.p.pid) + ')</h3><div class="sub">Add photos</div>'
+    + '<div class="chips">' + TYPES.map(t => '<button type="button" class="chip' + (cur.type === t[0] ? ' on' : '') + '" onclick="pickType(\'' + t[0] + '\')">' + esc(t[1]) + '</button>').join('') + '</div>'
+    + '<div class="big"><button type="button" onclick="shoot(\'inCam\')">📷 Camera</button><button type="button" onclick="shoot(\'inPick\')">🖼 Photos</button></div>'
+    + (n ? '<div class="pages"><span>' + n + ' page' + (n === 1 ? '' : 's') + ' ready · no preview shown</span><button type="button" onclick="clearPages()">Clear</button></div>' : '')
+    + '<button type="button" class="btn send" id="sendBtn" onclick="send()"' + (n && cur.type ? '' : ' disabled') + '>Send</button>'
+    + '<button type="button" class="btn cancel" onclick="sheetClose()">Cancel</button>'
+    + '<div class="msg" id="sheetMsg">' + esc(msg || (!cur.type && n ? 'Pick what it is.' : '')) + '</div>';
+}
+function pickType(t){ if(cur){ cur.type = t; paintSheet(); } }
+function clearPages(){ if(cur){ cur.pages = []; paintSheet(); } }
+function shoot(id){
+  if(!cur) return;
+  if(cur.pages.length >= MAX_PAGES){ paintSheet('Ten pages is the most in one go.'); return; }
+  const inp = document.getElementById(id);
+  inp.value = '';
+  inp.click();
+}
+function scaleTo(img, edge, q){
+  const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
+  const s = Math.min(1, edge / Math.max(w0, h0));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w0 * s)); c.height = Math.max(1, Math.round(h0 * s));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', q);
+}
+function pageOf(img){
+  let url = scaleTo(img, LONG_EDGE, 0.82);
+  if(url.length > PAGE_MAX_CHARS) url = scaleTo(img, LONG_EDGE, 0.7);
+  if(url.length > PAGE_MAX_CHARS) url = scaleTo(img, LONG_EDGE, 0.6);
+  if(url.length > PAGE_MAX_CHARS) url = scaleTo(img, 2000, 0.6);
+  return url;
+}
+function readImage(file){
+  return new Promise((res, rej) => {
+    const u = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(u); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('not a picture')); };
+    img.src = u;
+  });
+}
+async function picked(files){
+  if(!cur || !files || !files.length) return;
+  paintSheet('Reading…');
+  for(const f of Array.from(files)){
+    if(cur.pages.length >= MAX_PAGES) break;
+    try{
+      const img = await readImage(f);
+      cur.pages.push({ url: pageOf(img), thumb: scaleTo(img, 240, 0.75) });
+    }catch(e){ paintSheet('One of those could not be read as a picture.'); return; }
+  }
+  paintSheet(cur.pages.length >= MAX_PAGES ? 'Ten pages is the most in one go.' : '');
+}
+document.getElementById('inCam').addEventListener('change', (e) => picked(e.target.files));
+document.getElementById('inPick').addEventListener('change', (e) => picked(e.target.files));
+let sending = false;
+async function send(){
+  if(!cur || sending || !cur.pages.length || !cur.type) return;
+  sending = true;
+  const b = document.getElementById('sendBtn');
+  if(b){ b.disabled = true; b.textContent = 'Sending…'; }
+  const strip = (u) => String(u).replace(/^data:image\/jpeg;base64,/, '');
+  const t = TYPES.filter(x => x[0] === cur.type)[0];
+  const body = { id: 'pf-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8), pid: cur.p.pid, type: cur.type, typeLabel: t ? t[1] : '',
+    remark: '', at: new Date().toISOString(), pages: cur.pages.map(x => strip(x.url)), thumb: strip(cur.pages[0].thumb) };
+  let j = await call('fileAdd', body, 120000);
+  if(j && !j.ok && j.offline) j = await call('fileAdd', body, 120000);   // once more: the same id is never filed twice
+  sending = false;
+  if(!j || !j.ok){
+    if(j && (j.locked || j.error === 'bad key')){ sheetClose(true); load(); return; }
+    if(b){ b.disabled = false; b.textContent = 'Send'; }
+    const el = document.getElementById('sheetMsg');
+    if(el) el.textContent = 'Not sent — ' + String((j && j.error) || 'try again') + '. Tap Send to try again.';
+    return;
+  }
+  const n = cur.pages.length, label = t ? t[1] : '', p = cur.p;
+  sentAdd(p.pid, n);
+  sheetClose(true);
+  main().innerHTML = '<div class="center"><div class="tick">✓</div><p><b>Sent to the clinic</b></p><p>' + n + ' page' + (n === 1 ? '' : 's') + ' · ' + esc(label) + '</p>'
+    + '<small>' + esc(p.name) + ' (' + esc(p.pid) + ')</small><small style="margin-top:14px;">Waiting for the doctor’s check. Back to the list in 2 s.</small></div>';
+  setTimeout(() => { paintList(); }, 2000);
+}
+
+/* ---- start --------------------------------------------------------------- */
+const linkSaid = takeLink();
+if(linkSaid && !setUp()) screen('⛔', 'Not the clinic’s link', esc(linkSaid), false);
+else load();
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !cur) load(); });
+setInterval(() => { if(document.visibilityState === 'visible' && !cur && !sending) load(); }, 60000);
+if('serviceWorker' in navigator){ window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); }); }
+</script>
+</body>
+</html>

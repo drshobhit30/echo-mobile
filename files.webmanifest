@@ -1,0 +1,36 @@
+{
+  "id": "./files.html",
+  "name": "Echo Files",
+  "short_name": "Echo Files",
+  "description": "Echo Dental Clinic - a staff phone: photos for today's patients.",
+  "start_url": "./files.html",
+  "scope": "./files.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f5c63",
+  "theme_color": "#0f5c63",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
