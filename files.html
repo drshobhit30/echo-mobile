@@ -43,7 +43,7 @@
      time; wording. 5.10; owner, 13-14 Oct 2026, previewed; "remove the pin. and build").
      A staff member's own phone: today's marked-in patients (name and ID only)
      and adding photos for them - nothing else. The relay (r4.35) decides
-     everything that matters: 9 am to 8 pm, punched in and not yet out, this
+     everything that matters: 9 am to 9 pm (r4.39), punched in and not yet out, this
      person's link not revoked, the patient marked in today, 20 a day. Every
      photo waits for the doctor's check on the Mac before it is filed.
      Nothing sent is kept on the phone, and nothing comes back to it. -->
@@ -365,7 +365,7 @@ async function load(){
   if(!j || !j.ok){
     sub(who);
     const e = String((j && j.error) || '');
-    if(j && j.locked === 'hours') return screen('🔒', clinicHour() < 9 ? 'Opens at 9 am' : 'Closed for today', 'Echo Files works 9 am – 8 pm.', false);   // 5.11 (L22): clinic time
+    if(j && j.locked === 'hours') return screen('🔒', clinicHour() < 9 ? 'Opens at 9 am' : 'Closed for today', esc(e || 'Echo Files works 9 am – 9 pm.'), false);   // 5.11 (L22): clinic time; 5.14: the relay's own hours line, so a change of hours is the relay's alone
     if(j && j.locked === 'punch') return screen('☝️', 'Punch in first', 'You’re not on today’s attendance yet.<br>It shows a few minutes after you punch.', true);
     if(j && j.locked === 'out') return screen('👋', 'You’ve punched out', 'Echo Files is closed for you until tomorrow.', false);
     if(j && j.locked === 'board') return screen('⏳', 'Not ready yet', esc(e) + '<br>Try again in a few minutes.', true);
