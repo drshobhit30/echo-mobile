@@ -10,7 +10,14 @@
 <link rel="manifest" href="files.webmanifest">
 <link rel="icon" href="icon-192.png">
 <title>Echo Files</title>
-<!-- ECHO FILES (5.13, 16 Oct 2026 - MY ATTENDANCE: with the clinic's switch on,
+<!-- ECHO FILES (5.14, 16 Oct 2026 - the owner's first real use: the internet
+     address is looked up FRESH for every request (5.13 held it 5 minutes, so
+     a phone that left the guest Wi-Fi for mobile data still sent, and Check
+     again after joining the Wi-Fi still said "clinic internet only"); a
+     patient sent for shows just "✓ sent" (the phone never hears the doctor's
+     check, so "waiting" stayed after approval); the month's tiles are days
+     present · on time · late (the streak tile read "0 on time").
+     5.13 - MY ATTENDANCE: with the clinic's switch on,
      "My attendance" at the top of the list carries today's punch and the
      streak, and opens the person's own months as the machine read them (in,
      out, on time / late by how much, no punch, clinic closed) - nothing the
@@ -113,7 +120,7 @@
 <input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.13';
+const FILES_VERSION = '5.14';
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
 const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const K_DEV = 'echoFiles_dev';      // 5.12: this phone's own id, made once, sent with every request
@@ -218,16 +225,18 @@ function devId(){
 function pending(){ try{ const o = JSON.parse(lsGet(K_PEND) || 'null'); return o && o.relay && o.key ? o : null; }catch(e){ return null; } }
 /* 5.12: this phone's internet address (clinic internet only). Held 5 min. */
 let ipHeld = { ip: '', at: 0 };
+/* 5.14: never held - the network can change under the app (guest Wi-Fi to
+   mobile data) and the check must see the network of THIS request. Only a
+   failed lookup is remembered, 10 s, so one request does not wait twice. */
 async function myIp(){
-  if(ipHeld.ip && Date.now() - ipHeld.at < 5 * 60 * 1000) return ipHeld.ip;
-  if(!ipHeld.ip && ipHeld.at && Date.now() - ipHeld.at < 60 * 1000) return '';   // 5.13: a failed lookup is remembered a minute
+  if(!ipHeld.ip && ipHeld.at && Date.now() - ipHeld.at < 10 * 1000) return '';
   for(const u of IP_URLS){
     try{
       const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 5000);
       const r = await fetch(u, { cache: 'no-store', signal: ctl.signal });
       clearTimeout(tm);
       const ip = (await r.text()).trim();
-      if(/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)){ ipHeld = { ip: ip, at: Date.now() }; return ip; }
+      if(/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)){ ipHeld = { ip: '', at: 0 }; return ip; }
     }catch(e){}
   }
   ipHeld = { ip: '', at: Date.now() };
@@ -420,9 +429,9 @@ async function mineOpen(mk){
       + '<td>' + (r.in ? esc(hm(r.in)) : '—') + '</td><td>' + (r.out ? esc(hm(r.out)) : (r.in && isToday ? '<span style="color:#8a95a0">in</span>' : '—')) + '</td><td>' + pill + '</td></tr>';
   }).join('');
   main().innerHTML = '<div class="bar"><button type="button"' + (i > 0 ? ' onclick="mineOpen(\'' + months[i - 1] + '\')"' : ' disabled') + '>‹</button><span>' + MON[mm - 1] + ' ' + yy + '</span><button type="button"' + (i < months.length - 1 ? ' onclick="mineOpen(\'' + months[i + 1] + '\')"' : ' disabled') + '>›</button></div>'
-    + '<div class="tiles"><div class="tile"><b>' + (m.present || 0) + '</b><i>days present</i></div><div class="tile"><b>' + (m.late || 0) + '</b><i>late</i></div><div class="tile gold"><b>★ ' + (mineData.streak || 0) + '</b><i>days on time</i></div></div>'
+    + '<div class="tiles"><div class="tile"><b>' + (m.present || 0) + '</b><i>days present</i></div><div class="tile"><b>' + Math.max(0, (m.present || 0) - (m.late || 0)) + '</b><i>on time</i></div><div class="tile"><b>' + (m.late || 0) + '</b><i>late</i></div></div>'
     + '<table class="att"><thead><tr><th>DAY</th><th>IN</th><th>OUT</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
-    + '<div class="rules">As the attendance machine read it' + (mineData.at ? ', ' + esc(readAt(mineData.at)) : '') + '. Shift ' + esc(mineData.shift || '10:00') + '; in more than 15 minutes after that counts as late. The streak counts days on time in a row; a day with no punch is skipped, a late day ends it.</div>'
+    + '<div class="rules">As the attendance machine read it' + (mineData.at ? ', ' + esc(readAt(mineData.at)) : '') + '. Shift ' + esc(mineData.shift || '10:00') + '; in more than 15 minutes after that counts as late.</div>'
     + '<div class="ft"><a href="#" onclick="event.preventDefault();mineBack()">‹ Back to today’s patients</a></div>';
   window.scrollTo(0, 0);
 }
@@ -431,7 +440,7 @@ function paintList(){
   const sent = sentMap().n;
   if(!list.length){ screen('', 'Nobody marked in yet', 'Patients appear here once reception marks them in.', true); main().insertAdjacentHTML('afterbegin', mineLineHtml()); return; }
   main().innerHTML = mineLineHtml() + list.map((p, i) => '<div class="row" onclick="sheetOpen(' + i + ')"><span>' + esc(p.name) + '<i>(' + esc(p.pid) + ')</i></span>'
-      + (sent[p.pid] ? '<span class="w">' + sent[p.pid] + ' sent · waiting</span>' : '<span class="ch">›</span>') + '</div>').join('')
+      + (sent[p.pid] ? '<span class="w">✓ sent</span>' : '<span class="ch">›</span>') + '</div>').join('')
     + '<div class="ft">Marked in today · names and IDs only · everything is checked before it is filed</div>';
 }
 
