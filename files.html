@@ -365,9 +365,9 @@ async function load(){
   if(!j || !j.ok){
     sub(who);
     const e = String((j && j.error) || '');
-    if(j && j.locked === 'hours') return screen('🔒', clinicHour() < 9 ? 'Opens at 9 am' : 'Closed for today', esc(e || 'Echo Files works 9 am – 9 pm.'), false);   // 5.11 (L22): clinic time; 5.14: the relay's own hours line, so a change of hours is the relay's alone
+    if(j && j.locked === 'hours'){ screen('🔒', clinicHour() < 9 ? 'Opens at 9 am' : 'Closed for today', esc(e || 'Echo Files works 9 am – 9 pm.'), false); return mineWhenLocked(); }   // 5.11 (L22): clinic time; 5.14: the relay's own hours line, so a change of hours is the relay's alone
     if(j && j.locked === 'punch') return screen('☝️', 'Punch in first', 'You’re not on today’s attendance yet.<br>It shows a few minutes after you punch.', true);
-    if(j && j.locked === 'out') return screen('👋', 'You’ve punched out', 'Echo Files is closed for you until tomorrow.', false);
+    if(j && j.locked === 'out'){ screen('👋', 'You’ve punched out', 'Echo Files is closed for you until tomorrow.', false); return mineWhenLocked(); }
     if(j && j.locked === 'board') return screen('⏳', 'Not ready yet', esc(e) + '<br>Try again in a few minutes.', true);
     /* 5.12: claimed by another phone - this phone's copy of the link is dropped; the code again if the relay lost the claim; off the clinic's internet */
     if(j && j.other){ lsSet(K_KEY, ''); return screen('⛔', 'This link is in use on another phone', 'Ask the clinic for a new link.', false); }
@@ -428,7 +428,9 @@ async function mineOpen(mk){
     return '<tr' + (isToday ? ' class="today"' : '') + '><td>' + (isToday ? '<b>' : '') + DOW[new Date(yy, mm - 1, r.d).getDay()] + ' ' + r.d + (isToday ? '</b>' : '') + '</td>'
       + '<td>' + (r.in ? esc(hm(r.in)) : '—') + '</td><td>' + (r.out ? esc(hm(r.out)) : (r.in && isToday ? '<span style="color:#8a95a0">in</span>' : '—')) + '</td><td>' + pill + '</td></tr>';
   }).join('');
-  main().innerHTML = '<div class="bar"><button type="button"' + (i > 0 ? ' onclick="mineOpen(\'' + months[i - 1] + '\')"' : ' disabled') + '>‹</button><span>' + MON[mm - 1] + ' ' + yy + '</span><button type="button"' + (i < months.length - 1 ? ' onclick="mineOpen(\'' + months[i + 1] + '\')"' : ' disabled') + '>›</button></div>'
+  /* 5.14 (owner): the current month only - no arrows when there is nothing else */
+  const arrows = months.length > 1;
+  main().innerHTML = '<div class="bar">' + (arrows ? '<button type="button"' + (i > 0 ? ' onclick="mineOpen(\'' + months[i - 1] + '\')"' : ' disabled') + '>‹</button>' : '<span></span>') + '<span>' + MON[mm - 1] + ' ' + yy + '</span>' + (arrows ? '<button type="button"' + (i < months.length - 1 ? ' onclick="mineOpen(\'' + months[i + 1] + '\')"' : ' disabled') + '>›</button>' : '<span></span>') + '</div>'
     + '<div class="tiles"><div class="tile"><b>' + (m.present || 0) + '</b><i>days present</i></div><div class="tile"><b>' + Math.max(0, (m.present || 0) - (m.late || 0)) + '</b><i>on time</i></div><div class="tile"><b>' + (m.late || 0) + '</b><i>late</i></div></div>'
     + '<table class="att"><thead><tr><th>DAY</th><th>IN</th><th>OUT</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
     + '<div class="rules">As the attendance machine read it' + (mineData.at ? ', ' + esc(readAt(mineData.at)) : '') + '. Shift ' + esc(mineData.shift || '10:00') + '; in more than 15 minutes after that counts as late.</div>'
@@ -436,6 +438,18 @@ async function mineOpen(mk){
   window.scrollTo(0, 0);
 }
 function mineBack(){ mineData = null; load(); }
+/* 5.14 (owner, 16 Oct 20:24: "you have punched out. but the attendance should
+   still show"): before 9, after closing and after punching out, the patient
+   list is shut but their own record is not - the line goes on top of the
+   locked screen when the clinic's switch is on. */
+async function mineWhenLocked(){
+  const j = await call('myAttendance');
+  if(!j || !j.ok || j.off || !j.mine) return;
+  mine = { today: j.mine.today, streak: j.mine.streak };
+  mineAt = j.mine.at || '';
+  mineData = null;
+  main().insertAdjacentHTML('afterbegin', mineLineHtml());
+}
 function paintList(){
   const sent = sentMap().n;
   if(!list.length){ screen('', 'Nobody marked in yet', 'Patients appear here once reception marks them in.', true); main().insertAdjacentHTML('afterbegin', mineLineHtml()); return; }
