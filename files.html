@@ -10,7 +10,11 @@
 <link rel="manifest" href="files.webmanifest">
 <link rel="icon" href="icon-192.png">
 <title>Echo Files</title>
-<!-- ECHO FILES (5.10; owner, 13-14 Oct 2026, previewed; "remove the pin. and build").
+<!-- ECHO FILES (5.11, 16 Oct 2026 - audit M5/M6/M7/L20/L21/L22: a Send that is
+     refused for now (a lock, "try again") keeps the pages on screen; one id
+     per set of pages, so a slow first try is never filed twice; a second
+     link asks before it replaces this phone's; the clinic's hours by clinic
+     time; wording. 5.10; owner, 13-14 Oct 2026, previewed; "remove the pin. and build").
      A staff member's own phone: today's marked-in patients (name and ID only)
      and adding photos for them - nothing else. The relay (r4.35) decides
      everything that matters: 9 am to 8 pm, punched in and not yet out, this
@@ -67,8 +71,9 @@
 <input type="file" id="inPick" accept="image/*" multiple style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.10';
+const FILES_VERSION = '5.11';
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
+const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const MAX_PAGES = 10, LONG_EDGE = 2400, PAGE_MAX_CHARS = 1400000;
 const TYPES = [['xray', 'X-ray / OPG'], ['cbct', 'CBCT'], ['lab-report', 'Lab report'], ['outside-rx', 'Outside Rx'], ['consent', 'Consent'], ['warranty', 'Warranty card'], ['other', 'Other']];
 const RELAY_URL_RE = /^https:\/\/script\.google\.com\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?macros\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?s\/[A-Za-z0-9_-]{10,200}\/exec$/;
@@ -112,6 +117,15 @@ function relayIsClinics(r){
 function esc(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function lsGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
 function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+/* 5.11 (audit L22): the clinic's hour (Asia/Kolkata), not the phone's - the
+   lock itself is clinic time, so "Opens at 9 am" / "Closed for today" is
+   chosen by it too. */
+function clinicHour(){
+  try{ return parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hourCycle: 'h23' }).format(new Date()), 10) % 24; }
+  catch(e){ return new Date().getHours(); }
+}
+/* A sentence without its last full stop, so a suffix never makes "again.." */
+function noDot(t){ return String(t || '').trim().replace(/[.\s]+$/, ''); }
 function todayStr(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
 /* ---- the link ---------------------------------------------------------- */
@@ -123,7 +137,15 @@ function takeLink(){
     const p = new URLSearchParams(h);
     const r = p.get('relay'), k = p.get('key');
     if(r && k){
-      if(RELAY_URL_RE.test(r) && relayIsClinics(r) && /^[A-Za-z0-9_-]{24,200}$/.test(k)){ lsSet(K_RELAY, r); lsSet(K_KEY, k); }
+      if(RELAY_URL_RE.test(r) && relayIsClinics(r) && /^[A-Za-z0-9_-]{24,200}$/.test(k)){
+        /* 5.11 (audit L20): a phone already set up with ANOTHER link asks
+           first (a colleague's forwarded link would otherwise make this
+           "Bina's phone" without a word). No keeps the old link. */
+        const had = lsGet(K_KEY), name = lsGet(K_WHO);
+        const swap = !had || had === k || !lsGet(K_RELAY)
+          || confirm('This phone is already set up' + (name ? ' for ' + name : '') + '. Replace it with the link just opened?');
+        if(swap){ if(had && had !== k) lsSet(K_WHO, ''); lsSet(K_RELAY, r); lsSet(K_KEY, k); }
+      }
       else said = 'That link is not the clinic’s own — it was not used.';
     }
   }catch(e){}
@@ -180,15 +202,19 @@ async function load(){
   loading = true;
   const j = await call('filesToday');
   loading = false;
-  if(j && j.name){ who = j.name; }
+  if(j && j.name){ who = j.name; lsSet(K_WHO, who); }
   if(!j || !j.ok){
     sub(who);
     const e = String((j && j.error) || '');
-    if(j && j.locked === 'hours') return screen('🔒', new Date().getHours() < 9 ? 'Opens at 9 am' : 'Closed for today', 'Echo Files works 9 am – 8 pm.', false);
+    if(j && j.locked === 'hours') return screen('🔒', clinicHour() < 9 ? 'Opens at 9 am' : 'Closed for today', 'Echo Files works 9 am – 8 pm.', false);   // 5.11 (L22): clinic time
     if(j && j.locked === 'punch') return screen('☝️', 'Punch in first', 'You’re not on today’s attendance yet.<br>It shows a few minutes after you punch.', true);
     if(j && j.locked === 'out') return screen('👋', 'You’ve punched out', 'Echo Files is closed for you until tomorrow.', false);
     if(j && j.locked === 'board') return screen('⏳', 'Not ready yet', esc(e) + '<br>Try again in a few minutes.', true);
-    if(e === 'bad key' || e === 'not allowed') return screen('⛔', 'This link no longer works', 'Ask the clinic for a new link.', false);
+    /* 5.11 (audit M5): "try again" from the relay (its staff list could not
+       be read just now) is the retryable screen, never the revoked one.
+       (audit L21): a relay older than r4.35 also says "bad key" - so the
+       revoked screen says that too. */
+    if(!j.retry && (e === 'bad key' || e === 'not allowed')) return screen('⛔', 'This link no longer works', 'Ask the clinic for a new link.<br>(or the clinic’s relay needs updating)', false);
     return screen('⚠️', 'Could not open', esc(e || 'Try again.'), true);
   }
   list = Array.isArray(j.list) ? j.list : [];
@@ -204,11 +230,17 @@ function paintList(){
 }
 
 /* ---- adding photos ----------------------------------------------------- */
-let cur = null;      // { p, type, pages:[{url, thumb}] }
+let cur = null;      // { p, type, pages:[{url, thumb}], id }
+/* 5.11 (audit M7): ONE ID PER SET OF PAGES. 5.10 made a new id on every tap
+   of Send, so after a slow first try ("still being saved") the next tap sent
+   the same pages again under another id - two copies on the Mac. The id is
+   made when a page is added and kept for every Send of that sheet; adding
+   or clearing pages makes a new one (it is another document then). */
+function newFileId(){ return 'pf-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
 function sheetOpen(i){
   const p = list[i];
   if(!p) return;
-  cur = { p: p, type: '', pages: [] };
+  cur = { p: p, type: '', pages: [], id: '' };
   paintSheet();
   document.getElementById('dim').classList.add('open');
   document.getElementById('sheet').classList.add('open');
@@ -231,7 +263,7 @@ function paintSheet(msg){
     + '<div class="msg" id="sheetMsg">' + esc(msg || (!cur.type && n ? 'Pick what it is.' : '')) + '</div>';
 }
 function pickType(t){ if(cur){ cur.type = t; paintSheet(); } }
-function clearPages(){ if(cur){ cur.pages = []; paintSheet(); } }
+function clearPages(){ if(cur){ cur.pages = []; cur.id = ''; paintSheet(); } }
 function shoot(id){
   if(!cur) return;
   if(cur.pages.length >= MAX_PAGES){ paintSheet('Ten pages is the most in one go.'); return; }
@@ -271,6 +303,7 @@ async function picked(files){
     try{
       const img = await readImage(f);
       cur.pages.push({ url: pageOf(img), thumb: scaleTo(img, 240, 0.75) });
+      cur.id = newFileId();                                   // 5.11 (M7): a changed set of pages is a new document
     }catch(e){ paintSheet('One of those could not be read as a picture.'); return; }
   }
   paintSheet(cur.pages.length >= MAX_PAGES ? 'Ten pages is the most in one go.' : '');
@@ -285,16 +318,32 @@ async function send(){
   if(b){ b.disabled = true; b.textContent = 'Sending…'; }
   const strip = (u) => String(u).replace(/^data:image\/jpeg;base64,/, '');
   const t = TYPES.filter(x => x[0] === cur.type)[0];
-  const body = { id: 'pf-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8), pid: cur.p.pid, type: cur.type, typeLabel: t ? t[1] : '',
+  if(!cur.id) cur.id = newFileId();                       // 5.11 (M7): kept for every Send of these pages
+  const body = { id: cur.id, pid: cur.p.pid, type: cur.type, typeLabel: t ? t[1] : '',
     remark: '', at: new Date().toISOString(), pages: cur.pages.map(x => strip(x.url)), thumb: strip(cur.pages[0].thumb) };
   let j = await call('fileAdd', body, 120000);
   if(j && !j.ok && j.offline) j = await call('fileAdd', body, 120000);   // once more: the same id is never filed twice
   sending = false;
   if(!j || !j.ok){
-    if(j && (j.locked || j.error === 'bad key')){ sheetClose(true); load(); return; }
+    const why = noDot((j && j.error) || 'try again');
+    /* 5.11 (audit M6): only a link that truly no longer works closes the
+       sheet - and says the pages were not sent. A lock (8 pm, punched out,
+       the attendance list not read) or any "try again" KEEPS THE PAGES:
+       5.10 closed the sheet and they were gone without a word. */
+    if(j && !j.retry && !j.locked && (j.error === 'bad key' || j.error === 'not allowed')){
+      sheetClose(true);
+      screen('⛔', 'Not sent — this link no longer works', 'Ask the clinic for a new link.<br>(or the clinic’s relay needs updating)', false);
+      return;
+    }
     if(b){ b.disabled = false; b.textContent = 'Send'; }
+    let line;
+    if(j && /first try is still being saved/.test(String(j.error || ''))) line = 'Still being saved by the clinic — wait a minute, then tap Send once more (nothing is sent twice).';
+    else if(j && (j.locked || j.retry)) line = 'Not sent — ' + why + '. Your pages are still here.';
+    else if(j && (j.final || /the most one phone may send/.test(String(j.error || '')))) line = 'Not sent — ' + why + '.';   // 5.11 (L22): final - tapping cannot help
+    else line = 'Not sent — ' + why + '. Tap Send to try again.';
     const el = document.getElementById('sheetMsg');
-    if(el) el.textContent = 'Not sent — ' + String((j && j.error) || 'try again') + '. Tap Send to try again.';
+    if(el) el.textContent = line;
+    if(j && j.locked) load();                                  // the list (or the lock) behind the sheet
     return;
   }
   const n = cur.pages.length, label = t ? t[1] : '', p = cur.p;

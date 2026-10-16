@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-5.10';  // one number across lite, admin, reception and this file
+const CACHE_VERSION = 'echo-nexus-5.11';  // one number across all five apps - lite, reception, ipad, admin, files - and this file (5.11, audit L24: ipad and files had joined)
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -50,6 +50,10 @@ function goodPage(res){ return !!(res && res.status === 200 && res.type === 'bas
 /* Every app this folder serves (4.75: the iPad was missing - a notification
    tapped on the iPad opened another app). */
 const APP_PAGE = /(?:admin|lite|reception|ipad)\.html$/;
+/* files.html (Echo Files) is NOT in APP_PAGE, by design (5.11, audit L24):
+   it has no in-app "new version" check, so it is fetched network-first with
+   the 2.5-s fuse and updates on the very next open with a signal; offline it
+   shows the saved page, which then says "No connection" - never a stale list. */
 
 const SHELL = [
   './lite.html',

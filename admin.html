@@ -2085,7 +2085,7 @@ function rowsFor(day){
   const byVisitId = {};
   visits.forEach(v => { byVisitId[String(v.id)] = v; });
   /* A BOOKING ON A FOLDED ROW CLAIMS THE SURVIVOR (4.76). 27 Sep: chair 2 and
-     reception marked 25281 in within a second; the desk folded reception's
+     reception marked 90123 in within a second; the desk folded reception's
      row into the chair's, but her booking kept the struck row's id - so this
      list drew her booking AND a walk-in beside it. The id is followed along
      mergedInto (loop-safe, as the desk's findVisitRow) to the live row. */
@@ -5710,7 +5710,12 @@ async function xrLinkSend(pid, undo){
     if(undo) delete m[pid]; else m[pid] = { pid: to, at: Date.now() };
     xrLinkedSave(m);
     xrLinkMsg[pid] = undo ? 'Undo sent — the reception PC takes the link back within a minute or two.' : '';
-  }catch(e){ xrLinkMsg[pid] = 'Not sent: ' + ((e && e.message) || 'no connection') + '.'; }
+  }catch(e){
+    /* 5.11 (audit L22): a relay before r4.28 does not know xrLink - say so,
+       not "Not sent: unknown action." (and never a doubled full stop). */
+    const why = String((e && e.message) || 'no connection');
+    xrLinkMsg[pid] = /unknown action|relay old/i.test(why) ? 'Not sent: this needs relay r4.28 (the clinic\u2019s relay is older).' : 'Not sent: ' + why.replace(/[.\s]+$/, '') + '.';
+  }
   xrSheetPaint();
 }
 
@@ -6247,6 +6252,9 @@ function keyRejected(k){
   keyBadKeep(keyFingerprint(k === undefined ? relayKey() : k));
   document.getElementById('setupMsg').textContent = 'This phone\u2019s link is no longer valid. Open the new admin setup link.';
   showSetup();
+  /* 5.11 (audit L19): the money this phone was holding goes with its key */
+  try{ for(const x in relayHeld) delete relayHeld[x]; }catch(e){}
+  try{ adbDropHeld(null); }catch(e){}
 }
 function keyFingerprint(k){ k = String(k || ''); return k ? k.length + ':' + k.slice(-6) : ''; }
 let keyBadMemo = null;
@@ -7091,6 +7099,43 @@ function adbGet(key){
 }
 function adbSet(key, value){
   return adb().then(db => { if(!db) return; try{ db.transaction('kv', 'readwrite').objectStore('kv').put(value, key); }catch(e){} }).catch(() => {});
+}
+/* 5.11 (audit L19): THE MONEY COPIES DO NOT STAY FOR EVER. Every day book,
+   bill, index and note read was kept here with no end - also after the
+   relay stopped taking this phone's key. Now:
+     - the relay refuses the key (keyRejected - the setup screen): every
+       held: copy is deleted (adbDropHeld(null));
+     - at each opening, day books (held:data/<date>.json) older than
+       HELD_KEEP_DAYS (60, as the calendar's KEEP_PAST_DAYS) go.
+   NOT on an ordinary lock: the first money screen after unlocking would then
+   read ~4 MB again, which is why the copies exist. */
+const HELD_KEEP_DAYS = 60;
+function adbDropHeld(olderThan){
+  return adb().then(db => db ? new Promise(res => {
+    let gone = 0;
+    try{
+      const tx = db.transaction('kv', 'readwrite');
+      const req = tx.objectStore('kv').openCursor();
+      req.onsuccess = () => {
+        const c = req.result;
+        if(!c){ return; }
+        const k = String(c.key || '');
+        let drop = false;
+        if(k.indexOf('held:') === 0){
+          if(!olderThan) drop = true;
+          else { const m = /^held:data\/(\d{4}-\d{2}-\d{2})\.json$/.exec(k); drop = !!m && m[1] < olderThan; }
+        }
+        if(drop){ try{ c.delete(); gone++; }catch(e){} }
+        c.continue();
+      };
+      tx.oncomplete = () => res(gone); tx.onerror = () => res(gone); tx.onabort = () => res(gone);
+    }catch(e){ res(gone); }
+  }) : 0).catch(() => 0);
+}
+function adbPruneHeld(){
+  const d = new Date(); d.setDate(d.getDate() - HELD_KEEP_DAYS);
+  const cut = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  return adbDropHeld(cut);
 }
 /* What to forget when a file turns out to have changed, so the screen does
    not redraw from a memo made out of the old one. */
@@ -8292,7 +8337,11 @@ async function loadPrescriptions(){
    screenshot. */
 /* The letter is already in the mark beside it — "Nexus A a2.0" said it
    twice. The number alone, and bumped for the loader repairs. */
-const ADMIN_VERSION = '5.10';
+/* 5.11 (16 Oct 2026, audit L19/L22/L23/L24): the phone's money copies are
+   deleted when the relay refuses this phone's key, and day books older than
+   60 days are pruned at each opening; "Link old X-rays" on an old relay says
+   "needs relay r4.28"; tidied. */
+const ADMIN_VERSION = '5.11';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -8616,12 +8665,7 @@ const STAFF_KEY = 'settings/' + STAFF_FILE;
 const STAFF_TICK_MS = 60 * 1000;         // re-asked every minute while the sheet is open
 const STAFF_STALE_MS = 30 * 60 * 1000;   // a board older than this is said to be old
 let staffTimer = null, staffBusy = false, staffSeq = 0;
-function staffTime(hhmm){
-  const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ''));
-  if(!m) return '—';
-  const h = Number(m[1]);
-  return (h % 12 || 12) + ':' + m[2] + ' ' + (h < 12 ? 'am' : 'pm');
-}
+/* staffTime() went (5.11, audit L24): unused since 5.05 drew times inline. */
 function staffClock(iso){
   const t = Date.parse(iso || '');
   if(!t) return '';
@@ -10192,6 +10236,7 @@ async function boot(){
     }
     doomed.forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
   }catch(e){}
+  adbPruneHeld();          // 5.11 (L19): day books older than 60 days, once per opening
   await Cal.hydrate();
   await Cal.bkLoad();
   try{ await Cal.photoLoad(); }catch(e){}
