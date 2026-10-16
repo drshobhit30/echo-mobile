@@ -10,7 +10,19 @@
 <link rel="manifest" href="files.webmanifest">
 <link rel="icon" href="icon-192.png">
 <title>Echo Files</title>
-<!-- ECHO FILES (5.12, 16 Oct 2026 - owner: "echo files, needs more security":
+<!-- ECHO FILES (5.13, 16 Oct 2026 - MY ATTENDANCE: with the clinic's switch on,
+     "My attendance" at the top of the list carries today's punch and the
+     streak, and opens the person's own months as the machine read them (in,
+     out, on time / late by how much, no punch, clinic closed) - nothing the
+     clinic decides in payroll, no money. Audit fixes to 5.12: the "replace
+     this phone's link?" question comes BEFORE the claim; an odd answer at the
+     claim keeps the link pending ("try again"); the code screen is not
+     repainted under a half-typed code; "Not now" keeps the phone's working
+     link; pages are kept through a re-claim; the internet-address lookup is
+     IPv4 only, a failure is remembered 60 s and never eats the request's
+     time; iPhone: the home-screen app has its own storage, so the link is
+     pasted into the app (a paste box) and the code entered there.
+     5.12 - owner: "echo files, needs more security":
      the link opens to a code screen - the 8-digit code Nexus made with the
      link, told in person; the first phone whose code is right OWNS the link
      (this phone's own random id goes with every request, relay r4.37), any
@@ -68,6 +80,24 @@
   .pv button{ position:absolute; top:2px; right:2px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(20,30,40,.75); color:#fff; font-size:13px; line-height:22px; padding:0; cursor:pointer; }
   .code{ width:100%; max-width:260px; font-size:28px; letter-spacing:6px; text-align:center; padding:10px; border:1.5px solid #cdd5dc; border-radius:12px; margin:14px auto 10px; display:block; font-family:inherit; }
   .go{ background:var(--teal); color:#fff; width:100%; max-width:260px; }
+  .notnow{ margin-top:10px; background:none; color:var(--mute); }
+  .paste{ width:100%; max-width:300px; font:inherit; font-size:13px; padding:10px; border:1.5px solid #cdd5dc; border-radius:12px; margin:14px auto 8px; display:block; }
+  .me{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px; background:#eef4f5; border-bottom:1px solid var(--line); cursor:pointer; }
+  .me b{ display:block; font-size:15px; color:var(--teal); }
+  .me small{ color:#33404c; font-size:12.5px; }
+  .me .late{ color:var(--bad); font-weight:600; } .me .ok{ color:#2F7A45; font-weight:600; } .me .st{ color:var(--warn); font-weight:600; }
+  .bar{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px; font-weight:600; border-bottom:1px solid var(--line); }
+  .bar button{ border:1px solid #cdd5dc; background:#fff; border-radius:8px; width:34px; height:30px; font-size:16px; }
+  .bar button[disabled]{ opacity:.35; }
+  .tiles{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:12px 14px; }
+  .tile{ background:#f3f6f8; border-radius:10px; padding:8px 4px; text-align:center; } .tile b{ display:block; font-size:19px; } .tile i{ font-style:normal; font-size:10.5px; color:var(--mute); } .tile.gold b{ color:#8A6A3E; }
+  table.att{ width:100%; border-collapse:collapse; font-size:13.5px; } .att td{ padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap; } .att td:first-child{ padding-left:16px; color:var(--mute); }
+  .att th{ font-size:10.5px; color:#8a95a0; text-align:left; padding:6px 8px; font-weight:600; } .att th:first-child{ padding-left:16px; }
+  .p{ display:inline-block; border-radius:14px; padding:2px 9px; font-size:11.5px; font-weight:600; white-space:nowrap; }
+  .p.ok{ background:#E4F2E7; color:#2F7A45; } .p.late{ background:#FDF0D8; color:#A8660F; } .p.half{ background:#FDE3D8; color:#B2481C; } .p.off{ background:#ECE9E5; color:#7D736A; } .p.ab{ background:#F8DCDC; color:#A52A2A; }
+  tr.today{ background:#fffbea; }
+  .rules{ font-style:normal; font-size:11.5px; color:#8a95a0; padding:12px 16px 20px; line-height:1.45; }
+  .hd .back{ display:block; color:#fff; opacity:.9; font-size:14px; margin-bottom:4px; cursor:pointer; }
   .send{ width:100%; background:var(--ok); color:#fff; font-size:16px; padding:15px; }
   .send[disabled]{ opacity:.45; }
   .cancel{ width:100%; background:none; color:var(--mute); margin-top:6px; }
@@ -83,12 +113,12 @@
 <input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.12';
+const FILES_VERSION = '5.13';
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
 const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const K_DEV = 'echoFiles_dev';      // 5.12: this phone's own id, made once, sent with every request
 const K_PEND = 'echoFiles_pending'; // 5.12: a link opened but not yet claimed with its code { relay, key }
-const IP_URLS = ['https://api.ipify.org?format=text', 'https://icanhazip.com'];
+const IP_URLS = ['https://api.ipify.org?format=text', 'https://ipv4.icanhazip.com'];   // 5.13: IPv4 only, as the reception PC
 const MAX_PAGES = 10, LONG_EDGE = 2400, PAGE_MAX_CHARS = 1400000;
 const TYPES = [['xray', 'X-ray / OPG'], ['cbct', 'CBCT'], ['lab-report', 'Lab report'], ['outside-rx', 'Outside Rx'], ['consent', 'Consent'], ['warranty', 'Warranty card'], ['other', 'Other']];
 const RELAY_URL_RE = /^https:\/\/script\.google\.com\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?macros\/(?:a\/[A-Za-z0-9.-]{1,80}\/)?s\/[A-Za-z0-9_-]{10,200}\/exec$/;
@@ -144,8 +174,8 @@ function noDot(t){ return String(t || '').trim().replace(/[.\s]+$/, ''); }
 function todayStr(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
 /* ---- the link ---------------------------------------------------------- */
-function takeLink(){
-  const h = String(location.hash || '').replace(/^#/, '');
+function takeLink(fromText){
+  const h = fromText != null ? String(fromText).replace(/^[\s\S]*?#/, '') : String(location.hash || '').replace(/^#/, '');
   if(!h) return '';
   let said = '';
   try{
@@ -161,8 +191,19 @@ function takeLink(){
     }
   }catch(e){}
   /* The key does not stay in the address bar. */
-  try{ history.replaceState(null, '', location.pathname); }catch(e){}
+  if(fromText == null) try{ history.replaceState(null, '', location.pathname); }catch(e){}
   return said;
+}
+/* 5.13: iPhone - a home-screen app keeps its own storage, so a link claimed
+   in Safari never reaches the icon. The app itself takes the pasted link. */
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const STANDALONE = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+function pasteLink(){
+  const el = document.getElementById('pasteIn');
+  const said = takeLink(String((el && el.value) || ''));
+  if(pending()){ load(); return; }
+  const m = document.getElementById('pasteMsg');
+  if(m) m.textContent = said || 'That is not an Echo Files link.';
 }
 const setUp = () => !!(lsGet(K_RELAY) && lsGet(K_KEY));
 function devId(){
@@ -179,15 +220,17 @@ function pending(){ try{ const o = JSON.parse(lsGet(K_PEND) || 'null'); return o
 let ipHeld = { ip: '', at: 0 };
 async function myIp(){
   if(ipHeld.ip && Date.now() - ipHeld.at < 5 * 60 * 1000) return ipHeld.ip;
+  if(!ipHeld.ip && ipHeld.at && Date.now() - ipHeld.at < 60 * 1000) return '';   // 5.13: a failed lookup is remembered a minute
   for(const u of IP_URLS){
     try{
       const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 5000);
       const r = await fetch(u, { cache: 'no-store', signal: ctl.signal });
       clearTimeout(tm);
       const ip = (await r.text()).trim();
-      if(/^(\d{1,3}\.){3}\d{1,3}$/.test(ip) || /^[0-9a-f:]{3,45}$/i.test(ip)){ ipHeld = { ip: ip, at: Date.now() }; return ip; }
+      if(/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)){ ipHeld = { ip: ip, at: Date.now() }; return ip; }
     }catch(e){}
   }
+  ipHeld = { ip: '', at: Date.now() };
   return '';
 }
 
@@ -202,10 +245,10 @@ function reqUrl(action, relay, key, ip){
   return u.toString();
 }
 async function call(action, body, ms, relay, key){
+  const ip = await myIp();                       // 5.13: before the clock starts
   const ctl = new AbortController();
   const timer = setTimeout(() => { try{ ctl.abort(); }catch(e){} }, ms || 25000);
   let text = '';
-  const ip = await myIp();
   try{
     const res = await fetch(reqUrl(action, relay, key, ip), body
       ? { method: 'POST', redirect: 'follow', cache: 'no-store', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), signal: ctl.signal }
@@ -226,17 +269,26 @@ function sentMap(){
 function sentAdd(pid, pages){ const o = sentMap(); o.n[pid] = (o.n[pid] || 0) + pages; lsSet(K_SENT, JSON.stringify(o)); }
 
 /* ---- 5.12: the code screen ------------------------------------------------ */
+let codeUp = false;
 function codeScreen(msg){
   const p = pending();
   if(!p) return;
+  if(codeUp && document.getElementById('codeIn')){ if(msg){ const x = document.getElementById('codeMsg'); if(x) x.textContent = msg; } return; }   // 5.13: never repainted under a half-typed code
+  sub('');
+  /* 5.13: iPhone in Safari - the code must be entered in the home-screen app, which has its own storage */
+  const iosNote = (IOS && !STANDALONE) ? '<small style="display:block;margin-top:10px;color:#b07a12;"><b>iPhone:</b> add this page to your Home Screen first (Share → Add to Home Screen), open Echo Files from there, paste your link and enter the code in the app. Entering it here would set up Safari instead.</small>' : '';
   main().innerHTML = '<div class="center"><div class="ic">🔐</div><p><b>Enter the code from the clinic</b></p>'
-    + '<small>The clinic tells you an 8-digit code with your link. Enter it once on this phone.</small>'
+    + '<small>The clinic tells you an 8-digit code with your link. Enter it once on this phone.</small>' + iosNote
     + '<input class="code" id="codeIn" inputmode="numeric" pattern="[0-9]*" maxlength="9" placeholder="0000 0000" autocomplete="one-time-code">'
     + '<button type="button" class="btn go" id="codeGo" onclick="claim()">Continue</button>'
+    + (setUp() ? '<button type="button" class="btn notnow" onclick="notNow()">Not now — keep my current link</button>' : '')
     + '<div class="msg" id="codeMsg">' + esc(msg || '') + '</div></div>';
+  codeUp = true;
   const el = document.getElementById('codeIn');
   if(el){ el.addEventListener('keydown', (e) => { if(e.key === 'Enter') claim(); }); setTimeout(() => el.focus(), 50); }
 }
+function notNow(){ lsSet(K_PEND, ''); load(); }
+let parked = null;   // 5.13: pages kept through a re-claim
 let claiming = false;
 async function claim(){
   const p = pending();
@@ -245,26 +297,32 @@ async function claim(){
   const code = String((el && el.value) || '').replace(/\D/g, '');
   const say = (m) => { const x = document.getElementById('codeMsg'); if(x) x.textContent = m; };
   if(code.length !== 8){ say('The code is 8 digits.'); return; }
+  /* 5.11 (audit L20) / 5.13 (audit): a phone already set up for someone ELSE asks BEFORE the claim - a claim is this phone's for good */
+  const had = lsGet(K_KEY), name = lsGet(K_WHO);
+  if(had && had !== p.key && lsGet(K_RELAY) && !confirm('This phone is already set up' + (name ? ' for ' + name : '') + '. Replace it with the link just opened?')){ lsSet(K_PEND, ''); load(); return; }
   claiming = true;
   const b = document.getElementById('codeGo'); if(b){ b.disabled = true; b.textContent = 'Checking…'; }
   const j = await call('staffClaim', { code: code, dev: devId(), ip: await myIp() }, 25000, p.relay, p.key);
   claiming = false;
-  if(b){ b.disabled = false; b.textContent = 'Continue'; }
+  const b2 = document.getElementById('codeGo'); if(b2){ b2.disabled = false; b2.textContent = 'Continue'; }
   if(j && j.ok){
-    /* 5.11 (audit L20): a phone already set up for someone ELSE asks before it is replaced */
-    const had = lsGet(K_KEY), name = lsGet(K_WHO);
-    if(had && had !== p.key && lsGet(K_RELAY) && !confirm('This phone is already set up' + (name ? ' for ' + name : '') + '. Replace it with ' + (j.name || 'this') + '’s link?')){ lsSet(K_PEND, ''); load(); return; }
-    lsSet(K_RELAY, p.relay); lsSet(K_KEY, p.key); lsSet(K_WHO, j.name || ''); lsSet(K_PEND, '');
+    if(had && had !== p.key) lsSet(K_WHO, '');
+    lsSet(K_RELAY, p.relay); lsSet(K_KEY, p.key); lsSet(K_WHO, j.name || lsGet(K_WHO) || ''); lsSet(K_PEND, '');
+    if(parked){ const pk = parked; parked = null; load().then(() => { cur = pk; paintSheet('Your pages are still here — tap Send.'); document.getElementById('dim').classList.add('open'); document.getElementById('sheet').classList.add('open'); }); return; }
     load();
     return;
   }
   const e = String((j && j.error) || '');
-  if(j && j.wrong){ say(e); if(el){ el.value = ''; el.focus(); } return; }
-  if(j && (j.retry || j.offline)){ say(e || 'Try again.'); return; }
+  const el2 = document.getElementById('codeIn');
+  if(j && j.wrong){ say(e); if(el2){ el2.value = ''; el2.focus(); } return; }
   if(j && j.other){ lsSet(K_PEND, ''); screen('⛔', 'This link is in use on another phone', 'Ask the clinic for a new link.', false); return; }
-  if(j && j.net){ say('Echo Files works only on the clinic’s internet. Connect to the clinic Wi-Fi and try again.'); return; }
-  lsSet(K_PEND, '');
-  screen('⛔', 'This link no longer works', esc(j && j.dead ? 'It is dead: ' + j.dead + '.' : 'Ask the clinic for a new link.') + '<br>Ask the clinic for a new link.', false);
+  if(j && j.net){ say(j.noip ? e : 'Echo Files works only on the clinic’s internet. Connect to the clinic Wi-Fi and try again.'); return; }
+  if(j && !j.retry && !j.offline && !j.locked && (e === 'bad key' || j.dead)){
+    lsSet(K_PEND, '');
+    screen('⛔', 'This link no longer works', (j.dead ? esc(j.dead) + '.<br>' : '') + 'Ask the clinic for a new link.', false);
+    return;
+  }
+  say(e && !/^bad key|not allowed$/.test(e) ? noDot(e) + '. Try again.' : 'Could not check the code — try again.');   // 5.13: anything else keeps the link pending
 }
 
 /* ---- screens ----------------------------------------------------------- */
@@ -272,15 +330,25 @@ let who = '', list = [], loading = false;
 const main = () => document.getElementById('main');
 function sub(t){ document.getElementById('hdSub').textContent = t || ' '; }
 function screen(icon, title, line, again){
+  codeUp = false;
   main().innerHTML = '<div class="center">' + (icon ? '<div class="ic">' + icon + '</div>' : '') + '<p><b>' + esc(title) + '</b></p>'
     + (line ? '<small>' + line + '</small>' : '')
     + (again ? '<button type="button" class="btn again" onclick="load()">Check again</button>' : '') + '</div>';
 }
 function dateLine(){ return new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }); }
 async function load(){
-  if(loading) return;
-  if(pending()){ sub(''); codeScreen(); return; }                   // 5.12: the code first
-  if(!setUp()){ sub(''); screen('🔗', 'Open your Echo Files link', 'Open the link the clinic sent you on this phone, then add it to the Home screen.'); return; }
+  if(loading || claiming) return;
+  if(pending()){ codeScreen(); return; }                             // 5.12: the code first
+  codeUp = false;
+  if(!setUp()){
+    sub('');
+    /* 5.13: the link can be PASTED - the only way into an iPhone home-screen app, and a fallback anywhere */
+    main().innerHTML = '<div class="center"><div class="ic">🔗</div><p><b>Open your Echo Files link</b></p>'
+      + '<small>' + (IOS ? 'Copy the link the clinic sent you on WhatsApp and paste it here.' : 'Open the link the clinic sent you on this phone, or paste it here.') + '</small>'
+      + '<input class="paste" id="pasteIn" placeholder="paste the link" autocomplete="off" autocapitalize="off">'
+      + '<button type="button" class="btn go" onclick="pasteLink()">Use this link</button><div class="msg" id="pasteMsg"></div></div>';
+    return;
+  }
   loading = true;
   const j = await call('filesToday');
   loading = false;
@@ -295,7 +363,7 @@ async function load(){
     /* 5.12: claimed by another phone - this phone's copy of the link is dropped; the code again if the relay lost the claim; off the clinic's internet */
     if(j && j.other){ lsSet(K_KEY, ''); return screen('⛔', 'This link is in use on another phone', 'Ask the clinic for a new link.', false); }
     if(j && j.claim){ lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); return codeScreen(); }
-    if(j && j.net) return screen('📶', 'Clinic internet only', 'Echo Files works only on the clinic’s Wi-Fi, not on mobile data or elsewhere.', true);
+    if(j && j.net) return screen('📶', j.noip ? 'Could not find this phone’s address' : 'Clinic internet only', j.noip ? esc(e) : 'Echo Files works only on the clinic’s Wi-Fi, not on mobile data or elsewhere.', true);
     /* 5.11 (audit M5): "try again" from the relay (its staff list could not
        be read just now) is the retryable screen, never the revoked one.
        (audit L21): a relay older than r4.35 also says "bad key" - so the
@@ -304,13 +372,65 @@ async function load(){
     return screen('⚠️', 'Could not open', esc(e || 'Try again.'), true);
   }
   list = Array.isArray(j.list) ? j.list : [];
+  mine = j.mine || null;                                             // 5.13: today's line and the streak, when the clinic's switch is on
+  mineAt = j.mine && j.mine.at ? j.mine.at : '';
   sub(who + ' · ' + dateLine() + ' · ' + list.length + ' in');
   paintList();
 }
+/* ---- 5.13: MY ATTENDANCE --------------------------------------------------
+   As the machine read it, nothing the clinic decides: in, out, on time / late
+   by how much, no punch, clinic closed (the month's holidays), present and
+   late counts, the streak. Their own only. */
+let mine = null, mineAt = '', mineData = null, mineMk = '';
+function hm(t){ const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? String(Number(m[1])) + ':' + m[2] : ''; }
+function lateWords(min){ min = Number(min) || 0; const h = Math.floor(min / 60), m = min % 60; return (h ? h + ' h' : '') + (h && m ? ' ' : '') + (m || !h ? m + ' min' : ''); }
+function readAt(iso){ if(!iso) return ''; try{ return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).replace(/\s?(am|pm)/i, ' $1'); }catch(e){ return ''; } }
+function mineLineHtml(){
+  if(!mine) return '';
+  const td = mine.today;
+  let line;
+  if(td && td.in) line = 'Punched in <b style="display:inline;color:#1d2733">' + esc(hm(td.in)) + '</b>' + (td.out ? ' · out ' + esc(hm(td.out)) : '') + ' · ' + (td.late ? '<span class="late">Late · ' + esc(lateWords(td.late)) + '</span>' : '<span class="ok">On time</span>');
+  else line = '<span class="late">No punch yet today</span>' + (mineAt ? ' · read ' + esc(readAt(mineAt)) : '');
+  if(mine.streak > 1) line += ' · <span class="st">★ ' + mine.streak + ' days on time</span>';
+  return '<div class="me" onclick="mineOpen()"><div><b>📅 My attendance</b><small>' + line + '</small></div><span class="ch">›</span></div>';
+}
+async function mineOpen(mk){
+  sub(who);
+  if(!mineData){
+    main().innerHTML = '<div class="center"><small>Loading…</small></div>';
+    const j = await call('myAttendance');
+    if(!j || !j.ok){ screen('⚠️', 'Could not open', esc((j && j.error) || 'Try again.'), false); main().insertAdjacentHTML('beforeend', '<div class="ft"><a href="#" onclick="event.preventDefault();mineBack()">Back</a></div>'); return; }
+    if(j.off){ mine = null; paintList(); return; }
+    mineData = j.mine;
+  }
+  const months = Object.keys(mineData.months || {}).sort();
+  if(!months.length){ screen('', 'Nothing recorded yet', '', false); return; }
+  mineMk = mk && months.indexOf(mk) !== -1 ? mk : months[months.length - 1];
+  const i = months.indexOf(mineMk), m = mineData.months[mineMk];
+  const [yy, mm] = mineMk.split('-').map(Number);
+  const MON = ['January','February','March','April','May','June','July','August','September','October','November','December'], DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const todayD = Number(todayStr().slice(8, 10)), todayMk = todayStr().slice(0, 7);
+  const rows = (m.rows || []).slice().reverse().map(r => {
+    const isToday = mineMk === todayMk && r.d === todayD;
+    let pill;
+    if(r.in) pill = r.late ? '<span class="p ' + (r.late > 60 ? 'half' : 'late') + '">Late · ' + esc(lateWords(r.late)) + '</span>' : '<span class="p ok">On time</span>';
+    else if(r.closed) pill = '<span class="p off">Clinic closed</span>';
+    else pill = '<span class="p ab">No punch</span>';
+    return '<tr' + (isToday ? ' class="today"' : '') + '><td>' + (isToday ? '<b>' : '') + DOW[new Date(yy, mm - 1, r.d).getDay()] + ' ' + r.d + (isToday ? '</b>' : '') + '</td>'
+      + '<td>' + (r.in ? esc(hm(r.in)) : '—') + '</td><td>' + (r.out ? esc(hm(r.out)) : (r.in && isToday ? '<span style="color:#8a95a0">in</span>' : '—')) + '</td><td>' + pill + '</td></tr>';
+  }).join('');
+  main().innerHTML = '<div class="bar"><button type="button"' + (i > 0 ? ' onclick="mineOpen(\'' + months[i - 1] + '\')"' : ' disabled') + '>‹</button><span>' + MON[mm - 1] + ' ' + yy + '</span><button type="button"' + (i < months.length - 1 ? ' onclick="mineOpen(\'' + months[i + 1] + '\')"' : ' disabled') + '>›</button></div>'
+    + '<div class="tiles"><div class="tile"><b>' + (m.present || 0) + '</b><i>days present</i></div><div class="tile"><b>' + (m.late || 0) + '</b><i>late</i></div><div class="tile gold"><b>★ ' + (mineData.streak || 0) + '</b><i>days on time</i></div></div>'
+    + '<table class="att"><thead><tr><th>DAY</th><th>IN</th><th>OUT</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
+    + '<div class="rules">As the attendance machine read it' + (mineData.at ? ', ' + esc(readAt(mineData.at)) : '') + '. Shift ' + esc(mineData.shift || '10:00') + '; in more than 15 minutes after that counts as late. The streak counts days on time in a row; a day with no punch is skipped, a late day ends it.</div>'
+    + '<div class="ft"><a href="#" onclick="event.preventDefault();mineBack()">‹ Back to today’s patients</a></div>';
+  window.scrollTo(0, 0);
+}
+function mineBack(){ mineData = null; load(); }
 function paintList(){
   const sent = sentMap().n;
-  if(!list.length){ screen('', 'Nobody marked in yet', 'Patients appear here once reception marks them in.', true); return; }
-  main().innerHTML = list.map((p, i) => '<div class="row" onclick="sheetOpen(' + i + ')"><span>' + esc(p.name) + '<i>(' + esc(p.pid) + ')</i></span>'
+  if(!list.length){ screen('', 'Nobody marked in yet', 'Patients appear here once reception marks them in.', true); main().insertAdjacentHTML('afterbegin', mineLineHtml()); return; }
+  main().innerHTML = mineLineHtml() + list.map((p, i) => '<div class="row" onclick="sheetOpen(' + i + ')"><span>' + esc(p.name) + '<i>(' + esc(p.pid) + ')</i></span>'
       + (sent[p.pid] ? '<span class="w">' + sent[p.pid] + ' sent · waiting</span>' : '<span class="ch">›</span>') + '</div>').join('')
     + '<div class="ft">Marked in today · names and IDs only · everything is checked before it is filed</div>';
 }
@@ -424,12 +544,12 @@ async function send(){
       return;
     }
     if(j && j.other){ sheetClose(true); lsSet(K_KEY, ''); screen('⛔', 'Not sent — this link is in use on another phone', 'Ask the clinic for a new link.', false); return; }
-    if(j && j.claim){ sheetClose(true); lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); codeScreen('Not sent — enter the code first.'); return; }
+    if(j && j.claim){ parked = cur; sheetClose(true); lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); codeScreen('Not sent yet — enter the code first; your pages are kept.'); return; }
     if(b){ b.disabled = false; b.textContent = 'Send'; }
     let line;
     if(j && /first try is still being saved/.test(String(j.error || ''))) line = 'Still being saved by the clinic — wait a minute, then tap Send once more (nothing is sent twice).';
     else if(j && (j.locked || j.retry)) line = 'Not sent — ' + why + '. Your pages are still here.';
-    else if(j && j.net) line = 'Not sent — Echo Files works only on the clinic’s internet. Your pages are still here; connect to the clinic Wi-Fi and tap Send.';
+    else if(j && j.net) line = j.noip ? 'Not sent — ' + why + '. Your pages are still here.' : 'Not sent — Echo Files works only on the clinic’s internet. Your pages are still here; connect to the clinic Wi-Fi and tap Send.';
     else if(j && (j.final || /the most one phone may send/.test(String(j.error || '')))) line = 'Not sent — ' + why + '.';   // 5.11 (L22): final - tapping cannot help
     else line = 'Not sent — ' + why + '. Tap Send to try again.';
     const el = document.getElementById('sheetMsg');
@@ -449,8 +569,8 @@ async function send(){
 const linkSaid = takeLink();
 if(linkSaid && !setUp() && !pending()) screen('⛔', 'Not the clinic’s link', esc(linkSaid), false);
 else load();
-document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !cur) load(); });
-setInterval(() => { if(document.visibilityState === 'visible' && !cur && !sending) load(); }, 60000);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !cur && !pending() && !claiming && !mineData) load(); });
+setInterval(() => { if(document.visibilityState === 'visible' && !cur && !sending && !pending() && !claiming && !mineData) load(); }, 60000);
 if('serviceWorker' in navigator){ window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); }); }
 </script>
 </body>
