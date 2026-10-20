@@ -3,14 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f5c63">
+<meta name="theme-color" content="#8A5F26">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Echo Files">
 <meta name="robots" content="noindex">
 <link rel="manifest" href="files.webmanifest">
 <link rel="icon" href="icon-192.png">
 <title>Echo Files</title>
-<!-- ECHO FILES (5.15, 19 Oct 2026 - DAY OFF: one full day asked for in this app, from tomorrow up to 30 days ahead; the clinic decides, and this screen shows what was asked and what came of it; a taken day shows with no name; a cancel is only for a waiting ask. 5.14, 16 Oct 2026 - the owner's first real use: the internet
+<!-- ECHO FILES (5.16, 20 Oct 2026 - REDESIGN: photo capture first; attendance and leave from the fingerprint button on Home (bottom right); the patient record feature dropped; Nexus palette; dates DD-Month; the back button works (each page is a history step); the narration removed.
+     5.15, 19 Oct 2026 - DAY OFF: one full day asked for in this app, from tomorrow up to 30 days ahead; the clinic decides, and this screen shows what was asked and what came of it; a taken day shows with no name; a cancel is only for a waiting ask. 5.14, 16 Oct 2026 - the owner's first real use: the internet
      address is looked up FRESH for every request (5.13 held it 5 minutes, so
      a phone that left the guest Wi-Fi for mobile data still sent, and Check
      again after joining the Wi-Fi still said "clinic internet only"); a
@@ -48,11 +49,11 @@
      photo waits for the doctor's check on the Mac before it is filed.
      Nothing sent is kept on the phone, and nothing comes back to it. -->
 <style>
-  :root{ --teal:#0f5c63; --ink:#1d2733; --mute:#7a8692; --line:#edf0f2; --ok:#1c8a4b; --warn:#b07a12; --bad:#b5521b; }
+  :root{ --teal:#8A5F26; --ink:#2E2419; --mute:#8a7a63; --line:#E7DCC5; --ok:#3E7D5A; --warn:#AF7933; --bad:#B14A3D; --cream:#FBF7EF; --gold:#AF7933; --gold-pale:#F3E6CE; --brown:#4A3B28; }
   *{ box-sizing:border-box; }
-  html, body{ margin:0; height:100%; background:#fff; color:var(--ink); font-family:-apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-text-size-adjust:100%; }
+  html, body{ margin:0; height:100%; background:var(--cream); color:var(--ink); font-family:-apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-text-size-adjust:100%; }
   body{ display:flex; flex-direction:column; min-height:100%; }
-  .hd{ background:var(--teal); color:#fff; padding:calc(16px + env(safe-area-inset-top, 0px)) 18px 13px; }
+  .hd{ background:linear-gradient(135deg,#8A5F26,#AF7933); color:#fff; padding:calc(16px + env(safe-area-inset-top, 0px)) 18px 13px; }
   .hd b{ display:block; font-size:18px; }
   .hd span{ font-size:13px; opacity:.85; }
   main{ flex:1; display:flex; flex-direction:column; }
@@ -61,13 +62,13 @@
   .center p{ margin:4px 0; font-size:15px; }
   .center small{ color:var(--mute); font-size:13px; line-height:1.4; }
   .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:15px 18px; border-bottom:1px solid var(--line); font-size:16px; cursor:pointer; }
-  .row:active{ background:#f5f8f9; }
+  .row:active{ background:#F7F0E3; }
   .row i{ font-style:normal; color:var(--mute); font-size:14px; margin-left:4px; }
-  .row .ch{ color:#b6bec6; font-size:20px; }
+  .row .ch{ color:#D7B47B; font-size:20px; }
   .row .w{ color:var(--warn); font-size:12.5px; font-weight:600; white-space:nowrap; }
-  .ft{ font-size:12px; color:#8a95a0; text-align:center; padding:12px 14px calc(16px + env(safe-area-inset-bottom, 0px)); margin-top:auto; }
+  .ft{ font-size:12px; color:#8a7a63; text-align:center; padding:12px 14px calc(16px + env(safe-area-inset-bottom, 0px)); margin-top:auto; }
   .btn{ border:0; border-radius:12px; padding:13px 16px; font:inherit; font-size:15px; font-weight:600; cursor:pointer; }
-  .again{ margin-top:16px; background:#eef4f5; color:var(--teal); }
+  .again{ margin-top:16px; background:#F3E6CE; color:var(--teal); }
   .dim{ position:fixed; inset:0; background:rgba(15,25,35,.45); display:none; z-index:10; }
   .dim.open{ display:block; }
   .sh{ position:fixed; left:0; right:0; bottom:0; background:#fff; border-radius:20px 20px 0 0; padding:18px 18px calc(18px + env(safe-area-inset-bottom, 0px)); z-index:11; display:none; max-height:92vh; overflow:auto; }
@@ -75,52 +76,62 @@
   .sh h3{ margin:0 0 2px; font-size:17px; }
   .sh .sub{ font-size:13px; color:var(--mute); margin-bottom:14px; }
   .chips{ display:flex; flex-wrap:wrap; gap:7px; margin-bottom:14px; }
-  .chip{ border:1px solid #cdd5dc; border-radius:16px; padding:7px 12px; font:inherit; font-size:13px; color:#33404c; background:#fff; cursor:pointer; }
+  .chip{ border:1px solid #E7DCC5; border-radius:16px; padding:7px 12px; font:inherit; font-size:13px; color:#4A3B28; background:#fff; cursor:pointer; }
   .chip.on{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .big{ display:flex; gap:10px; margin-bottom:12px; }
-  .big button{ flex:1; border:1.5px dashed #9fb3bd; border-radius:12px; padding:15px 6px; background:#fff; font:inherit; font-size:15px; color:var(--teal); font-weight:600; cursor:pointer; }
-  .pages{ font-size:13px; color:#33404c; background:#f3f6f8; border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+  .big button{ flex:1; border:1.5px dashed #D7B47B; border-radius:12px; padding:15px 6px; background:#fff; font:inherit; font-size:15px; color:var(--teal); font-weight:600; cursor:pointer; }
+  .pages{ font-size:13px; color:#4A3B28; background:#F7F0E3; border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
   .pages button{ border:0; background:none; color:var(--bad); font:inherit; font-size:13px; cursor:pointer; }
   .pv{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
   .pv div{ position:relative; width:72px; height:72px; border-radius:8px; overflow:hidden; background:#eef1f3; }
   .pv img{ width:100%; height:100%; object-fit:cover; display:block; }
   .pv button{ position:absolute; top:2px; right:2px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(20,30,40,.75); color:#fff; font-size:13px; line-height:22px; padding:0; cursor:pointer; }
-  .code{ width:100%; max-width:260px; font-size:28px; letter-spacing:6px; text-align:center; padding:10px; border:1.5px solid #cdd5dc; border-radius:12px; margin:14px auto 10px; display:block; font-family:inherit; }
+  .code{ width:100%; max-width:260px; font-size:28px; letter-spacing:6px; text-align:center; padding:10px; border:1.5px solid #E7DCC5; border-radius:12px; margin:14px auto 10px; display:block; font-family:inherit; }
   .go{ background:var(--teal); color:#fff; width:100%; max-width:260px; }
   .notnow{ margin-top:10px; background:none; color:var(--mute); }
-  .paste{ width:100%; max-width:300px; font:inherit; font-size:13px; padding:10px; border:1.5px solid #cdd5dc; border-radius:12px; margin:14px auto 8px; display:block; }
-  .me{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px; background:#eef4f5; border-bottom:1px solid var(--line); cursor:pointer; }
-  .me b{ display:block; font-size:15px; color:var(--teal); }
-  .me small{ color:#33404c; font-size:12.5px; }
-  .me .late{ color:var(--bad); font-weight:600; } .me .ok{ color:#2F7A45; font-weight:600; } .me .st{ color:var(--warn); font-weight:600; }
+  .paste{ width:100%; max-width:300px; font:inherit; font-size:13px; padding:10px; border:1.5px solid #E7DCC5; border-radius:12px; margin:14px auto 8px; display:block; }
   .bar{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px; font-weight:600; border-bottom:1px solid var(--line); }
-  .bar button{ border:1px solid #cdd5dc; background:#fff; border-radius:8px; width:34px; height:30px; font-size:16px; }
+  .bar button{ border:1px solid #E7DCC5; background:#fff; border-radius:8px; width:34px; height:30px; font-size:16px; }
   .bar button[disabled]{ opacity:.35; }
   .tiles{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:12px 14px; }
-  .tile{ background:#f3f6f8; border-radius:10px; padding:8px 4px; text-align:center; } .tile b{ display:block; font-size:19px; } .tile i{ font-style:normal; font-size:10.5px; color:var(--mute); } .tile.gold b{ color:#8A6A3E; }
+  .tile{ background:#F7F0E3; border-radius:10px; padding:8px 4px; text-align:center; } .tile b{ display:block; font-size:19px; } .tile i{ font-style:normal; font-size:10.5px; color:var(--mute); } .tile.gold b{ color:#8A5F26; }
   table.att{ width:100%; border-collapse:collapse; font-size:13.5px; } .att td{ padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap; } .att td:first-child{ padding-left:16px; color:var(--mute); }
-  .att th{ font-size:10.5px; color:#8a95a0; text-align:left; padding:6px 8px; font-weight:600; } .att th:first-child{ padding-left:16px; }
+  .att th{ font-size:10.5px; color:#8a7a63; text-align:left; padding:6px 8px; font-weight:600; } .att th:first-child{ padding-left:16px; }
   .p{ display:inline-block; border-radius:14px; padding:2px 9px; font-size:11.5px; font-weight:600; white-space:nowrap; }
-  .p.ok{ background:#E4F2E7; color:#2F7A45; } .p.late{ background:#FDF0D8; color:#A8660F; } .p.half{ background:#FDE3D8; color:#B2481C; } .p.off{ background:#ECE9E5; color:#7D736A; } .p.ab{ background:#F8DCDC; color:#A52A2A; }
-  tr.today{ background:#fffbea; }
-  .rules{ font-style:normal; font-size:11.5px; color:#8a95a0; padding:12px 16px 20px; line-height:1.45; }
+  .p.ok{ background:#E9F3EC; color:#3E7D5A; } .p.late{ background:#F3E6CE; color:#8A5F26; } .p.half{ background:#F7E2D8; color:#A0453E; } .p.off{ background:#ECE9E5; color:#8a7a63; } .p.ab{ background:#F7E0DC; color:#A0453E; }
+  tr.today{ background:#FBF3DF; }
+  .rules{ font-style:normal; font-size:11.5px; color:#8a7a63; padding:12px 16px 20px; line-height:1.45; }
   .hd .back{ display:block; color:#fff; opacity:.9; font-size:14px; margin-bottom:4px; cursor:pointer; }
-  .send{ width:100%; background:var(--ok); color:#fff; font-size:16px; padding:15px; }
+  .send{ width:100%; background:linear-gradient(135deg,#8A5F26,#AF7933); color:#fff; font-size:16px; padding:15px; }
   .send[disabled]{ opacity:.45; }
   .cancel{ width:100%; background:none; color:var(--mute); margin-top:6px; }
   .msg{ font-size:13px; color:var(--bad); min-height:18px; margin:8px 0 0; text-align:center; }
-  .tick{ width:74px; height:74px; border-radius:50%; background:#fdf3df; color:var(--warn); font-size:40px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .tick{ width:74px; height:74px; border-radius:50%; background:#F3E6CE; color:var(--warn); font-size:40px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .fab{ position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom, 0px)); width:60px; height:60px; border-radius:50%; border:0; background:linear-gradient(135deg,#8A5F26,#AF7933); color:#fff; box-shadow:0 10px 24px rgba(138,95,38,.35); display:flex; align-items:center; justify-content:center; z-index:9; cursor:pointer; }
+  .fab svg{ width:30px; height:30px; }
+  .label{ padding:16px 18px 6px; font-size:11.5px; letter-spacing:1.2px; text-transform:uppercase; color:var(--teal); font-weight:700; }
+  .sect{ padding:16px 18px 6px; font-size:11.5px; letter-spacing:1.2px; text-transform:uppercase; color:var(--teal); font-weight:700; }
+  .av{ width:38px; height:38px; border-radius:50%; background:#F3E6CE; color:#8A5F26; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex:none; }
+  .prow{ display:flex; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid var(--line); cursor:pointer; font-size:16px; }
+  .prow:active{ background:#F7F0E3; }
+  .prow .nm{ flex:1; min-width:0; } .prow .nm i{ font-style:normal; color:var(--mute); font-size:13px; margin-left:6px; }
+  .prow .ch{ color:#D7B47B; font-size:20px; }
+  .fld{ display:block; width:100%; font:inherit; font-size:15px; padding:12px 13px; border:1.5px solid var(--line); border-radius:12px; background:#fff; color:var(--ink); margin-top:6px; }
+  .flbl{ display:block; font-size:12px; color:var(--mute); margin-top:14px; }
+  .formwrap{ padding:6px 18px 18px; }
+  .day-when{ font-size:13px; color:var(--brown); margin-top:6px; min-height:16px; }
 </style>
 </head>
 <body>
 <div class="hd"><b>Echo Files</b><span id="hdSub">&nbsp;</span></div>
 <main id="main"><div class="center"><small>Opening&hellip;</small></div></main>
+<button type="button" class="fab" id="fab" aria-label="Attendance and leave" title="Attendance and leave" onclick="navPush(attendanceOpen)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11a2 2 0 0 0-2 2c0 2.5-.5 5-1.5 7"/><path d="M12 11a2 2 0 0 1 2 2c0 3-.4 5.6-1.2 8"/><path d="M8.5 9.5a5 5 0 0 1 8.5 3.5c0 2.3-.3 4.5-.8 6.5"/><path d="M6.8 12.5a5 5 0 0 1 .2-1.5"/><path d="M5.5 7.5A8 8 0 0 1 18.5 7.5"/><path d="M4.3 11.3A8 8 0 0 1 4.5 9.9"/><path d="M19.6 10.5a8 8 0 0 1 .4 2.5c0 1.8-.2 3.5-.5 5.2"/><path d="M7 14.5c0 2.2-.4 4.3-1.2 6"/><path d="M3.5 15.5c.1 1.5-.1 3-.5 4.5"/></svg></button>
 <div class="dim" id="dim" onclick="sheetClose()"></div>
 <div class="sh" id="sheet"></div>
 <input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.15';
+const FILES_VERSION = '5.16';
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
 const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const K_DEV = 'echoFiles_dev';      // 5.12: this phone's own id, made once, sent with every request
@@ -336,10 +347,25 @@ async function claim(){
 
 /* ---- screens ----------------------------------------------------------- */
 let who = '', list = [], loading = false;
+/* 5.16: BACK WORKS. Each page opened from another page is a step in the phone's history, so the back
+   gesture and the ‹ button both go to the page before; a photo sheet closes first. */
+let navStack = [], sheetPushed = false, flashMsg = '';
+function navPush(fn){ history.pushState({ echo: navStack.length + 1 }, ''); navStack.push(fn); fn(); }
+function navBack(){ if(navStack.length) history.back(); else load(); }
+window.addEventListener('popstate', () => {
+  if(sheetPushed){ closeSheetUI(); return; }
+  if(!navStack.length) return;
+  navStack.pop();
+  const top = navStack[navStack.length - 1];
+  const m = flashMsg; flashMsg = '';
+  if(top) top(m); else load();
+});
+function fabShow(on){ const f = document.getElementById('fab'); if(f) f.style.display = on ? 'flex' : 'none'; }
 const main = () => document.getElementById('main');
 function sub(t){ document.getElementById('hdSub').textContent = t || ' '; }
 function screen(icon, title, line, again){
   codeUp = false;
+  fabShow(false);
   main().innerHTML = '<div class="center">' + (icon ? '<div class="ic">' + icon + '</div>' : '') + '<p><b>' + esc(title) + '</b></p>'
     + (line ? '<small>' + line + '</small>' : '')
     + (again ? '<button type="button" class="btn again" onclick="load()">Check again</button>' : '') + '</div>';
@@ -347,6 +373,7 @@ function screen(icon, title, line, again){
 function dateLine(){ return new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }); }
 async function load(){
   if(loading || claiming) return;
+  navStack = [];
   if(pending()){ codeScreen(); return; }                             // 5.12: the code first
   codeUp = false;
   if(!setUp()){
@@ -381,43 +408,26 @@ async function load(){
     return screen('⚠️', 'Could not open', esc(e || 'Try again.'), true);
   }
   list = Array.isArray(j.list) ? j.list : [];
-  mine = j.mine || null;                                             // 5.13: today's line and the streak, when the clinic's switch is on
-  mineAt = j.mine && j.mine.at ? j.mine.at : '';
   sub(who + ' · ' + dateLine() + ' · ' + list.length + ' in');
   paintList();
 }
-/* ---- 5.13: MY ATTENDANCE --------------------------------------------------
-   As the machine read it, nothing the clinic decides: in, out, on time / late
-   by how much, no punch, clinic closed (the month's holidays), present and
-   late counts, the streak. Their own only. */
-let mine = null, mineAt = '', mineData = null, mineMk = '';
+/* ---- 5.16: ATTENDANCE AND LEAVE (the fingerprint on Home) -----------------
+   As the attendance machine read it (in, out, on time / late by how much, no
+   punch, clinic closed) and this person's own leave requests. Their own only. */
+let mineData = null, mineMk = '', leaveTaken = new Set(), leaveRange = ['', ''];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function hm(t){ const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? String(Number(m[1])) + ':' + m[2] : ''; }
 function lateWords(min){ min = Number(min) || 0; const h = Math.floor(min / 60), m = min % 60; return (h ? h + ' h' : '') + (h && m ? ' ' : '') + (m || !h ? m + ' min' : ''); }
-function readAt(iso){ if(!iso) return ''; try{ return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).replace(/\s?(am|pm)/i, ' $1'); }catch(e){ return ''; } }
-function mineLineHtml(){
-  if(!mine) return '';
-  const td = mine.today;
-  let line;
-  if(td && td.in) line = 'Punched in <b style="display:inline;color:#1d2733">' + esc(hm(td.in)) + '</b>' + (td.out ? ' · out ' + esc(hm(td.out)) : '') + ' · ' + (td.late ? '<span class="late">Late · ' + esc(lateWords(td.late)) + '</span>' : '<span class="ok">On time</span>');
-  else line = '<span class="late">No punch yet today</span>' + (mineAt ? ' · read ' + esc(readAt(mineAt)) : '');
-  if(mine.streak > 1) line += ' · <span class="st">★ ' + mine.streak + ' days on time</span>';
-  return '<div class="me" onclick="mineOpen()"><div><b>📅 My attendance</b><small>' + line + '</small></div><span class="ch">›</span></div>';
-}
-async function mineOpen(mk){
-  sub(who);
-  if(!mineData){
-    main().innerHTML = '<div class="center"><small>Loading…</small></div>';
-    const j = await call('myAttendance');
-    if(!j || !j.ok){ screen('⚠️', 'Could not open', esc((j && j.error) || 'Try again.'), false); main().insertAdjacentHTML('beforeend', '<div class="ft"><a href="#" onclick="event.preventDefault();mineBack()">Back</a></div>'); return; }
-    if(j.off){ mine = null; paintList(); return; }
-    mineData = j.mine;
-  }
-  const months = Object.keys(mineData.months || {}).sort();
-  if(!months.length){ screen('', 'Nothing recorded yet', '', false); return; }
+/* 5.16: dates read DD-Month, as the owner asked (21-October) */
+function fmtDay(ymd){ const p = String(ymd || '').split('-'); return p.length === 3 ? p[2] + '-' + MONTHS[Number(p[1]) - 1] : String(ymd || ''); }
+function echoInitials(n){ const w = String(n || '').trim().split(/\s+/).filter(Boolean); return ((w[0] || '')[0] || '') + ((w.length > 1 ? w[w.length - 1] : '')[0] || ''); }
+function monthHtml(mk){
+  const months = Object.keys((mineData && mineData.months) || {}).sort();
+  if(!months.length) return '<div class="center" style="padding:14px;"><small>Nothing recorded yet.</small></div>';
   mineMk = mk && months.indexOf(mk) !== -1 ? mk : months[months.length - 1];
   const i = months.indexOf(mineMk), m = mineData.months[mineMk];
-  const [yy, mm] = mineMk.split('-').map(Number);
-  const MON = ['January','February','March','April','May','June','July','August','September','October','November','December'], DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const yy = Number(mineMk.slice(0, 4)), mm = Number(mineMk.slice(5, 7));
   const todayD = Number(todayStr().slice(8, 10)), todayMk = todayStr().slice(0, 7);
   const rows = (m.rows || []).slice().reverse().map(r => {
     const isToday = mineMk === todayMk && r.d === todayD;
@@ -426,36 +436,63 @@ async function mineOpen(mk){
     else if(r.closed) pill = '<span class="p off">Clinic closed</span>';
     else pill = '<span class="p ab">No punch</span>';
     return '<tr' + (isToday ? ' class="today"' : '') + '><td>' + (isToday ? '<b>' : '') + DOW[new Date(yy, mm - 1, r.d).getDay()] + ' ' + r.d + (isToday ? '</b>' : '') + '</td>'
-      + '<td>' + (r.in ? esc(hm(r.in)) : '—') + '</td><td>' + (r.out ? esc(hm(r.out)) : (r.in && isToday ? '<span style="color:#8a95a0">in</span>' : '—')) + '</td><td>' + pill + '</td></tr>';
+      + '<td>' + (r.in ? esc(hm(r.in)) : '—') + '</td><td>' + (r.out ? esc(hm(r.out)) : (r.in && isToday ? '<span style="color:#8a7a63">in</span>' : '—')) + '</td><td>' + pill + '</td></tr>';
   }).join('');
-  /* 5.14 (owner): the current month only - no arrows when there is nothing else */
-  const arrows = months.length > 1;
-  main().innerHTML = '<div class="bar">' + (arrows ? '<button type="button"' + (i > 0 ? ' onclick="mineOpen(\'' + months[i - 1] + '\')"' : ' disabled') + '>‹</button>' : '<span></span>') + '<span>' + MON[mm - 1] + ' ' + yy + '</span>' + (arrows ? '<button type="button"' + (i < months.length - 1 ? ' onclick="mineOpen(\'' + months[i + 1] + '\')"' : ' disabled') + '>›</button>' : '<span></span>') + '</div>'
+  const prev = i > 0 ? months[i - 1] : '', next = i < months.length - 1 ? months[i + 1] : '';
+  return '<div class="bar"><button type="button"' + (prev ? ' onclick="attendanceOpen(\'' + prev + '\')"' : ' disabled') + '>‹</button><span>' + MONTHS[mm - 1] + ' ' + yy + '</span><button type="button"' + (next ? ' onclick="attendanceOpen(\'' + next + '\')"' : ' disabled') + '>›</button></div>'
     + '<div class="tiles"><div class="tile"><b>' + (m.present || 0) + '</b><i>days present</i></div><div class="tile"><b>' + Math.max(0, (m.present || 0) - (m.late || 0)) + '</b><i>on time</i></div><div class="tile"><b>' + (m.late || 0) + '</b><i>late</i></div></div>'
-    + '<table class="att"><thead><tr><th>DAY</th><th>IN</th><th>OUT</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
-    + '<div class="rules">As the attendance machine read it' + (mineData.at ? ', ' + esc(readAt(mineData.at)) : '') + '. Shift ' + esc(mineData.shift || '10:00') + '; in more than 15 minutes after that counts as late.</div>'
-    + '<div class="ft"><a href="#" onclick="event.preventDefault();mineBack()">‹ Back to today’s patients</a></div>';
+    + '<table class="att"><thead><tr><th>DAY</th><th>IN</th><th>OUT</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+function requestsHtml(rows){
+  const sorted = (rows || []).slice().sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+  if(!sorted.length) return '<div class="center" style="padding:14px;"><small>No requests yet.</small></div>';
+  return sorted.map(r => {
+    const st = LEAVE_STATUS[r.status] || ['', esc(r.status), '#8a7a63'];
+    const why = (r.status === 'notaccepted' && r.note) ? '<div style="font-size:12px;color:#8a7a63;margin-top:2px;">' + esc(String(r.note).replace(/^Not accepted: /, '')) + '</div>' : '';
+    return '<div class="row" style="cursor:default;"><span><b>' + esc(fmtDay(r.date)) + '</b>' + (r.reason ? ' <i>' + esc(r.reason) + '</i>' : '') + why + '</span>'
+      + '<span style="text-align:right;font-size:12.5px;font-weight:600;color:' + st[2] + ';white-space:nowrap;max-width:45%;">' + esc(st[1])
+      + (r.status === 'pending' ? '<br><button type="button" class="btn" style="margin-top:6px;padding:6px 10px;font-size:12.5px;background:#F7F0E3;color:#4A3B28;" onclick="leaveCancelTap(\'' + esc(r.id) + '\')">Cancel</button>' : '')
+      + '</span></div>';
+  }).join('');
+}
+async function attendanceOpen(mk, msg){
+  fabShow(false);
+  sub(who);
+  main().innerHTML = '<div class="bar"><button type="button" onclick="navBack()">‹</button><span>Attendance and leave</span><span style="width:34px;"></span></div><div class="center"><small>Loading…</small></div>';
+  const [aj, lj] = await Promise.all([call('myAttendance'), call('leaveMine')]);
+  if(lj && !lj.ok){
+    if(lj.claim){ lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); return codeScreen(); }
+    if(lj.other){ lsSet(K_KEY, ''); return screen('⛔', 'This link is in use on another phone', 'Ask the clinic for a new link.', false); }
+    if(lj.net) return screen('📶', 'Clinic internet only', 'Echo Files works only on the clinic’s Wi-Fi.', true);
+    if(!lj.retry && !lj.offline && (lj.error === 'bad key' || lj.dead)) return screen('⛔', 'This link no longer works', 'Ask the clinic for a new link.', false);
+  }
+  const leaveOk = !!(lj && lj.ok);
+  if(leaveOk){
+    const today = String(lj.today || todayStr());
+    leaveTaken = new Set(lj.taken || []);
+    leaveRange = [leaveAddDays(today, 1), leaveAddDays(today, 30)];
+  }
+  let monthPart;
+  if(aj && aj.ok && aj.off) monthPart = '';
+  else if(aj && aj.ok){ mineData = aj.mine; monthPart = monthHtml(mk); }
+  else monthPart = '<div class="center" style="padding:14px;"><small>' + esc(noDot((aj && aj.error) || 'Attendance is not available right now')) + '.</small></div>';
+  const note = msg ? '<div class="msg" style="margin:8px 0 0;">' + esc(msg) + '</div>' : '';
+  main().innerHTML = '<div class="bar"><button type="button" onclick="navBack()">‹</button><span>Attendance and leave</span><span style="width:34px;"></span></div>'
+    + monthPart
+    + '<div style="padding:16px 18px 4px;"><button type="button" class="btn send" onclick="navPush(leaveForm)">Apply for leave</button>' + note + '</div>'
+    + '<div class="sect">Your requests</div>'
+    + (leaveOk ? requestsHtml(lj.mine) : '<div class="center" style="padding:14px;"><small>Requests could not be read just now.</small></div>')
+    + '<div style="height:24px;"></div>';
   window.scrollTo(0, 0);
 }
-function mineBack(){ mineData = null; load(); }
-/* 5.14 (owner, 16 Oct 20:24: "you have punched out. but the attendance should
-   still show"): before 9, after closing and after punching out, the patient
-   list is shut but their own record is not - the line goes on top of the
-   locked screen when the clinic's switch is on. */
-async function mineWhenLocked(){
-  const j = await call('myAttendance');
-  if(!j || !j.ok || j.off || !j.mine){ main().insertAdjacentHTML('afterbegin', dayOffLineHtml()); return; }   // 5.15: a day off can still be asked for
-  mine = { today: j.mine.today, streak: j.mine.streak };
-  mineAt = j.mine.at || '';
-  mineData = null;
-  main().insertAdjacentHTML('afterbegin', mineLineHtml() + dayOffLineHtml());
-}
+/* A locked screen (before 9, after 9, punched out) still has the fingerprint button */
+function mineWhenLocked(){ fabShow(true); }
 function paintList(){
   const sent = sentMap().n;
-  if(!list.length){ screen('', 'Nobody marked in yet', 'Patients appear here once reception marks them in.', true); main().insertAdjacentHTML('afterbegin', mineLineHtml() + dayOffLineHtml()); return; }
-  main().innerHTML = mineLineHtml() + dayOffLineHtml() + list.map((p, i) => '<div class="row" onclick="sheetOpen(' + i + ')"><span>' + esc(p.name) + '<i>(' + esc(p.pid) + ')</i></span>'
-      + (sent[p.pid] ? '<span class="w">✓ sent</span>' : '<span class="ch">›</span>') + '</div>').join('')
-    + '<div class="ft">Marked in today · names and IDs only · everything is checked before it is filed</div>';
+  fabShow(true);
+  if(!list.length){ screen('', 'Nobody marked in yet', 'Patients appear here once reception marks them in.', true); fabShow(true); return; }
+  main().innerHTML = '<div class="label">Marked in today</div>' + list.map((p, i) => '<div class="prow" onclick="sheetOpen(' + i + ')"><span class="av">' + esc(echoInitials(p.name)) + '</span><span class="nm">' + esc(p.name) + '<i>' + esc(p.pid) + '</i></span>'
+      + (sent[p.pid] ? '<span style="color:#3E7D5A;font-size:12.5px;font-weight:600;">✓ sent</span>' : '<span class="ch">›</span>') + '</div>').join('');
 }
 
 /* ---- adding photos ----------------------------------------------------- */
@@ -469,6 +506,7 @@ function newFileId(){ return 'pf-' + Date.now().toString(36) + '-' + Math.random
 function sheetOpen(i){
   const p = list[i];
   if(!p) return;
+  if(!sheetPushed){ history.pushState({ sheet: 1 }, ''); sheetPushed = true; }
   cur = { p: p, type: '', pages: [], id: '' };
   paintSheet();
   document.getElementById('dim').classList.add('open');
@@ -476,6 +514,11 @@ function sheetOpen(i){
 }
 function sheetClose(force){
   if(!force && cur && cur.pages.length && !confirm('Leave without sending? The pages are not kept.')) return;
+  if(sheetPushed){ history.back(); return; }   /* the back step closes it (popstate) */
+  closeSheetUI();
+}
+function closeSheetUI(){
+  sheetPushed = false;
   cur = null;
   document.getElementById('dim').classList.remove('open');
   document.getElementById('sheet').classList.remove('open');
@@ -588,74 +631,42 @@ async function send(){
   setTimeout(() => { paintList(); }, 2000);
 }
 
-/* ---- 5.15: DAY OFF -------------------------------------------------------
-   One full day, asked for from tomorrow up to 30 days ahead. The clinic
-   decides; this screen shows what was asked and what came of it. A day that
-   is already taken shows as taken, with no name. A waiting ask can be
-   cancelled here; an approved one is taken back by the clinic only. */
+/* ---- 5.16: APPLY FOR LEAVE ------------------------------------------------
+   One full day, from tomorrow up to 30 days ahead. The clinic decides. The
+   requests are listed on the attendance and leave page. */
 const LEAVE_STATUS = {
-  pending:     ['⏳', 'Waiting for the clinic', '#8A6A3E'],
-  approved:    ['✓', 'Approved', '#2F7A45'],
+  pending:     ['⏳', 'Waiting for the clinic', '#AF7933'],
+  approved:    ['✓', 'Approved', '#3E7D5A'],
   declined:    ['✕', 'Declined', '#A0453E'],
-  cancelled:   ['—', 'Cancelled', '#7D736A'],
-  notdecided:  ['•', 'Not decided — the day has come. Speak to reception.', '#B2481C'],
+  cancelled:   ['—', 'Cancelled', '#8a7a63'],
+  notdecided:  ['•', 'Not decided', '#A0453E'],
   notaccepted: ['!', 'Not accepted', '#A0453E']
 };
 let leaveDraft = null;          // { id, date, reason }: a retry sends the SAME id, so it is never filed twice
 let leaveBusy = false;
-let leaveTaken = new Set(), leaveRange = ['', ''];
 function leaveAddDays(ymd, n){ const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
-function dayOffLineHtml(){
-  return '<div class="me" onclick="leaveOpen()"><div><b>🌴 Day off</b><small>Ask for one full day, from tomorrow</small></div><span class="ch">›</span></div>';
-}
-async function leaveOpen(msg, draft){
-  if(leaveBusy) return;
-  sub(who);
-  main().innerHTML = '<div class="center"><small>Loading…</small></div>';
-  const j = await call('leaveMine');
-  if(!j || !j.ok){
-    if(j && j.claim){ lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); return codeScreen(); }
-    if(j && j.other){ lsSet(K_KEY, ''); return screen('⛔', 'This link is in use on another phone', 'Ask the clinic for a new link.', false); }
-    if(j && j.net) return screen('📶', 'Clinic internet only', 'Echo Files works only on the clinic’s Wi-Fi.', true);
-    if(j && !j.retry && !j.offline && (j.error === 'bad key' || j.dead)) return screen('⛔', 'This link no longer works', 'Ask the clinic for a new link.', false);
-    screen('⚠️', 'Could not open day off', esc((j && j.error) || 'Try again.'), false);
-    main().insertAdjacentHTML('beforeend', '<div class="ft"><a href="#" onclick="event.preventDefault();load()">‹ Back</a></div>');
-    return;
-  }
-  leaveRender(j, msg || '', draft || leaveDraft);
-}
-function leaveRender(j, msg, draft){
-  const today = String(j.today || todayStr());
-  leaveRange = [leaveAddDays(today, 1), leaveAddDays(today, 30)];
-  leaveTaken = new Set(j.taken || []);
-  const rows = (j.mine || []).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).map(r => {
-    const st = LEAVE_STATUS[r.status] || ['', esc(r.status), '#7D736A'];
-    const why = (r.status === 'notaccepted' && r.note) ? '<div style="font-size:12px;color:#7D736A;margin-top:2px;">' + esc(String(r.note).replace(/^Not accepted: /, '')) + '</div>' : '';
-    return '<div class="row" style="cursor:default;"><span><b>' + esc(r.date) + '</b>' + (r.reason ? ' <i>' + esc(r.reason) + '</i>' : '') + why + '</span>'
-      + '<span style="text-align:right;font-size:12.5px;font-weight:600;color:' + st[2] + ';white-space:nowrap;max-width:45%;">' + esc(st[0] + ' ' + st[1])
-      + (r.status === 'pending' ? '<br><button type="button" class="btn" style="margin-top:6px;padding:6px 10px;font-size:12.5px;background:#f3f6f8;color:#33404c;" onclick="leaveCancelTap(\'' + esc(r.id) + '\')">Cancel</button>' : '')
-      + '</span></div>';
-  }).join('');
+function leaveForm(msg, draft){
+  fabShow(false);
   const d0 = draft ? draft.date : '';
-  main().innerHTML = '<div class="bar"><button type="button" onclick="load()" style="width:auto;padding:0 12px;">‹</button><span>Day off</span><span style="width:34px;"></span></div>'
-    + '<div style="padding:14px 18px 6px;"><div style="font-size:13px;color:#33404c;line-height:1.45;">Ask for one full day, from tomorrow, up to 30 days ahead. The clinic decides. Same-day leave: tell reception.</div>'
-    + '<input type="date" id="lvDate" min="' + leaveRange[0] + '" max="' + leaveRange[1] + '" value="' + esc(d0) + '" onchange="leaveDateChanged()" style="display:block;margin-top:12px;font:inherit;font-size:15px;padding:10px;border:1.5px solid #cdd5dc;border-radius:12px;">'
-    + '<input id="lvReason" maxlength="140" placeholder="Reason (optional)" value="' + esc(draft ? draft.reason : '') + '" style="display:block;width:100%;font:inherit;font-size:15px;padding:10px;border:1.5px solid #cdd5dc;border-radius:12px;margin-top:10px;box-sizing:border-box;">'
-    + '<button type="button" class="btn send" id="lvGo" onclick="leaveAskTap()" style="margin-top:12px;" disabled>Ask for the day</button>'
-    + '<div class="msg" id="lvMsg">' + esc(msg) + '</div></div>'
-    + '<div class="row" style="cursor:default;font-weight:600;color:#33404c;border-top:1px solid #edf0f2;margin-top:6px;">Your requests</div>'
-    + (rows || '<div class="center" style="padding:18px;"><small>Nothing asked yet.</small></div>')
-    + '<div class="ft">Nothing is approved by this phone. The clinic answers.</div>';
+  main().innerHTML = '<div class="bar"><button type="button" onclick="navBack()">‹</button><span>Apply for leave</span><span style="width:34px;"></span></div>'
+    + '<div class="formwrap"><label class="flbl" for="lvDate">Day</label>'
+    + '<input type="date" id="lvDate" class="fld" min="' + esc(leaveRange[0]) + '" max="' + esc(leaveRange[1]) + '" value="' + esc(d0) + '" onchange="leaveDateChanged()">'
+    + '<div class="day-when" id="lvShow">' + (d0 ? esc(fmtDay(d0)) : '') + '</div>'
+    + '<label class="flbl" for="lvReason">Reason</label>'
+    + '<input id="lvReason" class="fld" maxlength="140" placeholder="Reason" value="' + esc(draft ? draft.reason : '') + '">'
+    + '<button type="button" class="btn send" id="lvGo" onclick="leaveAskTap()" style="margin-top:18px;" disabled>Apply</button>'
+    + '<div class="msg" id="lvMsg">' + esc(msg || '') + '</div></div>';
   leaveDateChanged();
 }
 function leaveDateChanged(){
   const d = ((document.getElementById('lvDate') || {}).value) || '';
-  const go = document.getElementById('lvGo'), m = document.getElementById('lvMsg');
+  const go = document.getElementById('lvGo'), m = document.getElementById('lvMsg'), show = document.getElementById('lvShow');
+  if(show) show.textContent = d ? fmtDay(d) : '';
   let why = '';
   if(d && (d < leaveRange[0] || d > leaveRange[1])) why = 'Pick a day from tomorrow, up to 30 days ahead.';
   else if(d && leaveTaken.has(d)) why = 'That day is already taken.';
   if(go && !leaveBusy) go.disabled = !d || !!why;
-  if(m && why) m.textContent = why;
+  if(m) m.textContent = why;
 }
 async function leaveAskTap(){
   if(leaveBusy) return;
@@ -668,7 +679,7 @@ async function leaveAskTap(){
   const b = document.getElementById('lvGo'); if(b){ b.disabled = true; b.textContent = 'Sending…'; }
   const j = await call('leaveAsk', { id: leaveDraft.id, date: d, reason: reason });
   leaveBusy = false;
-  if(j && j.ok){ leaveDraft = null; return leaveOpen('Sent. Waiting for the clinic.'); }
+  if(j && j.ok){ leaveDraft = null; flashMsg = 'Sent. Waiting for the clinic.'; return navBack(); }
   if(j && j.claim){ lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); return codeScreen(); }
   if(j && j.other){ lsSet(K_KEY, ''); return screen('⛔', 'This link is in use on another phone', 'Ask the clinic for a new link.', false); }
   if(j && !j.retry && !j.offline && j.error === 'bad key'){ leaveDraft = null; return screen('⛔', 'This link no longer works', 'Ask the clinic for a new link.', false); }
@@ -676,22 +687,22 @@ async function leaveAskTap(){
   const keep = !!(j && (j.offline || j.retry || j.net));
   if(!keep) leaveDraft = null;
   const why = j && j.net ? 'Clinic internet only — connect to the clinic Wi-Fi.' : noDot((j && j.error) || 'Not sent');
-  leaveOpen((keep ? 'Not sent — ' : '') + why + (keep ? '. Tap Ask again; nothing is sent twice.' : '.'), keep ? { date: d, reason: reason, id: leaveDraft ? leaveDraft.id : '' } : null);
+  leaveForm((keep ? 'Not sent — ' : '') + why + (keep ? '. Tap Apply again; nothing is sent twice.' : '.'), keep ? { date: d, reason: reason } : null);
 }
 async function leaveCancelTap(id){
   if(leaveBusy) return;
   if(!confirm('Cancel this request?')) return;
   const j = await call('leaveCancel', { id: id });
-  if(j && j.ok) return leaveOpen('Cancelled.');
-  leaveOpen(j && j.error ? noDot(j.error) + '.' : 'Could not cancel — try again.');
+  const msg = j && j.ok ? 'Cancelled.' : (j && j.error ? noDot(j.error) + '.' : 'Could not cancel — try again.');
+  attendanceOpen(mineMk, msg);
 }
 
 /* ---- start --------------------------------------------------------------- */
 const linkSaid = takeLink();
 if(linkSaid && !setUp() && !pending()) screen('⛔', 'Not the clinic’s link', esc(linkSaid), false);
 else load();
-document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !cur && !pending() && !claiming && !mineData) load(); });
-setInterval(() => { if(document.visibilityState === 'visible' && !cur && !sending && !pending() && !claiming && !mineData) load(); }, 60000);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !cur && !pending() && !claiming && !navStack.length) load(); });
+setInterval(() => { if(document.visibilityState === 'visible' && !cur && !sending && !pending() && !claiming && !navStack.length) load(); }, 60000);
 if('serviceWorker' in navigator){ window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); }); }
 </script>
 </body>
