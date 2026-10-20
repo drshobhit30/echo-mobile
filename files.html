@@ -10,7 +10,7 @@
 <link rel="manifest" href="files.webmanifest">
 <link rel="icon" href="icon-192.png">
 <title>Echo Files</title>
-<!-- ECHO FILES (5.14, 16 Oct 2026 - the owner's first real use: the internet
+<!-- ECHO FILES (5.15, 19 Oct 2026 - DAY OFF: one full day asked for in this app, from tomorrow up to 30 days ahead; the clinic decides, and this screen shows what was asked and what came of it; a taken day shows with no name; a cancel is only for a waiting ask. 5.14, 16 Oct 2026 - the owner's first real use: the internet
      address is looked up FRESH for every request (5.13 held it 5 minutes, so
      a phone that left the guest Wi-Fi for mobile data still sent, and Check
      again after joining the Wi-Fi still said "clinic internet only"); a
@@ -120,7 +120,7 @@
 <input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.14';
+const FILES_VERSION = '5.15';
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
 const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const K_DEV = 'echoFiles_dev';      // 5.12: this phone's own id, made once, sent with every request
@@ -444,16 +444,16 @@ function mineBack(){ mineData = null; load(); }
    locked screen when the clinic's switch is on. */
 async function mineWhenLocked(){
   const j = await call('myAttendance');
-  if(!j || !j.ok || j.off || !j.mine) return;
+  if(!j || !j.ok || j.off || !j.mine){ main().insertAdjacentHTML('afterbegin', dayOffLineHtml()); return; }   // 5.15: a day off can still be asked for
   mine = { today: j.mine.today, streak: j.mine.streak };
   mineAt = j.mine.at || '';
   mineData = null;
-  main().insertAdjacentHTML('afterbegin', mineLineHtml());
+  main().insertAdjacentHTML('afterbegin', mineLineHtml() + dayOffLineHtml());
 }
 function paintList(){
   const sent = sentMap().n;
-  if(!list.length){ screen('', 'Nobody marked in yet', 'Patients appear here once reception marks them in.', true); main().insertAdjacentHTML('afterbegin', mineLineHtml()); return; }
-  main().innerHTML = mineLineHtml() + list.map((p, i) => '<div class="row" onclick="sheetOpen(' + i + ')"><span>' + esc(p.name) + '<i>(' + esc(p.pid) + ')</i></span>'
+  if(!list.length){ screen('', 'Nobody marked in yet', 'Patients appear here once reception marks them in.', true); main().insertAdjacentHTML('afterbegin', mineLineHtml() + dayOffLineHtml()); return; }
+  main().innerHTML = mineLineHtml() + dayOffLineHtml() + list.map((p, i) => '<div class="row" onclick="sheetOpen(' + i + ')"><span>' + esc(p.name) + '<i>(' + esc(p.pid) + ')</i></span>'
       + (sent[p.pid] ? '<span class="w">✓ sent</span>' : '<span class="ch">›</span>') + '</div>').join('')
     + '<div class="ft">Marked in today · names and IDs only · everything is checked before it is filed</div>';
 }
@@ -586,6 +586,104 @@ async function send(){
   main().innerHTML = '<div class="center"><div class="tick">✓</div><p><b>Sent to the clinic</b></p><p>' + n + ' page' + (n === 1 ? '' : 's') + ' · ' + esc(label) + '</p>'
     + '<small>' + esc(p.name) + ' (' + esc(p.pid) + ')</small><small style="margin-top:14px;">Waiting for the doctor’s check. Back to the list in 2 s.</small></div>';
   setTimeout(() => { paintList(); }, 2000);
+}
+
+/* ---- 5.15: DAY OFF -------------------------------------------------------
+   One full day, asked for from tomorrow up to 30 days ahead. The clinic
+   decides; this screen shows what was asked and what came of it. A day that
+   is already taken shows as taken, with no name. A waiting ask can be
+   cancelled here; an approved one is taken back by the clinic only. */
+const LEAVE_STATUS = {
+  pending:     ['⏳', 'Waiting for the clinic', '#8A6A3E'],
+  approved:    ['✓', 'Approved', '#2F7A45'],
+  declined:    ['✕', 'Declined', '#A0453E'],
+  cancelled:   ['—', 'Cancelled', '#7D736A'],
+  notdecided:  ['•', 'Not decided — the day has come. Speak to reception.', '#B2481C'],
+  notaccepted: ['!', 'Not accepted', '#A0453E']
+};
+let leaveDraft = null;          // { id, date, reason }: a retry sends the SAME id, so it is never filed twice
+let leaveBusy = false;
+let leaveTaken = new Set(), leaveRange = ['', ''];
+function leaveAddDays(ymd, n){ const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function dayOffLineHtml(){
+  return '<div class="me" onclick="leaveOpen()"><div><b>🌴 Day off</b><small>Ask for one full day, from tomorrow</small></div><span class="ch">›</span></div>';
+}
+async function leaveOpen(msg, draft){
+  if(leaveBusy) return;
+  sub(who);
+  main().innerHTML = '<div class="center"><small>Loading…</small></div>';
+  const j = await call('leaveMine');
+  if(!j || !j.ok){
+    if(j && j.claim){ lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); return codeScreen(); }
+    if(j && j.other){ lsSet(K_KEY, ''); return screen('⛔', 'This link is in use on another phone', 'Ask the clinic for a new link.', false); }
+    if(j && j.net) return screen('📶', 'Clinic internet only', 'Echo Files works only on the clinic’s Wi-Fi.', true);
+    if(j && !j.retry && !j.offline && (j.error === 'bad key' || j.dead)) return screen('⛔', 'This link no longer works', 'Ask the clinic for a new link.', false);
+    screen('⚠️', 'Could not open day off', esc((j && j.error) || 'Try again.'), false);
+    main().insertAdjacentHTML('beforeend', '<div class="ft"><a href="#" onclick="event.preventDefault();load()">‹ Back</a></div>');
+    return;
+  }
+  leaveRender(j, msg || '', draft || leaveDraft);
+}
+function leaveRender(j, msg, draft){
+  const today = String(j.today || todayStr());
+  leaveRange = [leaveAddDays(today, 1), leaveAddDays(today, 30)];
+  leaveTaken = new Set(j.taken || []);
+  const rows = (j.mine || []).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).map(r => {
+    const st = LEAVE_STATUS[r.status] || ['', esc(r.status), '#7D736A'];
+    const why = (r.status === 'notaccepted' && r.note) ? '<div style="font-size:12px;color:#7D736A;margin-top:2px;">' + esc(String(r.note).replace(/^Not accepted: /, '')) + '</div>' : '';
+    return '<div class="row" style="cursor:default;"><span><b>' + esc(r.date) + '</b>' + (r.reason ? ' <i>' + esc(r.reason) + '</i>' : '') + why + '</span>'
+      + '<span style="text-align:right;font-size:12.5px;font-weight:600;color:' + st[2] + ';white-space:nowrap;max-width:45%;">' + esc(st[0] + ' ' + st[1])
+      + (r.status === 'pending' ? '<br><button type="button" class="btn" style="margin-top:6px;padding:6px 10px;font-size:12.5px;background:#f3f6f8;color:#33404c;" onclick="leaveCancelTap(\'' + esc(r.id) + '\')">Cancel</button>' : '')
+      + '</span></div>';
+  }).join('');
+  const d0 = draft ? draft.date : '';
+  main().innerHTML = '<div class="bar"><button type="button" onclick="load()" style="width:auto;padding:0 12px;">‹</button><span>Day off</span><span style="width:34px;"></span></div>'
+    + '<div style="padding:14px 18px 6px;"><div style="font-size:13px;color:#33404c;line-height:1.45;">Ask for one full day, from tomorrow, up to 30 days ahead. The clinic decides. Same-day leave: tell reception.</div>'
+    + '<input type="date" id="lvDate" min="' + leaveRange[0] + '" max="' + leaveRange[1] + '" value="' + esc(d0) + '" onchange="leaveDateChanged()" style="display:block;margin-top:12px;font:inherit;font-size:15px;padding:10px;border:1.5px solid #cdd5dc;border-radius:12px;">'
+    + '<input id="lvReason" maxlength="140" placeholder="Reason (optional)" value="' + esc(draft ? draft.reason : '') + '" style="display:block;width:100%;font:inherit;font-size:15px;padding:10px;border:1.5px solid #cdd5dc;border-radius:12px;margin-top:10px;box-sizing:border-box;">'
+    + '<button type="button" class="btn send" id="lvGo" onclick="leaveAskTap()" style="margin-top:12px;" disabled>Ask for the day</button>'
+    + '<div class="msg" id="lvMsg">' + esc(msg) + '</div></div>'
+    + '<div class="row" style="cursor:default;font-weight:600;color:#33404c;border-top:1px solid #edf0f2;margin-top:6px;">Your requests</div>'
+    + (rows || '<div class="center" style="padding:18px;"><small>Nothing asked yet.</small></div>')
+    + '<div class="ft">Nothing is approved by this phone. The clinic answers.</div>';
+  leaveDateChanged();
+}
+function leaveDateChanged(){
+  const d = ((document.getElementById('lvDate') || {}).value) || '';
+  const go = document.getElementById('lvGo'), m = document.getElementById('lvMsg');
+  let why = '';
+  if(d && (d < leaveRange[0] || d > leaveRange[1])) why = 'Pick a day from tomorrow, up to 30 days ahead.';
+  else if(d && leaveTaken.has(d)) why = 'That day is already taken.';
+  if(go && !leaveBusy) go.disabled = !d || !!why;
+  if(m && why) m.textContent = why;
+}
+async function leaveAskTap(){
+  if(leaveBusy) return;
+  const d = ((document.getElementById('lvDate') || {}).value) || '';
+  const reason = String(((document.getElementById('lvReason') || {}).value) || '').trim().slice(0, 140);
+  if(!d) return;
+  if(!leaveDraft || leaveDraft.date !== d || leaveDraft.reason !== reason)
+    leaveDraft = { id: 'pl-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8), date: d, reason: reason };
+  leaveBusy = true;
+  const b = document.getElementById('lvGo'); if(b){ b.disabled = true; b.textContent = 'Sending…'; }
+  const j = await call('leaveAsk', { id: leaveDraft.id, date: d, reason: reason });
+  leaveBusy = false;
+  if(j && j.ok){ leaveDraft = null; return leaveOpen('Sent. Waiting for the clinic.'); }
+  if(j && j.claim){ lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); return codeScreen(); }
+  if(j && j.other){ lsSet(K_KEY, ''); return screen('⛔', 'This link is in use on another phone', 'Ask the clinic for a new link.', false); }
+  if(j && !j.retry && !j.offline && j.error === 'bad key'){ leaveDraft = null; return screen('⛔', 'This link no longer works', 'Ask the clinic for a new link.', false); }
+  /* A try that did not land is kept (same id); an answer that refused the ask is not */
+  const keep = !!(j && (j.offline || j.retry || j.net));
+  if(!keep) leaveDraft = null;
+  const why = j && j.net ? 'Clinic internet only — connect to the clinic Wi-Fi.' : noDot((j && j.error) || 'Not sent');
+  leaveOpen((keep ? 'Not sent — ' : '') + why + (keep ? '. Tap Ask again; nothing is sent twice.' : '.'), keep ? { date: d, reason: reason, id: leaveDraft ? leaveDraft.id : '' } : null);
+}
+async function leaveCancelTap(id){
+  if(leaveBusy) return;
+  if(!confirm('Cancel this request?')) return;
+  const j = await call('leaveCancel', { id: id });
+  if(j && j.ok) return leaveOpen('Cancelled.');
+  leaveOpen(j && j.error ? noDot(j.error) + '.' : 'Could not cancel — try again.');
 }
 
 /* ---- start --------------------------------------------------------------- */
