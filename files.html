@@ -131,7 +131,7 @@
 <input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.16';
+const FILES_VERSION = '5.17';
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
 const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const K_DEV = 'echoFiles_dev';      // 5.12: this phone's own id, made once, sent with every request
@@ -455,11 +455,23 @@ function requestsHtml(rows){
       + '</span></div>';
   }).join('');
 }
+/* 5.17: TEAM LEAVE - every approved day off from today on, names and dates only
+   (never a reason). The viewer's own name is marked. */
+function teamHtml(tj, me){
+  if(!tj || !tj.ok) return '<div class="center" style="padding:14px;"><small>Team leave could not be read just now.</small></div>';
+  const rows = (tj.team || []).slice().sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
+  if(!rows.length) return '<div class="center" style="padding:14px;"><small>No one has leave booked.</small></div>';
+  return rows.map(t => {
+    const mine = me && t.name === me;
+    return '<div class="row" style="cursor:default;"><span><b>' + esc(t.name) + '</b>' + (mine ? ' <i>(you)</i>' : '') + '</span>'
+      + '<span style="text-align:right;font-size:13px;color:#4A3B28;">' + esc(t.dates.map(fmtDay).join(', ')) + '</span></div>';
+  }).join('');
+}
 async function attendanceOpen(mk, msg){
   fabShow(false);
   sub(who);
   main().innerHTML = '<div class="bar"><button type="button" onclick="navBack()">‹</button><span>Attendance and leave</span><span style="width:34px;"></span></div><div class="center"><small>Loading…</small></div>';
-  const [aj, lj] = await Promise.all([call('myAttendance'), call('leaveMine')]);
+  const [aj, lj, tj] = await Promise.all([call('myAttendance'), call('leaveMine'), call('teamLeave')]);
   if(lj && !lj.ok){
     if(lj.claim){ lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); return codeScreen(); }
     if(lj.other){ lsSet(K_KEY, ''); return screen('⛔', 'This link is in use on another phone', 'Ask the clinic for a new link.', false); }
@@ -482,6 +494,8 @@ async function attendanceOpen(mk, msg){
     + '<div style="padding:16px 18px 4px;"><button type="button" class="btn send" onclick="navPush(leaveForm)">Apply for leave</button>' + note + '</div>'
     + '<div class="sect">Your requests</div>'
     + (leaveOk ? requestsHtml(lj.mine) : '<div class="center" style="padding:14px;"><small>Requests could not be read just now.</small></div>')
+    + '<div class="sect">Team leave</div>'
+    + teamHtml(tj, leaveOk ? lj.name : who)
     + '<div style="height:24px;"></div>';
   window.scrollTo(0, 0);
 }
