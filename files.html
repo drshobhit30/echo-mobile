@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#8A5F26">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Echo Files">
+<meta name="apple-mobile-web-app-title" content="Clinic Team">
 <meta name="robots" content="noindex">
 <link rel="manifest" href="files.webmanifest">
 <link rel="icon" href="icon-192.png">
-<title>Echo Files</title>
+<title>Echo Dental Clinic - Team</title>
 <!-- ECHO FILES (5.16, 20 Oct 2026 - REDESIGN: photo capture first; attendance and leave from the fingerprint button on Home (bottom right); the patient record feature dropped; Nexus palette; dates DD-Month; the back button works (each page is a history step); the narration removed.
      5.15, 19 Oct 2026 - DAY OFF: one full day asked for in this app, from tomorrow up to 30 days ahead; the clinic decides, and this screen shows what was asked and what came of it; a taken day shows with no name; a cancel is only for a waiting ask. 5.14, 16 Oct 2026 - the owner's first real use: the internet
      address is looked up FRESH for every request (5.13 held it 5 minutes, so
@@ -123,7 +123,7 @@
 </style>
 </head>
 <body>
-<div class="hd"><b>Echo Files</b><span id="hdSub">&nbsp;</span></div>
+<div class="hd"><b>Echo Dental Clinic - Team</b><span id="hdSub">&nbsp;</span></div>
 <main id="main"><div class="center"><small>Opening&hellip;</small></div></main>
 <button type="button" class="fab" id="fab" aria-label="Attendance and leave" title="Attendance and leave" onclick="navPush(attendanceOpen)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11a2 2 0 0 0-2 2c0 2.5-.5 5-1.5 7"/><path d="M12 11a2 2 0 0 1 2 2c0 3-.4 5.6-1.2 8"/><path d="M8.5 9.5a5 5 0 0 1 8.5 3.5c0 2.3-.3 4.5-.8 6.5"/><path d="M6.8 12.5a5 5 0 0 1 .2-1.5"/><path d="M5.5 7.5A8 8 0 0 1 18.5 7.5"/><path d="M4.3 11.3A8 8 0 0 1 4.5 9.9"/><path d="M19.6 10.5a8 8 0 0 1 .4 2.5c0 1.8-.2 3.5-.5 5.2"/><path d="M7 14.5c0 2.2-.4 4.3-1.2 6"/><path d="M3.5 15.5c.1 1.5-.1 3-.5 4.5"/></svg></button>
 <div class="dim" id="dim" onclick="sheetClose()"></div>
@@ -131,7 +131,7 @@
 <input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.17';
+const FILES_VERSION = '5.19';
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
 const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const K_DEV = 'echoFiles_dev';      // 5.12: this phone's own id, made once, sent with every request
@@ -545,7 +545,7 @@ function paintSheet(msg){
     + '<div class="big"><button type="button" onclick="shoot(\'inCam\')">📷 Camera' + (n ? ' · another page' : '') + '</button></div>'
     + (n ? '<div class="pv">' + cur.pages.map((pg, i) => '<div><img src="' + pg.thumb + '" alt="page ' + (i + 1) + '"><button type="button" title="Remove this page" onclick="dropPage(' + i + ')">✕</button></div>').join('') + '</div>'
       + '<div class="pages"><span>' + n + ' page' + (n === 1 ? '' : 's') + ' ready</span><button type="button" onclick="clearPages()">Clear all</button></div>' : '')
-    + '<button type="button" class="btn send" id="sendBtn" onclick="send()"' + (n && cur.type ? '' : ' disabled') + '>Send</button>'
+    + '<button type="button" class="btn send" id="sendBtn" onclick="send()"' + (n && cur.type ? '' : ' disabled') + '>Send to server</button>'
     + '<button type="button" class="btn cancel" onclick="sheetClose()">Cancel</button>'
     + '<div class="msg" id="sheetMsg">' + esc(msg || (!cur.type && n ? 'Pick what it is.' : '')) + '</div>';
 }
@@ -625,7 +625,7 @@ async function send(){
     }
     if(j && j.other){ sheetClose(true); lsSet(K_KEY, ''); screen('⛔', 'Not sent — this link is in use on another phone', 'Ask the clinic for a new link.', false); return; }
     if(j && j.claim){ parked = cur; sheetClose(true); lsSet(K_PEND, JSON.stringify({ relay: lsGet(K_RELAY), key: lsGet(K_KEY) })); codeScreen('Not sent yet — enter the code first; your pages are kept.'); return; }
-    if(b){ b.disabled = false; b.textContent = 'Send'; }
+    if(b){ b.disabled = false; b.textContent = 'Send to server'; }
     let line;
     if(j && /first try is still being saved/.test(String(j.error || ''))) line = 'Still being saved by the clinic — wait a minute, then tap Send once more (nothing is sent twice).';
     else if(j && (j.locked || j.retry)) line = 'Not sent — ' + why + '. Your pages are still here.';
