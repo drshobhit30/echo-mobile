@@ -131,7 +131,7 @@
 <input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.19';
+const FILES_VERSION = '5.20';
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
 const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const K_DEV = 'echoFiles_dev';      // 5.12: this phone's own id, made once, sent with every request
@@ -443,7 +443,10 @@ function monthHtml(mk){
     + '<div class="tiles"><div class="tile"><b>' + (m.present || 0) + '</b><i>days present</i></div><div class="tile"><b>' + Math.max(0, (m.present || 0) - (m.late || 0)) + '</b><i>on time</i></div><div class="tile"><b>' + (m.late || 0) + '</b><i>late</i></div></div>'
     + '<table class="att"><thead><tr><th>DAY</th><th>IN</th><th>OUT</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
-function requestsHtml(rows){
+function requestsHtml(rows, today){
+  /* v5.20: this month and future only, never a past month (the relay filters too) */
+  const monthStart = String(today || '').slice(0, 8) + '01';
+  if(today) rows = (rows || []).filter(r => String(r.date || '') >= monthStart);
   const sorted = (rows || []).slice().sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
   if(!sorted.length) return '<div class="center" style="padding:14px;"><small>No requests yet.</small></div>';
   return sorted.map(r => {
@@ -493,7 +496,7 @@ async function attendanceOpen(mk, msg){
     + monthPart
     + '<div style="padding:16px 18px 4px;"><button type="button" class="btn send" onclick="navPush(leaveForm)">Apply for leave</button>' + note + '</div>'
     + '<div class="sect">Your requests</div>'
-    + (leaveOk ? requestsHtml(lj.mine) : '<div class="center" style="padding:14px;"><small>Requests could not be read just now.</small></div>')
+    + (leaveOk ? requestsHtml(lj.mine, lj.today) : '<div class="center" style="padding:14px;"><small>Requests could not be read just now.</small></div>')
     + '<div class="sect">Team leave</div>'
     + teamHtml(tj, leaveOk ? lj.name : who)
     + '<div style="height:24px;"></div>';
