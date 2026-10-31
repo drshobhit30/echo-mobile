@@ -131,7 +131,7 @@
 <input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.20';
+const FILES_VERSION = '5.22';
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
 const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const K_DEV = 'echoFiles_dev';      // 5.12: this phone's own id, made once, sent with every request
@@ -435,6 +435,8 @@ function monthHtml(mk){
     if(r.in) pill = r.late ? '<span class="p ' + (r.late > 60 ? 'half' : 'late') + '">Late · ' + esc(lateWords(r.late)) + '</span>' : '<span class="p ok">On time</span>';
     else if(r.closed) pill = '<span class="p off">Clinic closed</span>';
     else pill = '<span class="p ab">No punch</span>';
+    /* 5.22: leaving early (from November 2026) - free up to an hour */
+    if(r.early > 0) pill += ' <span class="p ' + (r.early > 60 ? 'half' : 'ok') + '">Left ' + esc(lateWords(r.early)) + ' early' + (r.early > 60 ? '' : ' · free') + '</span>';
     return '<tr' + (isToday ? ' class="today"' : '') + '><td>' + (isToday ? '<b>' : '') + DOW[new Date(yy, mm - 1, r.d).getDay()] + ' ' + r.d + (isToday ? '</b>' : '') + '</td>'
       + '<td>' + (r.in ? esc(hm(r.in)) : '—') + '</td><td>' + (r.out ? esc(hm(r.out)) : (r.in && isToday ? '<span style="color:#8a7a63">in</span>' : '—')) + '</td><td>' + pill + '</td></tr>';
   }).join('');
