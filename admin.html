@@ -8745,7 +8745,7 @@ async function loadPrescriptions(){
    deleted when the relay refuses this phone's key, and day books older than
    60 days are pruned at each opening; "Link old X-rays" on an old relay says
    "needs relay r4.28"; tidied. */
-const ADMIN_VERSION = '5.21';
+const ADMIN_VERSION = '5.23';
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -10146,7 +10146,7 @@ const FU_DEFS = {
   pending:           { label:'Pending',            tone:'pend',   priority:0, resolved:false },
   needs_doctor_call: { label:'Needs Doctor Call',  tone:'urgent', priority:0, resolved:false },
   not_received:      { label:'Call Not Received',  tone:'warn',   priority:1, resolved:false },
-  discomfort:        { label:'Slight Discomfort',  tone:'watch',  priority:2, resolved:false },
+  discomfort:        { label:'Discomfort / Pain',  tone:'watch',  priority:2, resolved:false },   // 5.23 (owner, 31 Oct 2026)
   all_ok:            { label:'All OK',             tone:'ok',     priority:3, resolved:true  },
   not_needed:        { label:'Not Needed',         tone:'neutral',priority:3, resolved:true  }
 };
