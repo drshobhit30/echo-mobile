@@ -691,6 +691,11 @@ body{ background:#FAF7F2 !important; }
 .xv-sth.cur{ border-color:#F5B544; }
 .xv-sth img{ width:100%; height:100%; object-fit:cover; display:block; }
 .xr-insheet .xr-btn{ margin:0 0 10px; }
+.io-slot:empty{ display:none; }
+.io-btn-none{ opacity:.45; cursor:default; }
+.xr-insheet .io-btn{ margin:0 0 10px; }
+.io-th i{ font-size:20px; opacity:.6; }
+.io-stage img{ max-width:100%; max-height:100%; object-fit:contain; transform-origin:center center; user-select:none; -webkit-user-drag:none; }
 .xr-th.pick{ outline:3px solid #F5B544; outline-offset:-3px; }
 .xr-cmp{ margin-right:8px; flex:0 0 auto; }
 .xr-cmp.on{ background:#8A5F26; color:#fff; border-color:#8A5F26; }
@@ -1053,7 +1058,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
 /* One number for both phone apps from 4.6 (owner's call). */
 /* 5.11 (16 Oct 2026): renumbered with Echo Files' audit fixes; lite itself
    changed only a code comment (audit L23: a made-up patient id). */
-const LITE_VERSION = '5.16';
+const LITE_VERSION = '5.21';
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -1722,7 +1727,7 @@ setInterval(() => { lanStampTick(); }, LAN_STAMP_MS);
    picture waits 10 seconds, a whole X-ray 45. Away from the clinic Wi-Fi
    the answer is "clinic Wi-Fi only". A slow X-ray is not held against the
    PC: the other reads keep using it. */
-const XR_LAN_ONLY = { xrayFor: 1, xrayThumbs: 1, xrayGet: 1, xrayFind: 1 };
+const XR_LAN_ONLY = { xrayFor: 1, xrayThumbs: 1, xrayGet: 1, xrayFind: 1, ioFor: 1, ioGet: 1 };   // 5.21: intraoral photos, the same way
 const XR_LAN_WAIT_MS = 3000, XR_LIST_REQ_MS = 10000, XR_FILE_REQ_MS = 45000;
 const XR_GOOGLE_FILE_MS = 90000;       // a whole X-ray through Google
 let xrVia = '';                        // where the last X-ray answer came from: 'pc' or 'drive'
@@ -1734,7 +1739,7 @@ async function xrRelayLan(params){
     try{ up = await Promise.race([lanEnsure(), new Promise(r => setTimeout(() => r(false), XR_LAN_WAIT_MS))]); }catch(e){ up = false; }
     if(up && lanBase){
       try{
-        const j = await lanFetch(lanUrl(lanBase, act, params), act === 'xrayGet' ? XR_FILE_REQ_MS : XR_LIST_REQ_MS, { answers: true });
+        const j = await lanFetch(lanUrl(lanBase, act, params), (act === 'xrayGet' || act === 'ioGet') ? XR_FILE_REQ_MS : XR_LIST_REQ_MS, { answers: true });
         lanServed++;
         if(!j || !j.ok) throw new RelayError((j && j.error) || 'refused', j || {});
         xrVia = 'pc';
@@ -1750,7 +1755,7 @@ async function xrRelayLan(params){
      takes 5-10 s) and a few minutes behind the PC. */
   let j;
   try{
-    relayTimeoutOverride = act === 'xrayGet' ? XR_GOOGLE_FILE_MS : 0;
+    relayTimeoutOverride = (act === 'xrayGet' || act === 'ioGet') ? XR_GOOGLE_FILE_MS : 0;
     const pr = relayViaGoogle(params);
     relayTimeoutOverride = 0;
     j = await pr;
@@ -2902,7 +2907,7 @@ function hsHeadHtml(pid, backCall){
     + '<span>' + escapeHtml(String(pid)) + (as ? ' \u00b7 ' + escapeHtml(as) : '') + '</span>'
     + '</div>' + cam + '</div>'
     /* 4.70: the patient's files. */
-    + '<div class="hs-files">' + pfBadgeHtml(pid, 'pf-badge') + ' ' + xrBadgeHtml(pid, 'pf-badge') + '</div>'
+    + '<div class="hs-files">' + pfBadgeHtml(pid, 'pf-badge') + ' ' + xrBadgeHtml(pid, 'pf-badge') + ' ' + ioBadgeHtml(pid, 'pf-badge') + '</div>'
     + (waNumberOf(pid) ? '<div class="hs-wa">' + callBtnHtml(pid, 'call-chip')
         + waBtnHtml(pid, 'wa-chip') + '</div>' : '')
     + numListHtml(pid)
@@ -3293,7 +3298,7 @@ function openDrawer(day, kind, id){
             + '; border-color:' + tone.border + ';')
       +   bit(when)
       /* 4.70: the patient's files, one tap away. */
-      +   (r.patientId ? pfBadgeHtml(r.patientId, 'dr-c pf-drclip', true) + xrBadgeHtml(r.patientId, 'dr-c pf-drclip', true) : '')
+      +   (r.patientId ? pfBadgeHtml(r.patientId, 'dr-c pf-drclip', true) + xrBadgeHtml(r.patientId, 'dr-c pf-drclip', true) + ioBadgeHtml(r.patientId, 'dr-c pf-drclip', true) : '')
       + '</div></div>'
       + '<div class="dr-headr"><span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>'
       + '<button type="button" class="dr-x" onclick="closeDrawer()" aria-label="Close">\u2715</button></div></div>';
@@ -4627,7 +4632,7 @@ function pfSheetPaint(){
     + (!has && !declined ? '<button type="button" class="pf-link" onclick="' + PF_NS + 'photoDecline(' + jsArg(pid) + ')">Patient declined a photo</button>' : '')
     + '</div><button type="button" class="pf-x" onclick="' + PF_NS + 'pfSheetClose()" aria-label="Close">\u00d7</button></div>'
     + photoUnsentHtml(pid) + pfUnsentHtml(pid)
-    + '<div class="xr-insheet">' + xrBadgeHtml(pid, 'pf-badge') + '</div>'
+    + '<div class="xr-insheet">' + xrBadgeHtml(pid, 'pf-badge') + ' ' + ioBadgeHtml(pid, 'pf-badge') + '</div>'
     + '<button type="button" class="btn pf-shoot" onclick="' + PF_NS + 'pfShoot(' + jsArg(pid) + ')">\ud83d\udcc4 Photograph a document</button>'
     + '<div class="pf-sec">Files' + (live ? ' <span>' + live + '</span>' : '') + '</div>'
     + (list.length ? '<div class="pf-list">' + list.map(c => pfCardHtml(pid, c)).join('') + '</div>'
@@ -5560,6 +5565,7 @@ async function xrPushLoop(){
       if(restart) continue;
       if(j.busy){ await new Promise(r => setTimeout(r, 2000)); continue; }
       if(j.index || j.lost){ const p = xrOnScreenPids(false); if(p.length) xrAsk(p, true); }
+      if(j.io || j.lost) ioOnPush();   // 5.21: a chair photo copied or linked (desk server 2.20/2.21)
     }
   }finally{ xrPushRunning = false; }
 }
@@ -6229,6 +6235,403 @@ function xrWireStage(){
   st.addEventListener('pointercancel', up);
 }
 /* ================================================== end RVG X-rays == */
+
+/* ============================================== INTRAORAL PHOTOS (5.21) ==
+   INTRAORAL PHOTOS ON THE PHONE (owner, 30 Oct 2026: "just like rvg. give
+   access to phone apps to view intra oral pics. add a button next to rvg
+   button" ... "should work exactly like rvg button on phone").
+   The chair cameras' photos that Nexus has LINKED to this patient - never one
+   not linked yet, never a discarded one. READ ONLY: linking stays in Nexus.
+   On the clinic Wi-Fi from the reception PC (desk server 2.21, ioFor /
+   ioGet); away from the clinic through Google (relay r4.49), from the Drive
+   copy of "intra oral pic" - slower, and a few minutes behind.
+   As RVG: the list is kept 3 s on the Wi-Fi (and asked again the moment a
+   photo is linked - the desk server says so on /xrwait), 20 s for today's
+   patients on mobile data, 2 minutes for everybody else. The small pictures
+   are made on the phone from the photos themselves (each ~60 KB); the last
+   12 opened photos are kept in memory, nothing is kept on the phone. */
+const IO_LIST_MS = 2 * 60 * 1000, IO_LAN_LIVE_MS = 3000, IO_TODAY_MS = 20000;
+const IO_KEEP_FULL = 12, IO_THUMB_PX = 240;
+let ioLists = {};                      // pid -> { at, list: [{ k, t, op, s }] } | { at, failed, why, list }
+const ioAskingNow = {};
+let ioWantSet = {}, ioWantTimer = null;
+const ioThumbMem = {};                 // k -> data URL (small)
+const ioFullMem = [];                  // [{ k, url }] object URLs of the last few photos
+const ioLoading = {};                  // k -> promise
+let ioSheetPid = '';
+let ioV = null;                        // the open viewer
+let ioPickMode = false, ioPicked = [];
+
+function ioKeyOk(k){ return /^OP[12]\/[A-Za-z0-9 _.-]{1,60}\/[A-Za-z0-9 _.-]{1,80}\.jpe?g$/i.test(String(k || '')) && String(k).split('/').every(x => x !== '.' && x !== '..'); }
+function ioKeepMs(pid){ return xrOnLan() ? IO_LAN_LIVE_MS - 1000 : (xrTodaySet()[pid] ? IO_TODAY_MS - 500 : IO_LIST_MS); }
+function ioListSig(c){ return c ? (c.failed ? 'F' : '') + ((c.list || []).map(x => x.k).join('|')) : ''; }
+function ioWhyText(e){
+  const b = (e && e.body) || {};
+  if(b.relayOld) return 'The phone relay needs its update (r4.49) to show intraoral photos away from the clinic.';
+  const m = String((e && e.message) || b.error || '');
+  if(/unknown action/.test(m)) return 'The reception PC’s desk server needs its update (2.21) for intraoral photos.';
+  return 'The intraoral photos could not be fetched just now. Try again in a moment.';
+}
+function ioDay(x){ return String((x && x.t) || '').slice(0, 10).replace(/-/g, ''); }
+function ioTime(x){ const m = /T(\d{2}):(\d{2})/.exec(String((x && x.t) || '')); return m ? clock(Number(m[1]) * 60 + Number(m[2])) : ''; }
+function ioChair(x){ const m = /^OP(\d)$/.exec(String((x && x.op) || '')); return m ? 'Chair ' + m[1] : ''; }
+
+function ioAsk(pids, force){
+  (pids || []).map(String).forEach(pid => {
+    if(!/^[A-Za-z0-9]{1,20}$/.test(pid) || ioAskingNow[pid]) return;
+    const c = ioLists[pid];
+    if(!force && c && Date.now() - c.at < ioKeepMs(pid)) return;
+    ioWantSet[pid] = 1;
+  });
+  if(!Object.keys(ioWantSet).length || ioWantTimer) return;
+  ioWantTimer = setTimeout(ioAskNow, 120);
+}
+async function ioAskNow(){
+  ioWantTimer = null;
+  const want = Object.keys(ioWantSet); ioWantSet = {};
+  if(!want.length) return;
+  want.forEach(pid => { ioAskingNow[pid] = 1; });
+  const sheetSigBefore = ioSheetPid ? ioListSig(ioLists[ioSheetPid]) : null;
+  try{
+    for(let i = 0; i < want.length; i += 60){
+      const chunk = want.slice(i, i + 60);
+      try{
+        const r = await relay({ action: 'ioFor', pids: chunk.join(',') });
+        const got = (r && r.io) || {};
+        chunk.forEach(pid => {
+          const list = Array.isArray(got[pid]) ? got[pid].filter(x => x && ioKeyOk(x.k)) : [];
+          ioLists[pid] = { at: Date.now(), list };
+        });
+      }catch(e){
+        const why = ioWhyText(e);
+        chunk.forEach(pid => { ioLists[pid] = { at: Date.now(), failed: true, why, list: (ioLists[pid] && ioLists[pid].list) || null }; });
+      }
+    }
+  }finally{
+    want.forEach(pid => { delete ioAskingNow[pid]; });
+  }
+  ioFillSlots();
+  if(ioSheetPid && want.indexOf(ioSheetPid) !== -1){
+    if(sheetSigBefore === null || sheetSigBefore === '' || ioListSig(ioLists[ioSheetPid]) !== sheetSigBefore) ioSheetPaint();
+  }
+}
+function ioOnScreenPids(onlyToday){
+  if(ioSheetPid) return (!onlyToday || xrTodaySet()[ioSheetPid]) ? [ioSheetPid] : [];
+  const today = onlyToday ? xrTodaySet() : null, pids = [];
+  if(typeof document === 'undefined') return pids;
+  document.querySelectorAll('.io-slot[data-pid]').forEach(el => {
+    const pid = el.getAttribute('data-pid');
+    if(pids.length < 8 && pid && pids.indexOf(pid) === -1 && el.offsetParent !== null && (!today || today[pid])) pids.push(pid);
+  });
+  return pids;
+}
+/* the desk server said a photo was copied, moved or linked (/xrwait "io") */
+function ioOnPush(){ const p = ioOnScreenPids(false); if(p.length) ioAsk(p, true); }
+let ioTickAt = 0;
+function ioLiveTick(){
+  if(typeof document === 'undefined' || document.hidden) return;
+  if(xrOnLan()){
+    if(xrPushOk) return;                       // the desk server says when
+    const p = ioOnScreenPids(false); if(p.length) ioAsk(p, false);
+    return;
+  }
+  if(Date.now() - ioTickAt < IO_TODAY_MS - 500) return;
+  ioTickAt = Date.now();
+  const p = ioOnScreenPids(true); if(p.length) ioAsk(p, false);
+}
+if(typeof setInterval === 'function' && typeof document !== 'undefined'){
+  setInterval(ioLiveTick, IO_LAN_LIVE_MS);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden){ const p = ioOnScreenPids(false); if(p.length) ioAsk(p, true); } });
+}
+
+/* THE BUTTON, beside RVG. Filled when the list has come: "🦷 Intraoral · N";
+   none linked, the same button greyed (nothing to open); the short one (the
+   day list) shows only with photos. */
+function ioBadgeHtml(pid, cls, short){
+  if(!pid) return '';
+  ioAsk([pid], false);
+  return '<span class="io-slot" data-pid="' + escapeHtml(String(pid)) + '" data-cls="' + escapeHtml(cls || 'pf-badge') + '"' + (short ? ' data-short="1"' : '') + '>'
+    + ioSlotInner(String(pid), cls || 'pf-badge', !!short) + '</span>';
+}
+function ioSlotInner(pid, cls, short){
+  const c = ioLists[pid];
+  if(!c) return '';                    // not answered yet: no button that might vanish
+  const n = Array.isArray(c.list) ? c.list.length : -1;
+  if(n <= 0 && short) return '';
+  if(n === 0 && !c.failed) return '<button type="button" class="' + escapeHtml(cls) + ' io-btn io-btn-none" disabled>🦷 Intraoral</button>';
+  const label = '🦷 ' + (short ? n : 'Intraoral' + (n > 0 ? ' · ' + n : ''));
+  return '<button type="button" class="' + escapeHtml(cls) + ' io-btn' + (n > 0 ? '' : ' xr-btn-off') + '" onclick="event.stopPropagation(); ' + PF_NS + 'ioOpen(' + jsArg(pid) + ')">' + label + '</button>';
+}
+function ioFillSlots(){
+  if(typeof document === 'undefined') return;
+  document.querySelectorAll('.io-slot[data-pid]').forEach(el => {
+    const h = ioSlotInner(el.getAttribute('data-pid'), el.getAttribute('data-cls') || 'pf-badge', el.getAttribute('data-short') === '1');
+    if(el.innerHTML !== h) el.innerHTML = h;
+  });
+}
+
+/* ---- the gallery ------------------------------------------------------ */
+function ioOpen(pid){
+  ioSheetPid = String(pid);
+  ioPickMode = false; ioPicked = [];
+  ioAsk([ioSheetPid], true);
+  ioSheetPaint();
+}
+function ioClose(){
+  ioSheetPid = ''; ioPickMode = false; ioPicked = [];
+  const w = document.getElementById('ioSheet');
+  if(w) w.classList.add('hidden');
+}
+function ioSheetPaint(){
+  const pid = ioSheetPid;
+  if(!pid) return;
+  const w = pfWrap('ioSheet', 'photo-wrap pf-wrap xr-wrap');
+  const c = ioLists[pid];
+  const list = (c && c.list) || [];
+  let body;
+  if(ioAskingNow[pid] && !list.length) body = '<div class="pf-none">' + (xrVia === 'drive' ? 'Asking the clinic’s Drive copy…' : 'Asking the reception PC…') + '</div>';
+  else if(c && c.failed && !list.length) body = '<div class="pf-none xr-why">' + escapeHtml(c.why) + '</div>';
+  else if(!list.length) body = '<div class="pf-none">No intraoral photos linked to this patient. Photos are linked to a patient in Nexus.</div>';
+  else {
+    const days = [];
+    list.forEach((x, i) => {
+      let g = days[days.length - 1];
+      if(!g || g.d !== ioDay(x)){ g = { d: ioDay(x), items: [] }; days.push(g); }
+      g.items.push({ x, i });
+    });
+    body = (c.failed ? '<div class="pf-none xr-why">' + escapeHtml(c.why) + ' Showing the list from a moment ago.</div>' : '')
+      + days.map(g => '<div class="xr-dayh">' + escapeHtml(xrDayLabel(g.d)) + ' <span>' + g.items.length + '</span></div><div class="xr-grid">'
+        + g.items.map(o => '<button type="button" class="xr-th io-th' + (ioPicked.indexOf(o.i) !== -1 ? ' pick' : '') + '" data-iok="' + escapeHtml(o.x.k) + '" onclick="' + PF_NS + 'ioThumbTap(' + jsArg(pid) + ',' + o.i + ')">'
+          + (ioThumbMem[o.x.k] ? '<img alt="" src="' + ioThumbMem[o.x.k] + '">' : '<i>🦷</i>')
+          + '<small>' + escapeHtml(ioTime(o.x) + (ioChair(o.x) ? ' · ' + ioChair(o.x) : '')) + '</small></button>').join('')
+        + '</div>').join('');
+  }
+  w.innerHTML = '<div class="photo-sheet pf-sheet xr-sheet" onclick="event.stopPropagation()">'
+    + '<div class="pf-head"><div class="pf-who"><b>Intraoral · ' + escapeHtml(nameOf(pid) || ('ID ' + pid)) + '</b>'
+    + '<span>' + escapeHtml(pid) + (list.length ? ' · ' + list.length + ' photo' + (list.length === 1 ? '' : 's') + ' · newest first' : '') + '</span></div>'
+    + (list.length >= 2 && xrCanCompare() ? '<button type="button" class="pf-badge xr-cmp' + (ioPickMode ? ' on' : '') + '" onclick="' + PF_NS + 'ioCompareToggle()">⇄ Compare</button>' : '')
+    + '<button type="button" class="pf-x" onclick="' + PF_NS + 'ioClose()" aria-label="Close">×</button></div>'
+    + (ioPickMode ? '<div class="pf-none xr-why">Tap two photos to see them side by side.' + (ioPicked.length ? ' One chosen — tap another.' : '') + '</div>' : '')
+    + body
+    + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy (a few minutes behind the reception PC).' : 'From the reception PC.') + ' Only photos linked to this patient in Nexus. Read only — linking stays in Nexus.</div>'
+    + '</div>';
+  w.onclick = () => ioClose();
+  w.classList.remove('hidden');
+  ioThumbsFetch(pid, list);
+}
+function ioCompareToggle(){ ioPickMode = !ioPickMode; ioPicked = []; ioSheetPaint(); }
+function ioThumbTap(pid, i){
+  if(!ioPickMode){ ioView(pid, i); return; }
+  const at = ioPicked.indexOf(i);
+  if(at !== -1) ioPicked.splice(at, 1); else ioPicked.push(i);
+  if(ioPicked.length === 2){ const [a, b] = ioPicked; ioPickMode = false; ioPicked = []; ioSheetPaint(); ioView(pid, a, b); return; }
+  ioSheetPaint();
+}
+
+/* ---- the photos themselves -------------------------------------------- */
+function ioB64Blob(b64){
+  const bin = atob(String(b64 || '')); const u8 = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return new Blob([u8], { type: 'image/jpeg' });
+}
+async function ioMakeThumb(blob){
+  try{
+    const bmp = await createImageBitmap(blob);
+    const s = Math.min(1, IO_THUMB_PX / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(bmp.width * s)); cv.height = Math.max(1, Math.round(bmp.height * s));
+    cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+    try{ bmp.close(); }catch(e){}
+    return cv.toDataURL('image/jpeg', 0.8);
+  }catch(e){ return ''; }
+}
+function ioKeepFull(k, blob){
+  if(ioFullMem.some(o => o.k === k)) return;
+  ioFullMem.push({ k, url: URL.createObjectURL(blob), blob });
+  while(ioFullMem.length > IO_KEEP_FULL){ const o = ioFullMem.shift(); try{ URL.revokeObjectURL(o.url); }catch(e){} }
+}
+/* One ask brings several photos (8 on the Wi-Fi, 4 through Google); "more"
+   means the answer was full - the rest are asked for next. */
+async function ioFetch(pid, keys){
+  const out = {};
+  let left = keys.slice();
+  let guard = 0;
+  while(left.length && guard++ < 40){
+    const r = await relay({ action: 'ioGet', pid: String(pid), ks: left.slice(0, 8).join(',') });
+    if(!r || !r.ok) throw new RelayError((r && r.error) || 'no photo', r || {});
+    const got = r.photos || {};
+    const done = {};
+    for(const k of Object.keys(got)){
+      if(!ioKeyOk(k)) continue;
+      const blob = ioB64Blob(got[k]);
+      ioKeepFull(k, blob);
+      out[k] = blob; done[k] = 1;
+      if(!ioThumbMem[k]){ const u = await ioMakeThumb(blob); if(u){ ioThumbMem[k] = u; ioPaintThumb(k); } }
+    }
+    (r.missing || []).concat(r.tooBig || []).forEach(k => { done[k] = 1; });
+    const before = left.length;
+    left = left.filter(k => !done[k]);
+    if(left.length === before) break;          // nothing moved: do not ask the same again
+  }
+  return out;
+}
+function ioPaintThumb(k){
+  if(typeof document === 'undefined') return;
+  document.querySelectorAll('[data-iok]').forEach(el => {
+    if(el.getAttribute('data-iok') === k) el.innerHTML = '<img alt="" src="' + ioThumbMem[k] + '">' + (el.querySelector('small') ? el.querySelector('small').outerHTML : '');
+  });
+}
+let ioThumbBusy = false;
+async function ioThumbsFetch(pid, list){
+  const want = (list || []).map(x => x.k).filter(k => !ioThumbMem[k]);
+  if(!want.length || ioThumbBusy) return;
+  ioThumbBusy = true;
+  try{ for(let i = 0; i < want.length && ioSheetPid === pid; i += 8){ try{ await ioFetch(pid, want.slice(i, i + 8)); }catch(e){ break; } } }
+  finally{ ioThumbBusy = false; }
+}
+/* the whole photo: kept, being fetched, or asked for now */
+async function ioFull(pid, k){
+  const held = ioFullMem.find(o => o.k === k);
+  if(held) return held;
+  if(ioLoading[k]) return ioLoading[k];
+  const p = (async () => { await ioFetch(pid, [k]); const h = ioFullMem.find(o => o.k === k); if(!h) throw new Error('not found'); return h; })();
+  ioLoading[k] = p;
+  try{ return await p; }
+  finally{ delete ioLoading[k]; }
+}
+
+/* ---- the viewer ------------------------------------------------------- */
+function ioView(pid, i, i2){
+  const c = ioLists[String(pid)];
+  const list = (c && c.list) || [];
+  if(!list[i]) return;
+  const two = (i2 !== undefined && i2 !== null && i2 >= 0 && list[i2] && i2 !== i);
+  ioV = { pid: String(pid), list, i, i2: two ? i2 : -1, z: 1, x: 0, y: 0 };
+  let w = document.getElementById('ioViewer');
+  if(!w){ w = document.createElement('div'); w.id = 'ioViewer'; w.className = 'pf-view xv'; document.body.appendChild(w); }
+  const pane = (n) => '<div class="xv-pane io-pane"><img id="ioImg' + n + '" alt=""><span class="xv-lab" id="ioLab' + n + '"></span></div>';
+  w.innerHTML = '<div class="pf-vhead"><button type="button" class="pf-x" onclick="' + PF_NS + 'ioViewClose()" aria-label="Close">‹</button>'
+    + '<div><b id="ioWho"></b><span id="ioWhen"></span></div>'
+    + (two ? '' : '<button type="button" class="xv-nav" onclick="' + PF_NS + 'ioShowAt(-1)" aria-label="Previous">←</button>'
+      + '<button type="button" class="xv-nav" onclick="' + PF_NS + 'ioShowAt(1)" aria-label="Next">→</button>') + '</div>'
+    + '<div class="xv-stage io-stage' + (two ? ' xv-two' : '') + '" id="ioStage">' + pane(0) + (two ? pane(1) : '') + '<div class="xv-msg" id="ioMsg"></div></div>'
+    + '<div class="xv-tools"><div class="xv-btns"><button type="button" onclick="' + PF_NS + 'ioZoomReset()">Fit</button>'
+    + '<button type="button" id="ioShare" onclick="' + PF_NS + 'ioShare()">↗ Share</button></div></div>'
+    + (two ? '' : '<div class="xv-strip">' + list.map(x => '<button type="button" class="xv-sth" data-iok="' + escapeHtml(x.k) + '" onclick="' + PF_NS + 'ioShowKey(' + jsArg(x.k) + ')">'
+      + (ioThumbMem[x.k] ? '<img alt="" src="' + ioThumbMem[x.k] + '">' : '') + '</button>').join('') + '</div>');
+  w.classList.remove('hidden');
+  ioWireStage();
+  ioShow(i);
+  if(two) ioShowPane(1, i2);
+}
+function ioViewClose(){ const w = document.getElementById('ioViewer'); if(w){ w.classList.add('hidden'); w.innerHTML = ''; } ioV = null; }
+function ioShowAt(d){ if(ioV && ioV.i2 < 0) ioShow(ioV.i + d); }
+function ioShowKey(k){ if(!ioV) return; const i = ioV.list.findIndex(x => x.k === k); if(i >= 0) ioShow(i); }
+function ioShow(i){
+  if(!ioV) return;
+  const n = ioV.list.length;
+  ioV.i = ((i % n) + n) % n;
+  ioV.z = 1; ioV.x = 0; ioV.y = 0; ioPlace();
+  const x = ioV.list[ioV.i];
+  const who = document.getElementById('ioWho'), when = document.getElementById('ioWhen');
+  if(who) who.textContent = 'Intraoral · ' + (nameOf(ioV.pid) || ('ID ' + ioV.pid));
+  if(when) when.textContent = ioV.i2 >= 0 ? 'Side by side' : (xrDayLabel(ioDay(x)) + (ioTime(x) ? ' · ' + ioTime(x) : '') + (ioChair(x) ? ' · ' + ioChair(x) : '') + ' · ' + (ioV.i + 1) + ' of ' + n);
+  document.querySelectorAll('#ioViewer .xv-sth').forEach(el => el.classList.toggle('cur', el.getAttribute('data-iok') === x.k));
+  try{ const cur = document.querySelector('#ioViewer .xv-sth.cur'); if(cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'center' }); }catch(e){}
+  ioShowPane(0, ioV.i);
+  /* the next one is fetched ahead, so swiping on is quick */
+  if(ioV.i2 < 0 && n > 1){ const nx = ioV.list[(ioV.i + 1) % n]; if(nx) ioFull(ioV.pid, nx.k).catch(() => {}); }
+}
+async function ioShowPane(pane, i){
+  if(!ioV) return;
+  const x = ioV.list[i];
+  const img = document.getElementById('ioImg' + pane), msg = document.getElementById('ioMsg'), lab = document.getElementById('ioLab' + pane);
+  if(!img || !x) return;
+  if(lab) lab.textContent = ioV.i2 >= 0 ? (xrDayLabel(ioDay(x)) + (ioTime(x) ? ' · ' + ioTime(x) : '')) : '';
+  img.removeAttribute('src');
+  if(ioThumbMem[x.k]) img.src = ioThumbMem[x.k];       // the small one at once, the whole one when it comes
+  if(msg) msg.textContent = ioThumbMem[x.k] ? '' : 'Loading…';
+  const pid = ioV.pid;
+  try{
+    const h = await ioFull(pid, x.k);
+    if(!ioV || ioV.pid !== pid) return;
+    if((pane === 0 ? ioV.i : ioV.i2) !== i) return;     // moved on meanwhile
+    img.src = h.url;
+    if(msg) msg.textContent = '';
+  }catch(e){
+    if(msg && ioV && (pane === 0 ? ioV.i : ioV.i2) === i && !ioThumbMem[x.k]) msg.textContent = ioWhyText(e);
+  }
+}
+function ioPlace(){
+  if(!ioV) return;
+  document.querySelectorAll('#ioStage img').forEach(img => { img.style.transform = 'translate(' + ioV.x + 'px,' + ioV.y + 'px) scale(' + ioV.z + ')'; });
+}
+function ioZoomReset(){ if(ioV){ ioV.z = 1; ioV.x = 0; ioV.y = 0; ioPlace(); } }
+/* One finger moves, two fingers zoom (to 8x), a double tap goes back to the
+   whole photo; a quick swipe sideways at normal size is the next one. */
+function ioWireStage(){
+  const st = document.getElementById('ioStage');
+  if(!st) return;
+  const pts = new Map();
+  let pinch = null, drag = null, lastTap = 0, swipe = null;
+  st.addEventListener('pointerdown', (e) => {
+    if(!ioV) return;
+    try{ st.setPointerCapture(e.pointerId); }catch(er){}
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if(pts.size === 2){
+      const [a, b] = Array.from(pts.values());
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: ioV.z }; drag = null; swipe = null;
+    } else if(pts.size === 1){
+      drag = { x: e.clientX, y: e.clientY, px: ioV.x, py: ioV.y };
+      swipe = { x: e.clientX, y: e.clientY, t: Date.now() };
+      const now = Date.now();
+      if(now - lastTap < 300){ ioZoomReset(); swipe = null; }
+      lastTap = now;
+    }
+  });
+  st.addEventListener('pointermove', (e) => {
+    if(!ioV || !pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if(pinch && pts.size >= 2){
+      const [a, b] = Array.from(pts.values());
+      ioV.z = Math.min(8, Math.max(1, pinch.z * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)));
+      if(ioV.z === 1){ ioV.x = 0; ioV.y = 0; }
+      ioPlace();
+    } else if(drag && ioV.z > 1){
+      ioV.x = drag.px + e.clientX - drag.x; ioV.y = drag.py + e.clientY - drag.y; ioPlace();
+    }
+  });
+  const up = (e) => {
+    pts.delete(e.pointerId);
+    if(pts.size < 2) pinch = null;
+    if(!pts.size){
+      if(swipe && ioV && ioV.i2 < 0 && ioV.z <= 1){
+        const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+        if(Math.abs(dx) > 60 && Math.abs(dy) < 50 && Date.now() - swipe.t < 600) ioShowAt(dx < 0 ? 1 : -1);
+      }
+      drag = null; swipe = null;
+    }
+  };
+  st.addEventListener('pointerup', up);
+  st.addEventListener('pointercancel', up);
+  st.addEventListener('wheel', (e) => { if(!ioV) return; e.preventDefault(); ioV.z = Math.min(8, Math.max(1, ioV.z * (e.deltaY < 0 ? 1.15 : 1 / 1.15))); if(ioV.z === 1){ ioV.x = 0; ioV.y = 0; } ioPlace(); }, { passive: false });
+}
+/* Share (the phone's own share sheet): the photo as a file, as RVG's Share. */
+async function ioShare(){
+  if(!ioV) return;
+  const x = ioV.list[ioV.i];
+  try{
+    const h = await ioFull(ioV.pid, x.k);
+    const name = 'Intraoral ' + (nameOf(ioV.pid) || ioV.pid) + ' ' + String(x.t || '').replace('T', ' ').replace(/:/g, '.') + '.jpg';
+    const file = new File([h.blob], name.replace(/[\\/:*?"<>|]+/g, ' '), { type: 'image/jpeg' });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){ await navigator.share({ files: [file], title: name }); return; }
+    const a = document.createElement('a'); a.href = h.url; a.download = file.name; document.body.appendChild(a); a.click();
+    setTimeout(() => { try{ a.remove(); }catch(e){} }, 3000);
+  }catch(e){
+    if(e && e.name === 'AbortError') return;
+    const msg = document.getElementById('ioMsg'); if(msg) msg.textContent = 'Could not share just now.';
+  }
+}
+/* ======================================== end INTRAORAL PHOTOS (5.21) == */
 
 /* ------------------------------------------------------------ patients -- */
 /* THE NAMES ARE PREPARED ONCE (4.27). Every keystroke used to walk the whole
