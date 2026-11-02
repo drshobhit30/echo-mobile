@@ -1011,6 +1011,20 @@ body{ background:#FAF7F2 !important; }
 .bk-toast{ position:fixed; left:12px; right:12px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:95; background:#1D9E75; color:#fff; border-radius:12px; padding:11px 13px; font-size:0.88rem; opacity:0; transform:translateY(10px); transition:all .2s ease; pointer-events:none; }
 .bk-toast.on{ opacity:1; transform:none; }
 .ka-card.is-pending{ outline:1.5px dashed #C9A56B; outline-offset:-1.5px; }
+.ch-wrap{ position:fixed; inset:0; background:rgba(40,30,20,.38); z-index:60; display:flex; align-items:flex-end; justify-content:center; }
+.ch-wrap.hidden{ display:none; }
+.ch-sheet{ background:#FBF7EF; width:100%; max-width:520px; border-radius:18px 18px 0 0; padding:16px 18px 22px; box-shadow:0 -6px 24px rgba(0,0,0,.15); }
+.ch-h{ display:flex; justify-content:space-between; align-items:center; font-size:1.02rem; }
+.ch-sub{ color:#8a7a63; font-size:0.84rem; margin:4px 0 12px; }
+.ch-l{ display:flex; flex-direction:column; gap:4px; font-size:0.78rem; color:#8a7a63; margin-bottom:10px; }
+.ch-l input, .ch-l select{ font:inherit; font-size:1rem; padding:10px 12px; border:1px solid #E6DCC8; border-radius:10px; background:#fff; color:#2B2118; }
+.ch-note{ font-size:0.76rem; color:#8a7a63; margin:2px 0 8px; }
+.ch-logline{ font-size:0.84rem; margin:6px 0 2px; }
+.ch-logline:empty{ display:none; }
+.ch-warn{ color:#8A5A20; font-size:0.84rem; margin:-4px 0 8px; }
+.ch-warn:empty{ display:none; }
+.ch-msg{ color:#A0453E; font-size:0.84rem; min-height:1em; margin-bottom:6px; }
+.ch-go{ width:100%; }
 .ka-pend{ font-size:0.66rem; background:#F6EBD9; color:#8A5F26; border-radius:9px; padding:1px 7px; margin-left:6px; }
 
 /* 4.17 audit: room under the list so the + button never covers the last card */
@@ -2106,7 +2120,7 @@ function rowsFor(day){
   };
   const used = {};
   const rows = [];
-  (held.appointments || []).forEach(a => {
+  chOverlay(day, held.appointments || []).forEach(a => {
     if(!a) return;
     /* THIS PHONE'S OWN ROUGH SLOT, STILL WAITING (4.37), is drawn from this
        phone's copy - the one that can be changed - not from the relay's. */
@@ -2124,7 +2138,8 @@ function rowsFor(day){
     else status = 'booked';
     rows.push({ kind: 'appt', id: a.id, visitId: v ? v.id : '', patientId: a.patientId || '', name: a.patientId ? (nameOf(a.patientId) || ('ID ' + a.patientId)) : (a.newName || (a.rough ? 'no name yet' : 'New patient')),
       mins: t, len: Number(a.mins) || 15, doctor: a.doctor || '', reason: (v && v.cameFor) || a.cameFor || a.note || '',
-      status, struck: status === 'noshow', rough: !!a.rough, bookedAt: a.createdAt || '', chair: v && v.chair,
+      status, struck: status === 'noshow' || !!(a.changePending && a.changePending.kind === 'cancel'), rough: !!a.rough, bookedAt: a.createdAt || '', chair: v && v.chair,
+      chg: a.changePending || null, fileDate: (a.changePending && a.changePending.kind === 'move' && a.changePending.fromDate) || day, time: a.time || '',   // 5.25
       /* NOT YET AT THE DESK (4.23). The relay hands these over from the
          booking inbox when the reception PC is off, so every phone can see
          what has been asked for instead of only the phone that asked. It is
@@ -2208,7 +2223,9 @@ function rowHtml(r, day){
     + (r.patientId && !r.rough ? '<div class="ka-face">' + faceHtml(r.patientId, 'face-sm') + '</div>' : '')
     + '<div class="ka-in">'
       + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span><span>'
-        + (r.pending
+        + (r.chg && !r.pending
+            ? '<span class="ka-pend">\u23F3 ' + (r.chg.kind === 'cancel' ? 'Cancelled' : 'Moved') + ' \u00b7 waiting for the server</span>'
+            : r.pending
             ? '<span class="ka-pend">\u23F3 ' + (r.notFiled ? 'Not at the desk yet'
                 : (r.sent ? 'Sent to desk' : escapeHtml(r.waitWhy || 'Waiting for signal'))) + '</span>'
             : '<span class="cal-chip ' + chip[1] + '">' + chip[0] + '</span>')
@@ -2646,6 +2663,7 @@ function renderCalendar(){
   document.getElementById('calChips').innerHTML = CHIP_DEFS.map(([k, label, f]) =>
     '<button type="button" class="kv-chip kv-chip-' + k + (statusFilter === k ? ' on' : '') + '" onclick="Cal.setStatusFilter(' + jsArg(k) + ')">'
     + label + ' <b>' + people.filter(f).length + '</b></button>').join('');
+  try{ chLogPaint(); }catch(e){}   // 5.27 (audit M1): bookings changed from phones today
   const list = document.getElementById('calList');
   if(all === null){
     list.innerHTML = '<div class="cal-skel"></div><div class="cal-skel"></div><div class="cal-skel"></div>';
@@ -2764,6 +2782,7 @@ function openDrawer(day, kind, id){
       h += '<div class="dr-two"><button type="button" class="btn dr-btn" onclick="Cal.bkEditOpen(' + jsArg(r.id) + ')">\u270E Change</button>'
         + '<button type="button" class="btn ghost dr-btn" onclick="Cal.bkRemove(' + jsArg(r.id) + ')">Remove</button></div>';
     }
+    else h += chDrawerHtml(r, day, 'Cal.');   // 5.25: Move / Cancel
   }
   if(r.patientId && hooks.adminOn() && r.visitId){
     h += '<div class="dr-pair"><div class="dr-panel" id="drBill"><div class="rxs-k">Bill ' + (day === todayStr() ? 'today' : 'that day') + '</div><div class="muted">Reading\u2026</div></div>'
@@ -3012,6 +3031,262 @@ async function bkSubmit(){
    before the change reached its disk, the desk has the earlier version.
    bkCheckAmended compares this phone's copy with what the day shows once it
    is filed, and says so out loud if they differ. */
+/* ==== MOVE OR CANCEL A BOOKING FROM THE PHONE (5.25, relay r4.50) =========
+   Owner, 1 Nov 2026: "A patient called me now to reschedule tomorrow's appointment. The reception
+   pc is off. Can we add an option in phone app?" ... "every phone app with calendar gets it".
+   A booking in the diary - not marked in, not settled, from today on - can be moved (day and
+   time; same doctor and length) or cancelled. The request goes to the relay, which every phone's
+   calendar reads: the booking shows at its new time, or struck, "waiting for the desk", until the
+   reception PC's Nexus files it. This phone shows its own change at once (also on the clinic
+   Wi-Fi, before Drive brings it to the reception PC); kept 30 minutes, by then every read has it. */
+const K_CHLOCAL = 'echoAdmin_chLocal';
+const CH_LOCAL_MS = 30 * 60 * 1000;
+let chLocal = null;
+function chLoad(){
+  if(chLocal) return chLocal;
+  try{ chLocal = JSON.parse(localStorage.getItem(K_CHLOCAL) || '{}') || {}; }catch(e){ chLocal = {}; }
+  const now = Date.now();
+  Object.keys(chLocal).forEach(k => { if(!chLocal[k] || now - (chLocal[k].madeAt || 0) > CH_LOCAL_MS) delete chLocal[k]; });
+  return chLocal;
+}
+function chSave(){ try{ localStorage.setItem(K_CHLOCAL, JSON.stringify(chLocal || {})); }catch(e){} }
+/* The relay's overlay, again here for this phone's own fresh changes (same rules). */
+function chOverlay(day, list){
+  const ch = chLoad();
+  const ids = Object.keys(ch);
+  if(!ids.length) return list;
+  const out = [], have = {};
+  list.forEach(a => {
+    if(!a || !a.id){ out.push(a); return; }
+    have[a.id] = true;
+    const c = ch[a.id];
+    const live = (a.status || 'scheduled') === 'scheduled' && !a.visitId && !a.pending;
+    if(!c){ out.push(a); return; }
+    if(c.kind === 'withdraw'){
+      /* 5.26: this phone withdrew the move. The server may still show it moved for a moment:
+         then the booking is shown back on its own day at its booked time, and not on the other day. */
+      if(!a.changePending){
+        if(day === c.fromDate || !live){ delete ch[a.id]; chSave(); }
+        out.push(a); return;
+      }
+      if(day === c.fromDate) out.push(Object.assign({}, a, { date: day, time: c.fromTime, changePending: null }));
+      return;
+    }
+    /* the server has caught up (it shows this change, or the desk has filed it), or the
+       booking is settled: this phone's own copy is no longer needed - the server's word stands */
+    const caught = !live
+      || (c.kind === 'cancel' && a.changePending && a.changePending.kind === 'cancel')
+      || (c.kind === 'move' && day === c.toDate && String(a.time) === String(c.toTime));
+    if(caught){ delete ch[a.id]; chSave(); out.push(a); return; }
+    const note = c.kind === 'move' ? { kind: 'move', fromDate: c.fromDate, fromTime: c.fromTime, by: c.by, at: c.at } : { kind: 'cancel', by: c.by, at: c.at };
+    if(c.kind === 'cancel'){ out.push(Object.assign({}, a, { changePending: note })); return; }
+    if(c.toDate === day) out.push(Object.assign({}, a, { date: day, time: c.toTime, changePending: note }));
+  });
+  ids.forEach(id => {
+    const c = ch[id];
+    if(c && c.kind === 'withdraw' && c.fromDate === day && !have[id] && c.appt){
+      out.push(Object.assign({}, c.appt, { id: id, date: day, time: c.fromTime, status: 'scheduled', changePending: null }));
+      return;
+    }
+    if(!c || c.kind !== 'move' || c.toDate !== day || have[id] || c.fromDate === day || !c.appt) return;
+    out.push(Object.assign({}, c.appt, { id: id, date: day, time: c.toTime, status: 'scheduled',
+      changePending: { kind: 'move', fromDate: c.fromDate, fromTime: c.fromTime, by: c.by, at: c.at } }));
+  });
+  return out;
+}
+function chFindAppt(fileDate, id){
+  const held = mem.days[fileDate];
+  return held ? (held.appointments || []).find(a => a && String(a.id) === String(id)) || null : null;
+}
+function chDrawerHtml(r, day, ns){
+  if(r.kind !== 'appt' || r.notFiled || r.pending || r.visitId) return '';
+  if(r.status !== 'booked' && r.status !== 'rough') return '';
+  if(day < todayStr()) return '';
+  let h = '';
+  if(r.chg){
+    h += '<div class="dr-card"><div class="dr-card-b"><div class="dr-row"><span>Waiting for the server</span><b>'
+      + (r.chg.kind === 'cancel' ? 'Cancelled' : 'Moved here from ' + escapeHtml(dayTitle(r.chg.fromDate)) + ', ' + escapeHtml(clock(minsOf(r.chg.fromTime))))
+      + (r.chg.by ? ' <i>· ' + escapeHtml(r.chg.by) + '</i>' : '') + '</b></div></div></div>';
+  }
+  if(r.chg && r.chg.kind === 'cancel') return h;
+  h += '<div class="dr-two"><button type="button" class="btn dr-btn" onclick="' + ns + 'chMoveOpen(' + jsArg(r.fileDate || day) + ',' + jsArg(r.id) + ',' + jsArg(day) + ')">⇄ Move…</button>'
+    + '<button type="button" class="btn ghost dr-btn" onclick="' + ns + 'chCancel(' + jsArg(r.fileDate || day) + ',' + jsArg(r.id) + ',' + jsArg(day) + ')">Cancel booking</button></div>';
+  return h;
+}
+let chCtx = null;
+function chMoveOpen(fileDate, id, shownDay){
+  const r = (rowsFor(shownDay) || []).find(x => x.kind === 'appt' && String(x.id) === String(id));
+  if(!r) return;
+  chCtx = { fileDate, id, shownDay, name: r.name, len: r.len };
+  let w = document.getElementById('chWrap');
+  if(!w){
+    w = document.createElement('div'); w.id = 'chWrap'; w.className = 'ch-wrap';
+    w.addEventListener('click', e => { if(e.target === w) chClose(); });
+    document.body.appendChild(w);
+  }
+  chCtx.doctor = r.doctor || ''; chCtx.rough = !!r.rough; chCtx.cur = r.time || '';
+  w.innerHTML = '<div class="ch-sheet"><div class="ch-h"><b>Move ' + escapeHtml(r.name) + '</b><button type="button" class="dr-x" onclick="' + chNs() + 'chClose()">✕</button></div>'
+    + '<div class="ch-sub">Now ' + escapeHtml(dayTitle(shownDay)) + ', ' + escapeHtml(clock(r.mins)) + ' · ' + escapeHtml(String(r.len || 15)) + ' min' + (r.doctor ? ' · ' + escapeHtml(doctorLabel(r.doctor)) : '') + '</div>'
+    + '<label class="ch-l">New day<input type="date" id="chDay" min="' + todayStr() + '" value="' + escapeHtml(shownDay) + '" onchange="' + chNs() + 'chDayChanged()"></label>'
+    + '<label class="ch-l">New time<select id="chTime" onchange="' + chNs() + 'chTimeNote()">' + chTimeOptions(shownDay, chCtx.cur) + '</select></label>'
+    + '<div class="ch-warn" id="chWarn"></div>'
+    + (r.chg && r.chg.kind === 'move' ? '<div class="ch-note"><b>Booked for ' + escapeHtml(dayTitle(r.chg.fromDate)) + ', ' + escapeHtml(clock(minsOf(r.chg.fromTime))) + '</b> - pick that day and time to undo the move.</div>' : '')
+    + '<div class="ch-note">Same doctor and length. Every phone shows it at once; the server files it when it is on.</div>'
+    + '<div class="ch-msg" id="chMsg"></div>'
+    + '<button type="button" class="btn ch-go" id="chGo" onclick="' + chNs() + 'chMoveSend()">Move</button></div>';
+  w.classList.remove('hidden');
+  try{ chTimeNote(); }catch(e){}
+}
+/* 5.27 (audit 2 Nov 2026, M4): the time list says which times are taken for this doctor or closed
+   (a calendar mark), as the booking sheet does; picking one warns - it is still allowed (owner's
+   rule for bookings). A time gone by today cannot be picked. */
+function chSlotInfo(day, t){
+  const c = chCtx || {};
+  const mins = Number(c.len) || 15;
+  if(day === todayStr()){ const n = new Date(); if(t <= n.getHours() * 60 + n.getMinutes()) return { st: 'past' }; }
+  const held = mem.days[day];
+  if(!c.rough && c.doctor && held){
+    const hit = chOverlay(day, held.appointments || []).find(a => a && String(a.id) !== String(c.id) && !a.rough
+      && (a.status || 'scheduled') !== 'cancelled' && a.status !== 'noshow' && !(a.changePending && a.changePending.kind === 'cancel')
+      && a.doctor === c.doctor && (() => { const s1 = minsOf(a.time); return Number.isFinite(s1) && t < s1 + (Number(a.mins) || 15) && t + mins > s1; })());
+    if(hit) return { st: 'booked', who: hit.patientId ? (nameOf(hit.patientId) || ('ID ' + hit.patientId)) : (hit.newName || 'a booking'), at: hit.time };
+  }
+  const b = blocksOn(day).find(b => {
+    if(b.doctor && c.doctor && b.doctor !== c.doctor) return false;
+    if(b.allDay) return true;
+    const s0 = minsOf(b.start), e0 = minsOf(b.end);
+    return Number.isFinite(s0) && Number.isFinite(e0) && t < e0 && t + mins > s0;
+  });
+  return b ? { st: 'marked', what: markLabel(b) } : { st: 'free' };
+}
+function chTimeOptions(day, cur){
+  let h = '';
+  for(let m = 7 * 60; m < 24 * 60; m += 15){
+    const v = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    const i = chSlotInfo(day, m);
+    h += '<option value="' + v + '"' + (v === cur ? ' selected' : '') + (i.st === 'past' ? ' disabled' : '') + '>' + escapeHtml(clock(m))
+      + (i.st === 'booked' ? ' \u00b7 booked' : i.st === 'marked' ? ' \u00b7 closed' : i.st === 'past' ? ' \u00b7 gone' : '') + '</option>';
+  }
+  return h;
+}
+function chTimeNote(){
+  const day = (document.getElementById('chDay') || {}).value || '', v = (document.getElementById('chTime') || {}).value || '';
+  const w = document.getElementById('chWarn');
+  if(!w) return;
+  const i = /^\d{4}-\d{2}-\d{2}$/.test(day) ? chSlotInfo(day, minsOf(v)) : { st: 'free' };
+  w.textContent = i.st === 'booked' ? '\u26A0 ' + clock(minsOf(i.at)) + ' is booked for ' + i.who + ' with the same doctor \u2014 this would be double-booked.'
+    : i.st === 'marked' ? '\u26A0 Closed then: ' + i.what + '.' : '';
+}
+async function chDayChanged(){
+  const day = (document.getElementById('chDay') || {}).value || '';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(day) || !chCtx) return;
+  const keep = (document.getElementById('chTime') || {}).value || chCtx.cur;
+  const paint = () => { const sel = document.getElementById('chTime'); if(sel && chCtx){ sel.innerHTML = chTimeOptions(day, keep); chTimeNote(); } };
+  paint();
+  if(!mem.days[day]){ try{ await ensureWeek(day, false); }catch(e){} paint(); }
+}
+/* 5.27 (audit 2 Nov 2026, M1): THE ADMIN APP SEES EVERY PHONE CHANGE. The relay keeps the last 40
+   moves, cancels and undos made from phones (r4.52, apptChangeLog - admin key only); the calendar
+   says how many today, and a tap lists them - who, which patient, from and to. */
+let chLog = null, chLogAt = 0, chLogBusy = false;
+async function chLogLoad(force){
+  if(chLogBusy || (!force && Date.now() - chLogAt < 60000)) return;
+  chLogBusy = true;
+  try{ const j = await relay({ action: 'apptChangeLog' }); if(j && j.ok && Array.isArray(j.log)){ chLog = j.log; chLogAt = Date.now(); chLogPaint(); } }
+  catch(e){}
+  finally{ chLogBusy = false; }
+}
+function chAtClock(iso){ const d = new Date(iso); return isNaN(d.getTime()) ? '' : clock(d.getHours() * 60 + d.getMinutes()); }
+function chLogToday(){ const t = todayStr(); return (chLog || []).filter(x => x && localDayOf(x.at) === t); }
+function chLogLine(x){
+  const who = x.pid ? (nameOf(x.pid) || ('ID ' + x.pid)) : (x.newName || 'a booking');
+  const when = (d, tm) => d ? dayTitle(d) + (tm ? ', ' + clock(minsOf(tm)) : '') : '';
+  const what = x.kind === 'cancel' ? 'cancelled ' + who + ' (' + when(x.fromDate, x.fromTime) + ')'
+    : x.kind === 'undo' ? 'undid the move of ' + who + ' (back to ' + when(x.fromDate, x.fromTime) + ')'
+    : 'moved ' + who + ' from ' + when(x.fromDate, x.fromTime) + ' to ' + when(x.toDate, x.toTime);
+  return '<div class="dr-row"><span>' + escapeHtml(chAtClock(x.at)) + '</span><b>' + escapeHtml((x.by || 'a phone') + ' ' + what) + '</b></div>';
+}
+function chLogPaint(){
+  if(typeof document === 'undefined') return;
+  chLogLoad(false);
+  const chips = document.getElementById('calChips');
+  if(!chips || !chips.parentNode) return;
+  let el = document.getElementById('calPhoneCh');
+  if(!el){ el = document.createElement('div'); el.id = 'calPhoneCh'; el.className = 'ch-logline'; chips.parentNode.insertBefore(el, chips.nextSibling); }
+  const n = chLogToday().length;
+  el.innerHTML = n ? '<button type="button" class="link" onclick="Cal.chLogOpen()">\uD83D\uDCF1 ' + n + ' booking change' + (n === 1 ? '' : 's') + ' from phones today \u203A</button>' : '';
+}
+function chLogOpen(){
+  let w = document.getElementById('chWrap');
+  if(!w){ w = document.createElement('div'); w.id = 'chWrap'; w.className = 'ch-wrap'; w.addEventListener('click', e => { if(e.target === w) chClose(); }); document.body.appendChild(w); }
+  const l = chLog || [];
+  w.innerHTML = '<div class="ch-sheet"><div class="ch-h"><b>Changed from phones</b><button type="button" class="dr-x" onclick="Cal.chClose()">\u2715</button></div>'
+    + '<div class="ch-sub">The last ' + l.length + ', newest first. The server files each one when it is on (Day Book and bell).</div>'
+    + '<div class="dr-card"><div class="dr-card-b">' + (l.length ? l.map(chLogLine).join('') : '<div class="dr-row"><span>None</span></div>') + '</div></div></div>';
+  w.classList.remove('hidden');
+}
+function chNs(){ return (typeof ADMIN_VERSION !== 'undefined' && typeof Cal !== 'undefined') ? 'Cal.' : ''; }
+function chClose(){ const w = document.getElementById('chWrap'); if(w) w.classList.add('hidden'); chCtx = null; }
+async function chSend(change, shownDay){
+  /* the booking as this phone holds it: on its own day, or (5.26) where a waiting move shows it */
+  const a = chFindAppt(change.fromDate, change.apptId) || (shownDay ? chFindAppt(shownDay, change.apptId) : null);
+  const was = a && a.changePending && a.changePending.kind === 'move' ? a.changePending : null;
+  const fromTime = was ? String(was.fromTime || '') : a ? String(a.time || '') : '';
+  change.by = bkWho() || (typeof ADMIN_VERSION !== 'undefined' ? 'admin phone' : 'phone');
+  const j = await relay({ action: 'apptChange', change: JSON.stringify(change) });
+  if(!j || !j.ok) throw new RelayError((j && j.error) || 'refused', j || {});
+  const snap = a ? Object.assign({}, a) : null;
+  if(snap) delete snap.changePending;
+  if(j.withdrawn){
+    /* 5.26: moved back to its booked time - the waiting move is gone */
+    chLoad()[change.apptId] = { kind: 'withdraw', apptId: change.apptId, fromDate: change.fromDate, fromTime: fromTime,
+      madeAt: Date.now(), at: new Date().toISOString(), appt: snap ? Object.assign(snap, { date: change.fromDate, time: fromTime }) : null };
+  } else {
+    chLoad()[change.apptId] = Object.assign({}, change, { madeAt: Date.now(), at: new Date().toISOString(), fromTime: fromTime, appt: snap });
+  }
+  chSave();
+  return j;
+}
+function chErr(e){
+  const why = String((e && e.body && e.body.error) || (e && e.message) || '');
+  if(!why || /^relay error/i.test(why) || why === 'bad key') return 'Could not reach the clinic just now — nothing was changed. Try again.';
+  return why;
+}
+async function chMoveSend(){
+  if(!chCtx) return;
+  const toDate = (document.getElementById('chDay') || {}).value || '';
+  const toTime = (document.getElementById('chTime') || {}).value || '';
+  const msg = document.getElementById('chMsg'), btn = document.getElementById('chGo');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(toDate)){ msg.textContent = 'Pick a day.'; return; }
+  if(toDate < todayStr()){ msg.textContent = 'Pick today or a later day.'; return; }
+  btn.disabled = true; btn.textContent = 'Moving…'; msg.textContent = '';
+  try{
+    const j = await chSend({ apptId: chCtx.id, kind: 'move', fromDate: chCtx.fileDate, toDate, toTime }, chCtx.shownDay);
+    const name = chCtx.name;
+    chClose(); try{ closeDrawer(); }catch(e){}
+    if(j && j.withdrawn) toast(name + ' is back at ' + dayTitle(toDate) + ', ' + clock(minsOf(toTime)) + ' · as booked');
+    else toast('Moved ' + name + ' to ' + dayTitle(toDate) + ', ' + clock(minsOf(toTime)) + ' · waiting for the server');
+    renderCalendar();
+    try{ await ensureWeek(toDate, true); }catch(e){}
+    renderCalendar();
+  }catch(e){
+    msg.textContent = chErr(e);
+    btn.disabled = false; btn.textContent = 'Move';
+  }
+}
+async function chCancel(fileDate, id, shownDay){
+  const r = (rowsFor(shownDay) || []).find(x => x.kind === 'appt' && String(x.id) === String(id));
+  if(!r) return;
+  if(!confirm('Cancel this booking?\n\n' + r.name + '\n' + dayTitle(shownDay) + ', ' + clock(r.mins) + '\n\nRecorded as cancelled by the patient. The server files it when it is on.')) return;
+  try{
+    await chSend({ apptId: id, kind: 'cancel', fromDate: fileDate, cancelledBy: 'patient' }, shownDay);
+    try{ closeDrawer(); }catch(e){}
+    toast('Cancelled · waiting for the server');
+    renderCalendar();
+    try{ await ensureWeek(shownDay, true); }catch(e){}
+    renderCalendar();
+  }catch(e){ alert(chErr(e)); }
+}
 function bkMine(id){ return bkPending.find(p => p && String(p.id) === String(id)) || null; }
 function bkEditable(p){ return !!(p && p.rough === true && !p.filedAt); }
 function bkEditOpen(id){
@@ -5707,7 +5982,7 @@ function ioWhyText(e){
   const b = (e && e.body) || {};
   if(b.relayOld) return 'The phone relay needs its update (r4.49) to show intraoral photos away from the clinic.';
   const m = String((e && e.message) || b.error || '');
-  if(/unknown action/.test(m)) return 'The reception PC’s desk server needs its update (2.21) for intraoral photos.';
+  if(/unknown action/.test(m)) return 'The server needs its update (2.21) for intraoral photos.';
   return 'The intraoral photos could not be fetched just now. Try again in a moment.';
 }
 function ioDay(x){ return String((x && x.t) || '').slice(0, 10).replace(/-/g, ''); }
@@ -5827,7 +6102,7 @@ function ioSheetPaint(){
   const c = ioLists[pid];
   const list = (c && c.list) || [];
   let body;
-  if(ioAskingNow[pid] && !list.length) body = '<div class="pf-none">' + (xrVia === 'drive' ? 'Asking the clinic’s Drive copy…' : 'Asking the reception PC…') + '</div>';
+  if(ioAskingNow[pid] && !list.length) body = '<div class="pf-none">' + (xrVia === 'drive' ? 'Asking the clinic’s Drive copy…' : 'Asking the server…') + '</div>';
   else if(c && c.failed && !list.length) body = '<div class="pf-none xr-why">' + escapeHtml(c.why) + '</div>';
   else if(!list.length) body = '<div class="pf-none">No intraoral photos linked to this patient. Photos are linked to a patient in Nexus.</div>';
   else {
@@ -5851,7 +6126,7 @@ function ioSheetPaint(){
     + '<button type="button" class="pf-x" onclick="' + PF_NS + 'ioClose()" aria-label="Close">×</button></div>'
     + (ioPickMode ? '<div class="pf-none xr-why">Tap two photos to see them side by side.' + (ioPicked.length ? ' One chosen — tap another.' : '') + '</div>' : '')
     + body
-    + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy (a few minutes behind the reception PC).' : 'From the reception PC.') + ' Only photos linked to this patient in Nexus. Read only — linking stays in Nexus.</div>'
+    + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy (a few minutes behind the server).' : 'From the server.') + ' Only photos linked to this patient in Nexus. Read only — linking stays in Nexus.</div>'
     + '</div>';
   w.onclick = () => ioClose();
   w.classList.remove('hidden');
@@ -5920,10 +6195,25 @@ function ioPaintThumb(k){
 }
 let ioThumbBusy = false;
 async function ioThumbsFetch(pid, list){
-  const want = (list || []).map(x => x.k).filter(k => !ioThumbMem[k]);
+  let want = (list || []).map(x => x.k).filter(k => !ioThumbMem[k]);
   if(!want.length || ioThumbBusy) return;
   ioThumbBusy = true;
-  try{ for(let i = 0; i < want.length && ioSheetPid === pid; i += 8){ try{ await ioFetch(pid, want.slice(i, i + 8)); }catch(e){ break; } } }
+  try{
+    /* 5.27 (audit 2 Nov 2026, M3): away from the clinic, Drive's own small pictures (a few KB each,
+       relay r4.52) - not every whole photo over mobile data. Only a photo Drive has no small picture
+       for yet is fetched whole. On the clinic Wi-Fi the whole photos come from the server, as before. */
+    if(!xrOnLan()){
+      for(let i = 0; i < want.length && ioSheetPid === pid; i += 24){
+        const chunk = want.slice(i, i + 24);
+        let r = null;
+        try{ r = await relay({ action: 'ioThumbs', pid: String(pid), ks: chunk.join(',') }); }catch(e){ r = null; }
+        if(!r || !r.ok) break;                         // an older relay: the whole photos below
+        Object.keys(r.thumbs || {}).forEach(k => { if(ioKeyOk(k)){ ioThumbMem[k] = 'data:image/jpeg;base64,' + r.thumbs[k]; ioPaintThumb(k); } });
+      }
+      want = want.filter(k => !ioThumbMem[k]);
+    }
+    for(let i = 0; i < want.length && ioSheetPid === pid; i += 8){ try{ await ioFetch(pid, want.slice(i, i + 8)); }catch(e){ break; } }
+  }
   finally{ ioThumbBusy = false; }
 }
 /* the whole photo: kept, being fetched, or asked for now */
@@ -6481,7 +6771,7 @@ function kvOpen(pid, i){
 }
 function kvClose(){ const v = document.getElementById('koView'); if(v){ v.classList.remove('open'); v.innerHTML = ''; } }
 
-return { kvOpen, kvClose, kvMore, kvRetry, waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkPhoneIn, bkSubmit, bkLoad, bkSend, bkEditOpen, bkRemove, photoLoad, photoRefresh, photoTake, photoUse, photoRetake, photoCancel, faceHtml, photoOf, photoRetry, photoUnsentHtml, photoDecline, photoNeedsList, historyHtml,
+return { kvOpen, kvClose, kvMore, kvRetry, waOpen, waBtnFor, waBtnHtml, waNumberOf, callBtnFor, callBtnHtml, telHref, numListHtml, rxShowOlder, rxFor, rxCount, settingValue: (n) => (mem.settings[n] ? mem.settings[n].value : undefined), bkOpen, bkClose, bkSet, bkSearch, bkPick, bkReason, bkPhoneIn, bkSubmit, bkLoad, bkSend, bkEditOpen, bkRemove, chMoveOpen, chCancel, chClose, chMoveSend, chDayChanged, chTimeNote, chLogOpen, photoLoad, photoRefresh, photoTake, photoUse, photoRetake, photoCancel, faceHtml, photoOf, photoRetry, photoUnsentHtml, photoDecline, photoNeedsList, historyHtml,
   pfLoad, pfSheetOpen, pfSheetClose, pfFaceBig, pfFaceClose, pfShoot, pfPickType, pfPageDrop, pfShotCancel, pfShotSave, pfRetry, pfOpenFile, pfViewGo, pfViewClose, pfTodayHtml, pfBadgeHtml, pfListOf, pfCountOf, xrOpen, xrClose, xrView, xrViewClose, xrShowAt, xrShowKey, xrAdjust, xrTool, xrFillSlots, xrCompareToggle, xrThumbTap,
   xrFindOpen, xrFindClose, xrFindType, xrOldOpen, xrOldBack,   // 4.91: find old X-rays - reachable by a tap here too
   xrLinkSend,   // 4.98: link an old X-ray person, admin unlocked
@@ -8745,7 +9035,7 @@ async function loadPrescriptions(){
    deleted when the relay refuses this phone's key, and day books older than
    60 days are pruned at each opening; "Link old X-rays" on an old relay says
    "needs relay r4.28"; tidied. */
-const ADMIN_VERSION = '5.23';
+const ADMIN_VERSION = '5.27';   // 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; the calendar shows today's booking changes from phones (relay r4.52); intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
