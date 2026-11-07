@@ -769,6 +769,14 @@ body{ background:#FAF7F2 !important; }
 .ka-card.is-pending{ outline:1.5px dashed #C9A56B; outline-offset:-1.5px; }
 .ch-wrap{ position:fixed; inset:0; background:rgba(40,30,20,.38); z-index:60; display:flex; align-items:flex-end; justify-content:center; }
 .ch-wrap.hidden{ display:none; }
+/* 5.30: marks from the phone */
+.mk-seg{ display:flex; gap:6px; margin:4px 0 8px; }
+.mk-seg button{ flex:1; font:inherit; font-size:14px; padding:8px; border-radius:10px; border:1px solid #D9C9A8; background:#fff; color:#5c4c33; }
+.mk-seg button.on{ background:#8A6A3E; color:#fff; border-color:#8A6A3E; }
+.mk-times{ display:flex; gap:10px; } .mk-times.hidden{ display:none; } .mk-times .ch-l{ flex:1; }
+.kv-mark-add{ font:inherit; font-size:12px; font-weight:600; border:1px solid #D9C9A8; background:#fff; color:#8A6A3E; border-radius:12px; padding:2px 9px; margin-left:8px; vertical-align:1px; }
+.ka-card.is-mark{ cursor:pointer; }
+.ka-card.is-mark.is-wait{ opacity:.75; }
 .ch-sheet{ background:#FBF7EF; width:100%; max-width:520px; border-radius:18px 18px 0 0; padding:16px 18px 22px; box-shadow:0 -6px 24px rgba(0,0,0,.15); }
 .ch-h{ display:flex; justify-content:space-between; align-items:center; font-size:1.02rem; }
 .ch-sub{ color:#8a7a63; font-size:0.84rem; margin:4px 0 12px; }
@@ -999,7 +1007,7 @@ body{ background:#FAF7F2 !important; }
 /* One number for both phone apps from 4.6 (owner's call). */
 /* 5.11 (16 Oct 2026): renumbered with Echo Files' audit fixes; lite itself
    changed only a code comment (audit L23: a made-up patient id). */
-const LITE_VERSION = '5.27';   // 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
+const LITE_VERSION = '5.30';   // 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -2448,7 +2456,8 @@ function effectiveStatus(v, day){
    closures file is empty, so the phones showed none. A mark ONLY DRAWS, here
    as in Nexus: a card in the day list, a light shade on the times it covers
    in the booking sheet, a grey dot on the date strip for an all-day one. It
-   never warns, never stops a booking, and cannot be changed from a phone. */
+   never warns and never stops a booking. Since 5.30 a phone can add a one-off mark and remove any
+   mark that does not repeat (mkOpen / mkMarkTap). */
 function blocksOn(day){
   const list = S('calendar-marks.json') || [];
   const dow = dateOf(day).getDay();
@@ -2547,7 +2556,7 @@ function rowsFor(day){
   });
   blocksOn(day).forEach(b => {
     rows.push({ kind: 'mark', id: b.id, mins: b.allDay ? 24 * 60 : minsOf(b.start),
-      end: minsOf(b.end), allDay: !!b.allDay, title: markLabel(b), doctor: b.doctor || '' });
+      end: minsOf(b.end), allDay: !!b.allDay, title: markLabel(b), doctor: b.doctor || '', pending: !!b.pending });   // 5.30
   });
   /* EARLIEST FIRST (owner's call, a4.1 / lite 3.1 - latest-first undone). An
      all-day closure leads the day; a booking with no time closes it. */
@@ -2564,11 +2573,11 @@ function rowHtml(r, day){
   if(r.kind === 'mark'){
     const when = r.allDay ? 'All day'
       : (Number.isFinite(r.mins) ? clock(r.mins) + (Number.isFinite(r.end) ? ' \u2013 ' + clock(r.end) : '') : 'All day');
-    return '<div class="ka-card is-event is-mark">'
+    return '<div class="ka-card is-event is-mark' + (r.pending ? ' is-wait' : '') + '" onclick="' + chNs() + 'mkMarkTap(' + jsArg(r.id) + ',' + jsArg(day) + ')">'   // 5.30: tap to remove
       + '<div class="ka-band" style="background:' + (r.doctor ? '#A99BC4' : '#B4B2A9') + ';"></div>'
       + '<div class="ka-in">'
         + '<div class="ka-top"><span class="ka-when">' + escapeHtml(when) + '</span>'
-          + '<span><span class="cal-chip st-event">Mark</span></span></div>'
+          + '<span><span class="cal-chip st-event">' + (r.pending ? 'Mark · waiting for the server' : 'Mark') + '</span></span></div>'
         + '<div class="ka-name">' + escapeHtml(r.title || 'Clinic') + '</div>'
       + '</div></div>';
   }
@@ -3145,8 +3154,9 @@ function renderCalendar(){
   const people = (all || []).filter(r => r.kind === 'appt' || r.kind === 'walkin');
   document.getElementById('calTotal').textContent = String(people.filter(r => r.kind === 'appt' && !r.rough).length);
   const head = document.getElementById('calDayWord');
-  head.innerHTML = viewDay === today ? 'Today\u2019s schedule'
-    : escapeHtml(dayTitle(viewDay)) + ' <button type="button" class="link kv-today" onclick="goDay(todayStr())">Today</button>';
+  head.innerHTML = (viewDay === today ? 'Today\u2019s schedule'
+    : escapeHtml(dayTitle(viewDay)) + ' <button type="button" class="link kv-today" onclick="goDay(todayStr())">Today</button>')
+    + (viewDay >= today ? ' <button type="button" class="kv-mark-add" onclick="' + chNs() + 'mkOpen(' + jsArg(viewDay) + ')">+ Mark</button>' : '');
   document.getElementById('calChips').innerHTML = CHIP_DEFS.map(([k, label, f]) =>
     '<button type="button" class="kv-chip kv-chip-' + k + (statusFilter === k ? ' on' : '') + '" onclick="setStatusFilter(' + jsArg(k) + ')">'
     + label + ' <b>' + people.filter(f).length + '</b></button>').join('');
@@ -3699,6 +3709,104 @@ function chErr(e){
   const why = String((e && e.body && e.body.error) || (e && e.message) || '');
   if(!why || /^relay error/i.test(why) || why === 'bad key') return 'Could not reach the clinic just now — nothing was changed. Try again.';
   return why;
+}
+/* ==== 5.30 MARKS FROM THE PHONE (owner, 5 Nov 2026: "Allow mark calender from phone apps" -
+   every phone app; any mark may be removed). A mark still only draws - it never stops a
+   booking. "+ Mark" beside the day's title adds a one-off mark: a short note, for the clinic
+   or one doctor, the whole day or from-to. Tapping a mark offers Remove (a repeating mark
+   stays a Nexus job). The relay (r4.56) holds it and every phone shows it at once; the server
+   writes it into the calendar when it is on. */
+let mkCtx = null;
+function mkWrap(){
+  let w = document.getElementById('mkWrap');
+  if(!w){
+    w = document.createElement('div'); w.id = 'mkWrap'; w.className = 'ch-wrap hidden';
+    w.addEventListener('click', e => { if(e.target === w) mkClose(); });
+    document.body.appendChild(w);
+  }
+  return w;
+}
+function mkClose(){ const w = document.getElementById('mkWrap'); if(w){ w.classList.add('hidden'); w.innerHTML = ''; } mkCtx = null; }
+function mkTimeOpts(cur){
+  let h = '';
+  for(let m = 7 * 60; m <= 24 * 60 - 15; m += 15){
+    const v = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    h += '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + escapeHtml(clock(m)) + '</option>';
+  }
+  return h;
+}
+function mkOpen(day){
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(String(day || '')) && day >= todayStr() ? day : todayStr();
+  mkCtx = { allDay: true };
+  const docs = (S('doctors.json') || []).map(x => x && (x.name || x)).filter(Boolean);
+  const w = mkWrap();
+  w.innerHTML = '<div class="ch-sheet"><div class="ch-h"><b>Mark the calendar</b><button type="button" class="dr-x" onclick="' + chNs() + 'mkClose()">✕</button></div>'
+    + '<div class="ch-sub">A mark only shows on the calendar. It never stops a booking.</div>'
+    + '<label class="ch-l">What<input type="text" id="mkTitle" maxlength="40" placeholder="e.g. Dr away, Camp, Meeting"></label>'
+    + '<label class="ch-l">For<select id="mkDoc"><option value="">The clinic</option>' + docs.map(n => '<option value="' + escapeHtml(n) + '">' + escapeHtml(doctorLabel(n) || n) + '</option>').join('') + '</select></label>'
+    + '<label class="ch-l">Day<input type="date" id="mkDay" min="' + todayStr() + '" value="' + escapeHtml(d) + '"></label>'
+    + '<div class="mk-seg"><button type="button" id="mkAll" class="on" onclick="' + chNs() + 'mkAllDay(true)">All day</button><button type="button" id="mkPart" onclick="' + chNs() + 'mkAllDay(false)">From – to</button></div>'
+    + '<div class="mk-times hidden" id="mkTimes"><label class="ch-l">From<select id="mkFrom">' + mkTimeOpts('10:00') + '</select></label><label class="ch-l">To<select id="mkTo">' + mkTimeOpts('13:00') + '</select></label></div>'
+    + '<div class="ch-note">Every phone shows it at once; the server writes it into the calendar when it is on.</div>'
+    + '<div class="ch-msg" id="mkMsg"></div>'
+    + '<button type="button" class="btn ch-go" id="mkGo" onclick="' + chNs() + 'mkSave()">Save mark</button></div>';
+  w.classList.remove('hidden');
+}
+function mkAllDay(on){
+  if(!mkCtx) return;
+  mkCtx.allDay = !!on;
+  const a = document.getElementById('mkAll'), p = document.getElementById('mkPart'), t = document.getElementById('mkTimes');
+  if(a) a.classList.toggle('on', !!on); if(p) p.classList.toggle('on', !on); if(t) t.classList.toggle('hidden', !!on);
+}
+function mkLocal(fn){
+  /* this phone's copy follows at once; the next read from the relay brings the same */
+  const r = mem.settings['calendar-marks.json'];
+  const list = r && Array.isArray(r.value) ? r.value.slice() : [];
+  const out = fn(list);
+  if(r) r.value = out; else mem.settings['calendar-marks.json'] = { value: out };
+}
+async function mkSave(){
+  if(!mkCtx) return;
+  const msg = document.getElementById('mkMsg'), btn = document.getElementById('mkGo');
+  const title = ((document.getElementById('mkTitle') || {}).value || '').trim();
+  const doctor = (document.getElementById('mkDoc') || {}).value || '';
+  const date = (document.getElementById('mkDay') || {}).value || '';
+  const start = (document.getElementById('mkFrom') || {}).value || '', end = (document.getElementById('mkTo') || {}).value || '';
+  if(!title && !doctor){ msg.textContent = 'Write what it is for.'; return; }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < todayStr()){ msg.textContent = 'Pick today or a later day.'; return; }
+  if(!mkCtx.allDay && !(minsOf(end) > minsOf(start))){ msg.textContent = 'It has to end after it starts.'; return; }
+  const mark = { id: 'pm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8), date, allDay: !!mkCtx.allDay, doctor, title };
+  if(!mark.allDay){ mark.start = start; mark.end = end; }
+  btn.disabled = true; btn.textContent = 'Saving…'; msg.textContent = '';
+  try{
+    const j = await relay({ action: 'markChange', change: JSON.stringify({ kind: 'add', mark, by: bkWho() || (typeof ADMIN_VERSION !== 'undefined' ? 'admin phone' : 'phone') }) });
+    if(!j || !j.ok) throw new RelayError((j && j.error) || 'refused', j || {});
+    mkLocal(list => list.concat([Object.assign({ kind: 'mark', pending: true }, mark)]));
+    mkClose();
+    toast('Marked ' + dayTitle(date) + ' · waiting for the server');
+    renderCalendar();
+  }catch(e){
+    btn.disabled = false; btn.textContent = 'Save mark';
+    msg.textContent = chErr(e);
+  }
+}
+function mkMarkTap(id, day){
+  const b = blocksOn(day).find(x => x && String(x.id) === String(id));
+  if(!b) return;
+  if(b.closed){ alert('The clinic is closed that day (Payroll → Holidays in Nexus).'); return; }
+  if(b.repeat === 'weekly'){ alert(markLabel(b) + '\n\nThis mark repeats every week. It is changed in Nexus.'); return; }
+  mkRemove(b, day);
+}
+async function mkRemove(b, day){
+  const when = b.allDay ? 'all day' : clock(minsOf(b.start)) + ' – ' + clock(minsOf(b.end));
+  if(!confirm('Remove this mark?\n\n' + markLabel(b) + '\n' + dayTitle(b.date || day) + (b.to && b.to > b.date ? ' to ' + dayTitle(b.to) : '') + ', ' + when)) return;
+  try{
+    const j = await relay({ action: 'markChange', change: JSON.stringify({ kind: 'remove', markId: b.id, group: b.group || '', by: bkWho() || (typeof ADMIN_VERSION !== 'undefined' ? 'admin phone' : 'phone') }) });
+    if(!j || !j.ok) throw new RelayError((j && j.error) || 'refused', j || {});
+    mkLocal(list => list.filter(x => x && String(x.id) !== String(b.id) && !(b.group && x.group === b.group)));
+    toast(j.withdrawn ? 'Mark taken back' : 'Mark removed · waiting for the server');
+    renderCalendar();
+  }catch(e){ alert(chErr(e)); }
 }
 async function chMoveSend(){
   if(!chCtx) return;
