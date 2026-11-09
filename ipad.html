@@ -1078,7 +1078,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
 /* One number for both phone apps from 4.6 (owner's call). */
 /* 5.11 (16 Oct 2026): renumbered with Echo Files' audit fixes; lite itself
    changed only a code comment (audit L23: a made-up patient id). */
-const LITE_VERSION = '5.30';   // 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
+const LITE_VERSION = '5.31';   // 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -1690,7 +1690,7 @@ function lanPaint(){
       /* 4.96: the globe when the PC is reached through Tailscale (drawing 1). */
       if(up && lanRemote) el.innerHTML = ' <svg class="lan-globe" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-2px"><g fill="none" stroke="#3B8F5A" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="2.7" ry="6.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/></g></svg>';
       else el.textContent = up ? ' \u26A1' : '';
-      el.title = up ? (lanRemote ? 'Remote \u2014 via Tailscale: reading straight from the reception PC' : 'Connected on the Wi-Fi LAN: reading straight from the reception PC') : '';
+      el.title = up ? (lanRemote ? 'Remote \u2014 via Tailscale: reading straight from the server' : 'Connected on the Wi-Fi LAN: reading straight from the server') : '';
     }
     const why = document.getElementById('lanWhy');
     if(why){
@@ -5930,7 +5930,7 @@ function xrWhyText(e){
   if(b.wifiOnly) return 'X-rays open on the clinic Wi-Fi only.';
   if(b.relayOld) return 'The phone relay needs its update (r4.17) to show X-rays away from the clinic.';
   const m = String((e && e.message) || b.error || '');
-  if(/unknown action/.test(m)) return 'The reception PC’s desk server needs its update (2.3) for X-rays.';
+  if(/unknown action/.test(m)) return 'The server needs its update (2.3) for X-rays.';
   if(/too big/.test(m) || b.tooBig) return 'This X-ray is too large to open on a phone — open it at the desk.';
   if(/not on Drive yet/.test(m)) return 'This X-ray has not reached the clinic’s Drive copy yet. Try again in a few minutes.';
   return 'The X-rays could not be fetched just now. Try again in a moment.';
@@ -6073,7 +6073,7 @@ function xrFindWhy(e){
   const b = (e && e.body) || {};
   const m = String((e && e.message) || b.error || '');
   if(b.relayOld || (/unknown action/.test(m) && xrVia === 'drive')) return 'Finding old X-rays away from the clinic needs the phone relay’s update (r4.24).';
-  if(/unknown action/.test(m)) return 'Finding old X-rays needs the reception PC’s desk server update (2.5).';
+  if(/unknown action/.test(m)) return 'Finding old X-rays needs the server update (2.5).';
   return 'Could not search just now. Try again in a moment.';
 }
 async function xrFindRun(){
@@ -6146,7 +6146,7 @@ function xrSheetPaint(){
   const c = xrLists[pid];
   const list = (c && c.list) || [];
   let body;
-  if(xrAskingNow[pid] && !list.length) body = '<div class="pf-none">' + (xrVia === 'drive' ? 'Asking the clinic’s Drive copy…' : 'Asking the reception PC…') + '</div>';
+  if(xrAskingNow[pid] && !list.length) body = '<div class="pf-none">' + (xrVia === 'drive' ? 'Asking the clinic’s Drive copy…' : 'Asking the server…') + '</div>';
   else if(c && c.failed && !list.length) body = '<div class="pf-none xr-why">' + escapeHtml(c.why) + '</div>';
   else if(!list.length) body = '<div class="pf-none">No X-rays from Carestream for this patient.' + (xrIsOld(pid) ? '' : ' Older ones (before 1 Oct 2026) are not linked by themselves - <a href="#" onclick="event.preventDefault(); ' + PF_NS + 'xrFindOpen(' + jsArg(pid) + ')">find them</a>.') + '</div>';
   else {
@@ -6173,7 +6173,7 @@ function xrSheetPaint(){
     + (xrPickMode ? '<div class="pf-none xr-why">Tap two X-rays to see them side by side.' + (xrPicked.length ? ' One chosen — tap another.' : '') + '</div>' : '')
     + body
     + (typeof xrLinkBar === 'function' ? xrLinkBar(pid, list) : '')   // 4.98: the admin app's Link (defined after this block)
-    + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy of Carestream (a few minutes behind the reception PC).' : 'From Carestream on the reception PC.') + ' Read only — measuring and enhancing stay in CS Imaging.</div>'
+    + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy of Carestream (a few minutes behind the server).' : 'From Carestream on the server.') + ' Read only — measuring and enhancing stay in CS Imaging.</div>'
     + '</div>';
   w.onclick = () => xrClose();
   w.classList.remove('hidden');
@@ -7349,7 +7349,7 @@ async function notifApply(mode){
      was to read the relay's own log. Whatever comes back is shown. */
   try{ key = await relay({ action: 'pushKey' }); }
   catch(e){ return { ok: false, error: 'Could not reach the clinic: ' + notifWhy(e) }; }
-  if(!key.ready) return { ok: false, error: 'The clinic has not switched notifications on yet. Open Nexus on the reception PC once, then try again.' };
+  if(!key.ready) return { ok: false, error: 'The clinic has not switched notifications on yet. Open Nexus on the server once, then try again.' };
   let reg, sub;
   try{
     reg = await navigator.serviceWorker.ready;

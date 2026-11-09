@@ -1193,8 +1193,8 @@ body{ background:#FAF7F2 !important; }
     <button type="button" class="nt-opt" data-m="off" onclick="notifPick('off')"><b>Off</b><span>Nothing is sent to this phone at all</span></button>
     <!-- 4.96 (owner, 12 Oct 2026): the reception PC's heartbeat. Off until turned on. -->
     <div class="nt-sub" style="margin-top:12px;"><b>Also tell me when</b></div>
-    <button type="button" class="nt-opt nt-pref" data-p="live" onclick="notifPrefToggle('live')"><b>Reception is live</b><span>Nexus opens on the reception PC after half an hour or more without it</span></button>
-    <button type="button" class="nt-opt nt-pref" data-p="quiet" onclick="notifPrefToggle('quiet')"><b>Reception went quiet</b><span>Nothing heard from Nexus on the reception PC for 10 minutes, between 9:00 and 21:30</span></button>
+    <button type="button" class="nt-opt nt-pref" data-p="live" onclick="notifPrefToggle('live')"><b>Reception is live</b><span>Nexus opens on the server after half an hour or more without it</span></button>
+    <button type="button" class="nt-opt nt-pref" data-p="quiet" onclick="notifPrefToggle('quiet')"><b>Reception went quiet</b><span>Nothing heard from Nexus on the server for 10 minutes, between 9:00 and 21:30</span></button>
     <!-- 5.02 (owner, 13 Oct 2026): each staff member's first punch on the attendance machine. Off until turned on. -->
     <button type="button" class="nt-opt nt-pref" data-p="arrived" onclick="notifPrefToggle('arrived')"><b>Staff arrived</b><span>The first punch of each staff member on the attendance machine &mdash; within about 5 minutes</span></button>
     <div class="nt-warn" id="notifBroken" style="display:none;"></div>
@@ -5411,7 +5411,7 @@ function xrWhyText(e){
   if(b.wifiOnly) return 'X-rays open on the clinic Wi-Fi only.';
   if(b.relayOld) return 'The phone relay needs its update (r4.17) to show X-rays away from the clinic.';
   const m = String((e && e.message) || b.error || '');
-  if(/unknown action/.test(m)) return 'The reception PC’s desk server needs its update (2.3) for X-rays.';
+  if(/unknown action/.test(m)) return 'The server needs its update (2.3) for X-rays.';
   if(/too big/.test(m) || b.tooBig) return 'This X-ray is too large to open on a phone — open it at the desk.';
   if(/not on Drive yet/.test(m)) return 'This X-ray has not reached the clinic’s Drive copy yet. Try again in a few minutes.';
   return 'The X-rays could not be fetched just now. Try again in a moment.';
@@ -5554,7 +5554,7 @@ function xrFindWhy(e){
   const b = (e && e.body) || {};
   const m = String((e && e.message) || b.error || '');
   if(b.relayOld || (/unknown action/.test(m) && xrVia === 'drive')) return 'Finding old X-rays away from the clinic needs the phone relay’s update (r4.24).';
-  if(/unknown action/.test(m)) return 'Finding old X-rays needs the reception PC’s desk server update (2.5).';
+  if(/unknown action/.test(m)) return 'Finding old X-rays needs the server update (2.5).';
   return 'Could not search just now. Try again in a moment.';
 }
 async function xrFindRun(){
@@ -5627,7 +5627,7 @@ function xrSheetPaint(){
   const c = xrLists[pid];
   const list = (c && c.list) || [];
   let body;
-  if(xrAskingNow[pid] && !list.length) body = '<div class="pf-none">' + (xrVia === 'drive' ? 'Asking the clinic’s Drive copy…' : 'Asking the reception PC…') + '</div>';
+  if(xrAskingNow[pid] && !list.length) body = '<div class="pf-none">' + (xrVia === 'drive' ? 'Asking the clinic’s Drive copy…' : 'Asking the server…') + '</div>';
   else if(c && c.failed && !list.length) body = '<div class="pf-none xr-why">' + escapeHtml(c.why) + '</div>';
   else if(!list.length) body = '<div class="pf-none">No X-rays from Carestream for this patient.' + (xrIsOld(pid) ? '' : ' Older ones (before 1 Oct 2026) are not linked by themselves - <a href="#" onclick="event.preventDefault(); ' + PF_NS + 'xrFindOpen(' + jsArg(pid) + ')">find them</a>.') + '</div>';
   else {
@@ -5654,7 +5654,7 @@ function xrSheetPaint(){
     + (xrPickMode ? '<div class="pf-none xr-why">Tap two X-rays to see them side by side.' + (xrPicked.length ? ' One chosen — tap another.' : '') + '</div>' : '')
     + body
     + (typeof xrLinkBar === 'function' ? xrLinkBar(pid, list) : '')   // 4.98: the admin app's Link (defined after this block)
-    + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy of Carestream (a few minutes behind the reception PC).' : 'From Carestream on the reception PC.') + ' Read only — measuring and enhancing stay in CS Imaging.</div>'
+    + '<div class="xr-foot">' + (xrVia === 'drive' ? 'From the clinic’s Drive copy of Carestream (a few minutes behind the server).' : 'From Carestream on the server.') + ' Read only — measuring and enhancing stay in CS Imaging.</div>'
     + '</div>';
   w.onclick = () => xrClose();
   w.classList.remove('hidden');
@@ -6502,7 +6502,7 @@ async function xrLinkSend(pid, undo){
   if(!to) return;
   if(!adminSession){ xrLinkMsg[pid] = 'This needs the relay: lock admin, then unlock it again with a signal.'; xrSheetPaint(); return; }
   const who = nameOf(to) || ('ID ' + to);
-  if(!undo && !confirm('Link the X-rays of “' + (o.name || 'this Carestream name') + '” to ' + who + ' (' + to + ')?\n\nThe reception PC files it within a minute or two. You can undo it here for ten minutes.')) return;
+  if(!undo && !confirm('Link the X-rays of “' + (o.name || 'this Carestream name') + '” to ' + who + ' (' + to + ')?\n\nThe server files it within a minute or two. You can undo it here for ten minutes.')) return;
   xrLinkMsg[pid] = undo ? 'Undoing…' : 'Linking…'; xrSheetPaint();
   try{
     const r = await relayViaGoogle({ action: 'xrLink', tok: pid, pid: to, undo: undo ? '1' : '0', name: o.name || '', byName: (typeof notifPhoneName === 'function' ? notifPhoneName() : 'Admin phone') });
@@ -6510,7 +6510,7 @@ async function xrLinkSend(pid, undo){
     const m = xrLinkedMem();
     if(undo) delete m[pid]; else m[pid] = { pid: to, at: Date.now() };
     xrLinkedSave(m);
-    xrLinkMsg[pid] = undo ? 'Undo sent — the reception PC takes the link back within a minute or two.' : '';
+    xrLinkMsg[pid] = undo ? 'Undo sent — the server takes the link back within a minute or two.' : '';
   }catch(e){
     /* 5.11 (audit L22): a relay before r4.28 does not know xrLink - say so,
        not "Not sent: unknown action." (and never a doubled full stop). */
@@ -7547,7 +7547,7 @@ function lanPaint(){
       /* 4.96: the globe when the PC is reached through Tailscale (drawing 1). */
       if(up && lanRemote) el.innerHTML = ' <svg class="lan-globe" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-2px"><g fill="none" stroke="#3B8F5A" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="2.7" ry="6.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/></g></svg>';
       else el.textContent = up ? ' \u26A1' : '';
-      el.title = up ? (lanRemote ? 'Remote \u2014 via Tailscale: reading straight from the reception PC' : 'Connected on the Wi-Fi LAN: reading straight from the reception PC') : '';
+      el.title = up ? (lanRemote ? 'Remote \u2014 via Tailscale: reading straight from the server' : 'Connected on the Wi-Fi LAN: reading straight from the server') : '';
     }
     const why = document.getElementById('lanWhy');
     if(why){
@@ -9143,7 +9143,7 @@ async function loadPrescriptions(){
    deleted when the relay refuses this phone's key, and day books older than
    60 days are pruned at each opening; "Link old X-rays" on an old relay says
    "needs relay r4.28"; tidied. */
-const ADMIN_VERSION = '5.30';   // 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; the calendar shows today's booking changes from phones (relay r4.52); intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
+const ADMIN_VERSION = '5.31';   // 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; the calendar shows today's booking changes from phones (relay r4.52); intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -9330,7 +9330,7 @@ async function notifApply(mode){
      was to read the relay's own log. Whatever comes back is shown. */
   try{ key = await relay({ action: 'pushKey' }); }
   catch(e){ return { ok: false, error: 'Could not reach the clinic: ' + notifWhy(e) }; }
-  if(!key.ready) return { ok: false, error: 'The clinic has not switched notifications on yet. Open Nexus on the reception PC once, then try again.' };
+  if(!key.ready) return { ok: false, error: 'The clinic has not switched notifications on yet. Open Nexus on the server once, then try again.' };
   let reg, sub;
   try{
     reg = await navigator.serviceWorker.ready;
@@ -9387,7 +9387,7 @@ async function notifPrefToggle(what){
   notifMsg('Saving\u2026', '');
   const r = await notifApply(m);
   if(!r.ok){ try{ localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(before)); }catch(e){} notifPaint(); notifMsg(r.error, 'bad'); return; }
-  notifMsg(next[what] ? (what === 'live' ? 'On. You will hear when Nexus opens on the reception PC.' : what === 'arrived' ? 'On. You will hear when each staff member first punches in on the attendance machine.' : 'On. You will hear if the reception PC goes quiet during clinic hours.') : 'Off.', 'good');
+  notifMsg(next[what] ? (what === 'live' ? 'On. You will hear when Nexus opens on the server.' : what === 'arrived' ? 'On. You will hear when each staff member first punches in on the attendance machine.' : 'On. You will hear if the server goes quiet during clinic hours.') : 'Off.', 'good');
 }
 function notifPaint(){
   try{ const pr = notifPrefs(); document.querySelectorAll('.nt-pref').forEach(b => b.classList.toggle('on', !!pr[b.getAttribute('data-p')])); }catch(e){}
@@ -9456,7 +9456,7 @@ try{
    to the bell icon") =====================================================
    The same rows as the desk's Attendance page: each staff member's shift
    start, first punch today and the policy's reading. The phone cannot read
-   payroll's file (salaries) nor the punch history, so the reception PC's
+   payroll's file (salaries) nor the punch history, so the server's
    Nexus (v13.06) works the page out every minute and writes just the result
    to settings/attendance-board.json; this reads that one file - from the
    PC on the clinic Wi-Fi (desk 2.9), through Google away from it (r4.31).
@@ -9506,7 +9506,7 @@ function staffPaint(r){
     const why = r && r.error ? r.error : 'no board yet';
     const say = /needs relay/i.test(why) ? 'The relay needs its r4.32 update.'
       : /session ended|unlock/i.test(why) ? 'Unlock admin with the PIN first.'
-      : why === 'no board yet' ? 'Nothing written yet — Nexus v13.06 on the reception PC writes the board every minute while it is open.'
+      : why === 'no board yet' ? 'Nothing written yet — Nexus v13.06 on the server writes the board every minute while it is open.'
       : 'Could not be read just now (' + escapeHtml(why) + ').';
     card.innerHTML = head + '<div class="st-warn">' + say + '</div>';
     return;
@@ -9518,9 +9518,9 @@ function staffPaint(r){
   const writtenAt = Date.parse(b.writtenAt || '') || 0;
   /* 5.05: no narration - one short line only when something is wrong */
   let warn = '';
-  if(b.date !== today) warn = 'Board from ' + escapeHtml(dayLabel) + ' — Nexus not open on the reception PC?';
+  if(b.date !== today) warn = 'Board from ' + escapeHtml(dayLabel) + ' — Nexus not open on the server?';
   else if(rd.kind === 'bad') warn = escapeHtml(String(rd.text || 'Machine not answering').split(' — ')[0]);
-  else if(writtenAt && Date.now() - writtenAt > STAFF_STALE_MS) warn = 'Last updated ' + escapeHtml(staffClock(b.writtenAt)) + ' — Nexus not open on the reception PC?';
+  else if(writtenAt && Date.now() - writtenAt > STAFF_STALE_MS) warn = 'Last updated ' + escapeHtml(staffClock(b.writtenAt)) + ' — Nexus not open on the server?';
   else if(b.machineOn === false) warn = 'Reading the machine is switched off in Nexus.';
   const short = (hhmm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || '')); return m ? String(Number(m[1]) % 12 || 12) + ':' + m[2] : '—'; };
   const label = (t) => String(t || '').replace(/^Late mark · /, 'Late · ').replace(/^Half day · .*/, 'Half day').replace(/^Full day · .*/, 'Full day').replace(/^Not coming today$/, 'Not coming').replace(/^Clinic closed today$/, 'Closed');
