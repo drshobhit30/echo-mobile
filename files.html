@@ -173,7 +173,7 @@
 <input type="file" id="inCam" accept="image/*" capture="environment" style="display:none">
 <script>
 'use strict';
-const FILES_VERSION = '5.29';   // 5.29 (3 Nov 2026, owner): leave on mobile data and before a punch, quicker leave calls, closed days (relay r4.54); 5.28 (3 Nov 2026, owner): tidy-up, a Leave button, first-half leave (relay r4.53); 5.24 (31 Oct 2026, owner): with My attendance switched off in Nexus the screen is titled "Leave"
+const FILES_VERSION = '5.32';   // 5.32 (9 Nov 2026, owner "go"): an approved full day off the person came in on reads "Came in · leave not used" (as Nexus v14.57); 5.29 (3 Nov 2026, owner): 5.29 (3 Nov 2026, owner): leave on mobile data and before a punch, quicker leave calls, closed days (relay r4.54); 5.28 (3 Nov 2026, owner): tidy-up, a Leave button, first-half leave (relay r4.53); 5.24 (31 Oct 2026, owner): with My attendance switched off in Nexus the screen is titled "Leave"
 const K_RELAY = 'echoFiles_relay', K_KEY = 'echoFiles_key', K_SENT = 'echoFiles_sent';
 const K_WHO = 'echoFiles_who';      // 5.11 (audit L20): the last name the relay said, for "already set up for Asha"
 const K_DEV = 'echoFiles_dev';      // 5.12: this phone's own id, made once, sent with every request
@@ -538,6 +538,16 @@ function monthHtml(mk){
     + '<div class="tiles"><div class="tile"><b>' + (m.present || 0) + '</b><i>days present</i></div><div class="tile"><b>' + Math.max(0, (m.present || 0) - (m.late || 0)) + '</b><i>on time</i></div><div class="tile"><b>' + (m.late || 0) + '</b><i>late</i></div></div>'
     + '<table class="att"><thead><tr><th>DAY</th><th>IN</th><th>OUT</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
+/* 5.32 (owner 9 Nov 2026, "go"): an approved FULL day off the person came in on (the machine has
+   their punch-in that day) reads "Came in · leave not used", as Nexus does since v14.57 - it is not
+   counted as leave in pay. Only the punch is known here: a day the clinic answered "Present" without
+   a punch still reads Approved on the phone. No attendance (switched off in Nexus, or not read) -
+   left as Approved. */
+function cameInOn(ymd){
+  const m = mineData && mineData.months ? mineData.months[String(ymd || '').slice(0, 7)] : null;
+  const d = Number(String(ymd || '').slice(8, 10));
+  return !!(m && (m.rows || []).some(r => r && r.d === d && r.in));
+}
 function requestsHtml(rows, today){
   /* v5.20: this month and future only, never a past month (the relay filters too) */
   const monthStart = String(today || '').slice(0, 8) + '01';
@@ -545,7 +555,8 @@ function requestsHtml(rows, today){
   const sorted = (rows || []).slice().sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
   if(!sorted.length) return '<div class="lrow"><span class="sm">No requests yet.</span></div>';
   return sorted.map(r => {
-    const st = LEAVE_STATUS[r.status] || ['', esc(r.status), '#8a7a63'];
+    const came = r.status === 'approved' && r.half !== 'first' && cameInOn(r.date);   // 5.32
+    const st = (came ? LEAVE_STATUS.camein : LEAVE_STATUS[r.status]) || ['', esc(r.status), '#8a7a63'];
     const why = (r.status === 'notaccepted' && r.note) ? '<div class="sm" style="margin-top:2px;">' + esc(String(r.note).replace(/^Not accepted: /, '')) + '</div>' : '';
     const pill = '<span class="p" style="background:' + st[3] + ';color:' + st[2] + ';">' + esc(st[1]) + '</span>';
     return '<div class="lrow"><span><b style="font-weight:600;">' + esc(fmtDay(r.date)) + '</b>' + (r.half === 'first' ? ' <span class="sm">· first half</span>' : '') + (r.reason ? ' <span class="sm">· ' + esc(r.reason) + '</span>' : '') + why + '</span>'
@@ -767,7 +778,8 @@ const LEAVE_STATUS = {
   declined:    ['✕', 'Declined', '#A0453E', '#F7E0DC'],
   cancelled:   ['—', 'Cancelled', '#8a7a63', '#ECE9E5'],
   notdecided:  ['•', 'Not decided', '#A0453E', '#F7E0DC'],
-  notaccepted: ['!', 'Not accepted', '#A0453E', '#F7E0DC']
+  notaccepted: ['!', 'Not accepted', '#A0453E', '#F7E0DC'],
+  camein:      ['✓', 'Came in · leave not used', '#3E5F7D', '#E6EEF5']   // 5.32
 };
 let leaveDraft = null;          // { id, date, reason, half }: a retry sends the SAME id, so it is never filed twice
 let leaveBusy = false;

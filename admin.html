@@ -9143,7 +9143,7 @@ async function loadPrescriptions(){
    deleted when the relay refuses this phone's key, and day books older than
    60 days are pruned at each opening; "Link old X-rays" on an old relay says
    "needs relay r4.28"; tidied. */
-const ADMIN_VERSION = '5.31';   // 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; the calendar shows today's booking changes from phones (relay r4.52); intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
+const ADMIN_VERSION = '5.32';   // 5.32 (9 Nov 2026): number only - Echo Files changed, one number for all; 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; the calendar shows today's booking changes from phones (relay r4.52); intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
