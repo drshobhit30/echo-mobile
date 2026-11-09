@@ -914,6 +914,7 @@ body{ background:#FAF7F2 !important; }
 .pc-st{ font-size:0.76rem; color:#888; } .pc-st.red{ color:#A32D2D; font-weight:600; }
 .pc-tag{ display:inline-block; font-size:0.68rem; font-weight:600; background:#F1EFE8; color:#5F5E5A; border-radius:999px; padding:0 7px; margin-left:5px; vertical-align:1px; }
 .pc-tag-enquiry{ background:#E8F0FB; color:#24509A; } .pc-tag-appt{ background:#E6F7EF; color:#15794F; } .pc-tag-existing{ background:#FAEEDA; color:#633806; }
+.pc-hsl{ margin-top:3px; } .pc-hs{ display:inline-block; font-size:0.7rem; border-radius:999px; padding:1px 8px; } .pc-hs-ok{ background:#E6F7EF; color:#15794F; } .pc-hs-no{ background:#FCEBEB; color:#A32D2D; font-weight:600; }
 .pc-len{ font-size:0.8rem; color:#5a3e1b; font-variant-numeric:tabular-nums; }
 .pc-pbtn{ width:34px; height:34px; border-radius:50%; border:1px solid #BA7517; background:#fff; color:#854F0B; font-size:0.78rem; }
 .pc-play.on{ grid-column:1 / -1; } .pc-play audio{ width:100%; height:36px; }
@@ -1103,7 +1104,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
 /* One number for both phone apps from 4.6 (owner's call). */
 /* 5.11 (16 Oct 2026): renumbered with Echo Files' audit fixes; lite itself
    changed only a code comment (audit L23: a made-up patient id). */
-const LITE_VERSION = '5.33';   // 5.33 (9 Nov 2026, owner): a Calls tab - the reception phone's last 7 days (in / out / missed, name, number, Play; Spam and Wrong number greyed; the clinic's own numbers not shown here), from Nexus through relay r4.60, the recording from the Drive copy (plays with the server off); 5.32 (9 Nov 2026): number only - Echo Files changed, one number for all; 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
+const LITE_VERSION = '5.34';   // 5.34 (9 Nov 2026, owner: "yes match"): the Calls tab shows HubSpot as Nexus does - a green Lead Status, a red Not in HubSpot; 5.33 (9 Nov 2026, owner): a Calls tab - the reception phone's last 7 days (in / out / missed, name, number, Play; Spam and Wrong number greyed; the clinic's own numbers not shown here), from Nexus through relay r4.60, the recording from the Drive copy (plays with the server off); 5.32 (9 Nov 2026): number only - Echo Files changed, one number for all; 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -8102,9 +8103,11 @@ function pcRender(){
     const sub = [c.n && c.num ? pcPhone(c.num) : '', pcClock(c.t)].filter(Boolean).join(' · ');
     const st = c.s !== 'ok' ? '<div class="pc-st' + (pcRed(c) ? ' red' : '') + '">' + (c.s === 'missed' ? 'missed' : 'not answered') + (c.back ? ' · called back' : pcRed(c) ? ' · not called back' : '') + '</div>' : '';
     const tag = c.int ? '<span class="pc-tag">Internal</span>' : c.tag ? '<span class="pc-tag' + (c.tag === 'spam' || c.tag === 'wrong' ? '' : ' pc-tag-' + pcEsc(c.tag)) + '">' + pcEsc(PC_TAGS[c.tag] || c.tag) + '</span>' : '';
+    /* 5.34 (owner: "yes match"): HubSpot as on Nexus - green Lead Status, red Not in HubSpot */
+    const hsp = c.hs ? '<span class="pc-hs pc-hs-ok">\u2713 ' + pcEsc(c.hs) + '</span>' : c.hsno ? '<span class="pc-hs pc-hs-no">Not in HubSpot</span>' : '';
     const id = 'pcp_' + (c.rec ? c.rec : String(c.t)).replace(/[^A-Za-z0-9]/g, '').slice(-40);
     html += '<div class="pc-row' + (pcRed(c) ? ' red' : '') + (pcMuted(c) ? ' muted' : '') + '">' + arrow
-      + '<div class="pc-who"><div class="pc-n">' + pcEsc(name) + tag + '</div><div class="pc-sub">' + pcEsc(sub) + '</div>' + st + '</div>'
+      + '<div class="pc-who"><div class="pc-n">' + pcEsc(name) + tag + '</div><div class="pc-sub">' + pcEsc(sub) + '</div>' + st + (hsp ? '<div class="pc-hsl">' + hsp + '</div>' : '') + '</div>'
       + '<div class="pc-len">' + pcEsc(pcMss(c.len)) + '</div>'
       + '<div class="pc-play" id="' + id + '">' + (c.rec ? '<button type="button" class="pc-pbtn" aria-label="Play" onclick="pcPlay(' + i + ',\'' + id + '\')">\u25B6</button>' : '') + '</div>'
       + '</div>';
