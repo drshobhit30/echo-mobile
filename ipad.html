@@ -914,7 +914,7 @@ body{ background:#FAF7F2 !important; }
 .pc-st{ font-size:0.76rem; color:#888; } .pc-st.red{ color:#A32D2D; font-weight:600; }
 .pc-tag{ display:inline-block; font-size:0.68rem; font-weight:600; background:#F1EFE8; color:#5F5E5A; border-radius:999px; padding:0 7px; margin-left:5px; vertical-align:1px; }
 .pc-tag-enquiry{ background:#E8F0FB; color:#24509A; } .pc-tag-appt{ background:#E6F7EF; color:#15794F; } .pc-tag-existing{ background:#FAEEDA; color:#633806; }
-.pc-hsl{ margin-top:3px; } .pc-hs{ display:inline-block; font-size:0.7rem; border-radius:999px; padding:1px 8px; } .pc-hs-ok{ background:#E6F7EF; color:#15794F; } .pc-hs-no{ background:#FCEBEB; color:#A32D2D; font-weight:600; }
+.pc-hsl{ margin-top:3px; } .pc-hsd{ display:inline-flex; align-items:center; gap:6px; font-family:'Lexend Deca', inherit; font-size:0.76rem; color:#33475b; } .pc-hsd i{ width:7px; height:7px; border-radius:50%; display:inline-block; flex:0 0 7px; } .pc-hsd.q{ color:#7c98b6; font-size:0.72rem; } .pc-hs{ display:inline-block; font-size:0.7rem; border-radius:999px; padding:1px 8px; } .pc-hs-ok{ background:#E6F7EF; color:#15794F; } .pc-hs-no{ background:#FCEBEB; color:#A32D2D; font-weight:600; }
 .pc-len{ font-size:0.8rem; color:#5a3e1b; font-variant-numeric:tabular-nums; }
 .pc-pbtn{ width:34px; height:34px; border-radius:50%; border:1px solid #BA7517; background:#fff; color:#854F0B; font-size:0.78rem; }
 .pc-play.on{ grid-column:1 / -1; } .pc-play audio{ width:100%; height:36px; }
@@ -1104,7 +1104,7 @@ body.ipad-wide .drawer, body.ipad-wide .pf-sheet{ pointer-events:auto; border-ra
 /* One number for both phone apps from 4.6 (owner's call). */
 /* 5.11 (16 Oct 2026): renumbered with Echo Files' audit fixes; lite itself
    changed only a code comment (audit L23: a made-up patient id). */
-const LITE_VERSION = '5.35';   // 5.35 (9 Nov 2026, owner): a missed call silenced in Nexus is not red here ("missed · silenced"); 5.34 (9 Nov 2026, owner: "yes match"): the Calls tab shows HubSpot as Nexus does - a green Lead Status, a red Not in HubSpot; 5.33 (9 Nov 2026, owner): a Calls tab - the reception phone's last 7 days (in / out / missed, name, number, Play; Spam and Wrong number greyed; the clinic's own numbers not shown here), from Nexus through relay r4.60, the recording from the Drive copy (plays with the server off); 5.32 (9 Nov 2026): number only - Echo Files changed, one number for all; 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
+const LITE_VERSION = '5.37';   // 5.37 (10 Nov 2026, owner: "do the phone update"): the Calls tab's HubSpot Lead Status as a dot and plain text like Nexus (Converted quieter); an outgoing call not answered says so; 5.36 (10 Nov 2026, owner: "Calls tab on the phone. Opens slow. Plays slow"): the last calls list shown at once while the new one comes; the player warmed when the tab opens; the last 20 recordings played kept on the phone, replays at once; 5.35 (9 Nov 2026, owner): a missed call silenced in Nexus is not red here ("missed · silenced"); 5.34 (9 Nov 2026, owner: "yes match"): the Calls tab shows HubSpot as Nexus does - a green Lead Status, a red Not in HubSpot; 5.33 (9 Nov 2026, owner): a Calls tab - the reception phone's last 7 days (in / out / missed, name, number, Play; Spam and Wrong number greyed; the clinic's own numbers not shown here), from Nexus through relay r4.60, the recording from the Drive copy (plays with the server off); 5.32 (9 Nov 2026): number only - Echo Files changed, one number for all; 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
 /* THE RECEPTION APP (4.50, owner's call). reception.html is THIS file, made
    from it with this one line set to true - so there is no second copy to
    drift. It is lite for the reception phone: the day and booking exactly as
@@ -8058,13 +8058,77 @@ function pcMss(s){ return (s == null || !isFinite(s)) ? '' : Math.floor(s / 60) 
 const PC_TAGS = { enquiry: 'Enquiry', appt: 'Appointment', existing: 'Existing patient', wrong: 'Wrong number', spam: 'Spam' };
 function pcMuted(c){ return !!(c.int || c.tag === 'spam' || c.tag === 'wrong'); }
 function pcRed(c){ return c.s !== 'ok' && !c.back && !c.sil && !pcMuted(c); }   // 5.35: silenced in Nexus - not red
+/* 5.36 (owner 10 Nov: "Calls tab on the phone. Opens slow. Plays slow. Can we fasten that"): the last
+   list is kept on the phone and shown at once while the new one comes; the player is warmed when the
+   tab opens; a recording played once is kept (the last 20, on this phone) and the last few decoded
+   ones in memory, so a replay starts at once. */
+const PC_LIST_KEY = 'echo-calls-list';
+const PC_REC_KEEP = 20, PC_WAV_KEEP = 5;
+let pcWarm = false;
+function pcKeepList(){ try{ localStorage.setItem(PC_LIST_KEY, JSON.stringify({ at: pcState.at, boardAt: pcState.boardAt, calls: pcState.list })); }catch(e){} }
+function pcRestoreList(){
+  if(pcState.list) return;
+  try{ const o = JSON.parse(localStorage.getItem(PC_LIST_KEY) || 'null'); if(o && Array.isArray(o.calls)){ pcState.list = o.calls; pcState.boardAt = o.boardAt || ''; pcState.at = 0; } }catch(e){}
+}
+function pcWarmUp(){
+  if(pcWarm) return; pcWarm = true;
+  setTimeout(() => {
+    try{
+      if(!pcAmrReady()) return;
+      const head = '#!AMR-WB\n', b = new Uint8Array(head.length + 1);
+      for(let i = 0; i < head.length; i++) b[i] = head.charCodeAt(i);
+      b[head.length] = 0x7C;   // one empty frame - only to get the decoder compiled
+      Promise.resolve(EchoAmr.decode(b)).catch(() => {});
+    }catch(e){}
+  }, 400);
+}
+function pcIdb(){
+  return new Promise((ok, no) => {
+    try{
+      const r = indexedDB.open('echo-calls', 1);
+      r.onupgradeneeded = () => { try{ r.result.createObjectStore('rec'); }catch(e){} };
+      r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+    }catch(e){ no(e); }
+  });
+}
+async function pcRecGet(file){
+  try{
+    const db = await pcIdb();
+    return await new Promise(ok => { const q = db.transaction('rec').objectStore('rec').get(file); q.onsuccess = () => ok(q.result && q.result.bytes ? q.result.bytes : null); q.onerror = () => ok(null); });
+  }catch(e){ return null; }
+}
+async function pcRecPut(file, bytes){
+  try{
+    const db = await pcIdb();
+    await new Promise(ok => { const tx = db.transaction('rec', 'readwrite'); tx.objectStore('rec').put({ bytes, at: Date.now() }, file); tx.oncomplete = ok; tx.onerror = ok; tx.onabort = ok; });
+    const all = await new Promise(ok => { const out = []; const q = db.transaction('rec').objectStore('rec').openCursor(); q.onsuccess = () => { const c = q.result; if(c){ out.push([c.key, (c.value && c.value.at) || 0]); c.continue(); } else ok(out); }; q.onerror = () => ok(out); });
+    if(all.length > PC_REC_KEEP){
+      all.sort((a, b) => a[1] - b[1]);
+      const tx = db.transaction('rec', 'readwrite');
+      all.slice(0, all.length - PC_REC_KEEP).forEach(x => { try{ tx.objectStore('rec').delete(x[0]); }catch(e){} });
+    }
+  }catch(e){}
+}
+/* 5.37 (owner 10 Nov: "follow the exact hubspot font, dot and colour" ... "silence converted a bit" ... "do the
+   phone update"): the Lead Status as on Nexus v14.84 - a dot and plain text, Converted quieter; an outgoing
+   call that was not answered says so (Nexus marks it). */
+const PC_HS_DOTS = [[/^new\b/i, '#7c5cfc'], [/in.?progress/i, '#00a35c'], [/appt.*book|booked/i, '#00a35c'], [/miss/i, '#b3262e'], [/convert/i, '#99acc2', 'q'], [/not.?interest|invalid/i, '#dfe3eb']];
+let pcHsFontOn = false;
+function pcHsDot(st){
+  if(!pcHsFontOn){ pcHsFontOn = true; try{ const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@400&display=swap'; document.head.appendChild(l); }catch(e){} }
+  const s = String(st || '').trim(), m = PC_HS_DOTS.find(x => x[0].test(s));
+  return '<span class="pc-hsd' + (m && m[2] ? ' q' : '') + '"><i style="background:' + (m ? m[1] : '#dfe3eb') + '"></i>' + pcEsc(s || 'In HubSpot') + '</span>';
+}
 async function pcLoad(force){
+  pcRestoreList();
+  pcWarmUp();
   if(pcState.busy) return;
   if(!force && pcState.list && Date.now() - pcState.at < 60000){ pcRender(); return; }
   pcState.busy = true; pcRender();
   try{
     const r = await relay({ action: 'calls' });
     pcState.list = (r && r.calls) || []; pcState.boardAt = (r && r.at) || ''; pcState.err = ''; pcState.at = Date.now();
+    pcKeepList();
   }catch(e){
     const m = String((e && e.message) || 'could not be reached');
     pcState.err = /unknown action/.test(m) ? 'The relay is older than r4.60 - deploy the new echo-relay.gs (New version, same deployment).' : m;
@@ -8082,7 +8146,8 @@ function pcRender(){
   if(head) head.innerHTML = ['all', 'missed', 'today'].map(k => '<button type="button" class="pc-chip' + (f === k ? ' on' : '') + '" onclick="pcSetFilter(\'' + k + '\')">'
       + (k === 'all' ? 'All' : k === 'missed' ? 'Missed' + (missedN ? ' · ' + missedN : '') : 'Today') + '</button>').join('')
     + '<button type="button" class="pc-chip pc-re" onclick="pcLoad(true)" aria-label="Read again">↻</button>'
-    + '<div class="pc-at">' + (pcState.busy ? 'Reading…' : pcState.boardAt ? 'List from ' + pcEsc(pcClock(Date.parse(pcState.boardAt))) + (pcDayKey(Date.parse(pcState.boardAt)) === pcDayKey(Date.now()) ? '' : ', ' + pcEsc(pcDayLabel(pcDayKey(Date.parse(pcState.boardAt))))) : '') + '</div>';
+    + '<div class="pc-at">' + (pcState.busy ? (pcState.list ? 'Updating…' + (pcState.boardAt ? ' (showing the list from ' + pcEsc(pcClock(Date.parse(pcState.boardAt))) + ')' : '') : 'Reading…') : pcState.boardAt ? 'List from ' + pcEsc(pcClock(Date.parse(pcState.boardAt))) + (pcDayKey(Date.parse(pcState.boardAt)) === pcDayKey(Date.now()) ? '' : ', ' + pcEsc(pcDayLabel(pcDayKey(Date.parse(pcState.boardAt))))) : '') + '</div>';
+  if(pcState.err && pcState.list && head){ const at = head.querySelector('.pc-at'); if(at) at.textContent = 'Could not update - showing the list from ' + (pcState.boardAt ? pcClock(Date.parse(pcState.boardAt)) : 'before') + '. ' + pcState.err; }
   if(pcState.err && !pcState.list){ box.innerHTML = '<div class="empty-state">' + pcEsc(pcState.err) + '</div>'; return; }
   if(!pcState.list){ box.innerHTML = '<div class="empty-state">Reading&hellip;</div>'; return; }
   const today = pcDayKey(Date.now());
@@ -8101,10 +8166,10 @@ function pcRender(){
     const arrow = c.s !== 'ok' ? '<span class="pc-dir pc-miss">✕</span>' : c.d === 'in' ? '<span class="pc-dir pc-in">↙</span>' : c.d === 'out' ? '<span class="pc-dir pc-out">↗</span>' : '<span class="pc-dir pc-unk">☎</span>';
     const name = c.n || pcPhone(c.num) || 'Unknown';
     const sub = [c.n && c.num ? pcPhone(c.num) : '', pcClock(c.t)].filter(Boolean).join(' · ');
-    const st = c.s !== 'ok' ? '<div class="pc-st' + (pcRed(c) ? ' red' : '') + '">' + (c.s === 'missed' ? 'missed' : 'not answered') + (c.back ? ' · called back' : c.sil ? ' · silenced' : pcRed(c) ? ' · not called back' : '') + '</div>' : '';
+    const st = c.na ? '<div class="pc-st">not answered</div>' : c.s !== 'ok' ? '<div class="pc-st' + (pcRed(c) ? ' red' : '') + '">' + (c.s === 'missed' ? 'missed' : 'not answered') + (c.back ? ' · called back' : c.sil ? ' · silenced' : pcRed(c) ? ' · not called back' : '') + '</div>' : '';
     const tag = c.int ? '<span class="pc-tag">Internal</span>' : c.tag ? '<span class="pc-tag' + (c.tag === 'spam' || c.tag === 'wrong' ? '' : ' pc-tag-' + pcEsc(c.tag)) + '">' + pcEsc(PC_TAGS[c.tag] || c.tag) + '</span>' : '';
     /* 5.34 (owner: "yes match"): HubSpot as on Nexus - green Lead Status, red Not in HubSpot */
-    const hsp = c.hs ? '<span class="pc-hs pc-hs-ok">\u2713 ' + pcEsc(c.hs) + '</span>' : c.hsno ? '<span class="pc-hs pc-hs-no">Not in HubSpot</span>' : '';
+    const hsp = c.hs ? pcHsDot(c.hs) : c.hsno ? '<span class="pc-hs pc-hs-no">Not in HubSpot</span>' : '';
     const id = 'pcp_' + (c.rec ? c.rec : String(c.t)).replace(/[^A-Za-z0-9]/g, '').slice(-40);
     html += '<div class="pc-row' + (pcRed(c) ? ' red' : '') + (pcMuted(c) ? ' muted' : '') + '">' + arrow
       + '<div class="pc-who"><div class="pc-n">' + pcEsc(name) + tag + '</div><div class="pc-sub">' + pcEsc(sub) + '</div>' + st + (hsp ? '<div class="pc-hsl">' + hsp + '</div>' : '') + '</div>'
@@ -8140,17 +8205,26 @@ async function pcPlay(i, slotId){
   slot.innerHTML = '<span class="pc-wait">opening…</span>';
   try{
     if(!pcAmrReady()) throw new Error('the player could not start on this phone');
-    let r;
-    try{ relayTimeoutOverride = 90000; const pr = relayViaGoogle({ action: 'callRec', f: file }); relayTimeoutOverride = 0; r = await pr; }
-    catch(e){ relayTimeoutOverride = 0; throw e; }
-    const bin = atob(r.b64 || ''); const bytes = new Uint8Array(bin.length);
-    for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const out = await EchoAmr.decode(bytes);
-    if(!out || !out.channelData || !out.channelData[0] || !out.channelData[0].length) throw new Error('the recording could not be read');
-    if(pcState.url){ try{ URL.revokeObjectURL(pcState.url); }catch(e){} }
+    pcState.wav = pcState.wav || new Map();
+    let url = pcState.wav.get(file) || '';
+    if(!url){
+      let bytes = await pcRecGet(file);
+      if(!bytes){
+        let r;
+        try{ relayTimeoutOverride = 90000; const pr = relayViaGoogle({ action: 'callRec', f: file }); relayTimeoutOverride = 0; r = await pr; }
+        catch(e){ relayTimeoutOverride = 0; throw e; }
+        const bin = atob(r.b64 || ''); bytes = new Uint8Array(bin.length);
+        for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        pcRecPut(file, bytes);
+      }
+      const out = await EchoAmr.decode(bytes);
+      if(!out || !out.channelData || !out.channelData[0] || !out.channelData[0].length) throw new Error('the recording could not be read');
+      url = URL.createObjectURL(pcWav(out.channelData[0], out.sampleRate));
+      pcState.wav.set(file, url);
+      while(pcState.wav.size > PC_WAV_KEEP){ const k = pcState.wav.keys().next().value; try{ URL.revokeObjectURL(pcState.wav.get(k)); }catch(e){} pcState.wav.delete(k); }
+    }
     document.querySelectorAll('#pcList audio').forEach(a => { try{ a.pause(); }catch(e){} });
-    pcState.url = URL.createObjectURL(pcWav(out.channelData[0], out.sampleRate));
-    slot.innerHTML = '<audio controls preload="auto" src="' + pcState.url + '"></audio>';
+    slot.innerHTML = '<audio controls preload="auto" src="' + url + '"></audio>';
     slot.classList.add('on');
     const el = slot.querySelector('audio');
     try{ const p = el.play(); if(p && p.catch) p.catch(() => {}); }catch(e){}
