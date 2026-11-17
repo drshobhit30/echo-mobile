@@ -63,6 +63,22 @@ body{ padding-bottom:28px; }
 .nt-card{ width:100%; max-width:460px; background:var(--white); border-radius:18px 18px 0 0; padding:16px 16px 20px; }
 .nt-h{ font-size:1rem; font-weight:700; color:var(--ink); }
 .nt-sub{ font-size:0.76rem; color:var(--muted); margin:3px 0 12px; }
+/* 5.38 the bell's list */
+.nl-card{ max-height:82vh; display:flex; flex-direction:column; }
+.nl-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.nl-set{ font:inherit; font-size:0.8rem; padding:6px 12px; border-radius:999px; border:1px solid var(--line); background:var(--white); color:var(--ink); }
+.nl-chips{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+.nl-chip{ font:inherit; font-size:0.78rem; padding:5px 11px; border-radius:999px; border:1px solid var(--line); background:var(--white); color:var(--ink); }
+.nl-chip.on{ background:#FAEEDA; border-color:#EF9F27; color:#633806; font-weight:700; }
+.nl-list{ overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1; min-height:120px; }
+.nl-day{ font-size:0.68rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:12px 2px 6px; }
+.nl-it{ display:flex; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; margin-bottom:6px; background:var(--white); }
+.nl-it.tap{ cursor:pointer; } .nl-it.tap:active{ background:#FAF6EE; }
+.nl-ic{ width:30px; height:30px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-size:0.9rem; }
+.nl-money .nl-ic{ background:#FCEBEB; color:#A32D2D; } .nl-visit .nl-ic{ background:#E1F5EE; color:#085041; } .nl-staff .nl-ic{ background:#E6F1FB; color:#0C447C; } .nl-system .nl-ic{ background:#F1EFE8; color:#444441; }
+.nl-t{ font-size:0.88rem; font-weight:700; color:var(--ink); } .nl-b{ font-size:0.8rem; color:var(--muted); line-height:1.4; word-break:break-word; }
+.nl-tm{ font-size:0.74rem; color:var(--muted); margin-left:auto; white-space:nowrap; }
+.nl-empty{ font-size:0.84rem; color:var(--muted); padding:18px 4px; text-align:center; line-height:1.5; }
 .nt-opt{ display:block; width:100%; text-align:left; border:1px solid var(--line, #E4DACA); background:var(--white);
   border-radius:12px; padding:10px 12px; margin-bottom:8px; font-family:inherit; cursor:pointer; }
 .nt-opt b{ display:block; font-size:0.9rem; color:var(--ink); }
@@ -1188,7 +1204,7 @@ body{ background:#FAF7F2 !important; }
       <!-- 5.03 (owner, 13 Oct 2026): "give a section to check staff todays
            punch ... place a button next to the bell icon". Admin only. -->
       <button type="button" class="hd-staff" id="hdStaff" onclick="staffOpen()" aria-label="Staff today" title="Staff today"><svg viewBox="0 0 24 24"><path d="M12 11a2 2 0 0 0-2 2c0 2.5-.5 5-1.5 7"/><path d="M12 11a2 2 0 0 1 2 2c0 3-.4 5.6-1.2 8"/><path d="M8.5 9.5a5 5 0 0 1 8.5 3.5c0 2.3-.3 4.5-.8 6.5"/><path d="M6.8 12.5a5 5 0 0 1 .2-1.5"/><path d="M5.5 7.5A8 8 0 0 1 18.5 7.5"/><path d="M4.3 11.3A8 8 0 0 1 4.5 9.9"/><path d="M19.6 10.5a8 8 0 0 1 .4 2.5c0 1.8-.2 3.5-.5 5.2"/><path d="M7 14.5c0 2.2-.4 4.3-1.2 6"/><path d="M3.5 15.5c.1 1.5-.1 3-.5 4.5"/></svg></button>
-      <button type="button" class="hd-bell" id="hdBell" onclick="notifOpen()" aria-label="Notifications">🔔</button>
+      <button type="button" class="hd-bell" id="hdBell" onclick="notifListOpen()" aria-label="Notifications">🔔</button>
       <div class="hd-v" onclick="hardRefresh()" title="Tap to load the latest version"><span id="beatDot" class="beat-dot" title=""></span>Nexus <b>A</b> &middot; <span id="appVer"></span><span id="lanMark" class="lan-mark"></span></div>
     </div>
   </div>
@@ -1203,6 +1219,15 @@ body{ background:#FAF7F2 !important; }
 <div id="pullCue" class="pull-cue"><span id="pullText">Pull to refresh</span></div>
 <div id="staffWrap" class="nt-wrap hidden" onclick="if(event.target===this) staffClose()">
   <div class="nt-card st-card" id="staffCard"></div>
+</div>
+<!-- 5.38 (owner 17 Nov, "the notification sent on admin phone. can it be stored"): the bell lists what this phone was told, 90 days, behind the PIN -->
+<div id="nlWrap" class="nt-wrap hidden" onclick="if(event.target===this) notifListClose()">
+  <div class="nt-card nl-card">
+    <div class="nl-head"><div><div class="nt-h">Notifications</div><div class="nt-sub" style="margin:2px 0 0;">Last 90 days, on this phone</div></div>
+      <button type="button" class="nl-set" onclick="notifListClose(); notifOpen()">Settings</button></div>
+    <div id="nlChips" class="nl-chips"></div>
+    <div id="nlBody" class="nl-list"></div>
+  </div>
 </div>
 <div id="notifWrap" class="nt-wrap hidden" onclick="if(event.target===this) notifClose()">
   <div class="nt-card">
@@ -9168,7 +9193,7 @@ async function loadPrescriptions(){
    deleted when the relay refuses this phone's key, and day books older than
    60 days are pruned at each opening; "Link old X-rays" on an old relay says
    "needs relay r4.28"; tidied. */
-const ADMIN_VERSION = '5.37';   // 5.37 (10 Nov 2026, owner: "do the phone update"): the Calls tab's HubSpot Lead Status as a dot and plain text like Nexus (Converted quieter); an outgoing call not answered says so; 5.36 (10 Nov 2026, owner: "Calls tab on the phone. Opens slow. Plays slow"): the last calls list shown at once while the new one comes; the player warmed when the tab opens; the last 20 recordings played kept on the phone, replays at once; 5.35 (9 Nov 2026, owner): a missed call silenced in Nexus is not red here ("missed · silenced"); 5.34 (9 Nov 2026, owner: "yes match"): the Calls tab shows HubSpot as Nexus does - a green Lead Status, a red Not in HubSpot; 5.33 (9 Nov 2026, owner): a Calls tab, locked or not - the reception phone's last 7 days (in / out / missed, name, number, Play; Spam and Wrong number greyed; the clinic's own numbers grey, admin key only), from Nexus through relay r4.60, the recording from the Drive copy (plays with the server off); 5.32 (9 Nov 2026): number only - Echo Files changed, one number for all; 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; the calendar shows today's booking changes from phones (relay r4.52); intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
+const ADMIN_VERSION = '5.38';   // 5.38 (17 Nov 2026, owner: "the notification sent on admin phone. can it be stored"): the bell lists this phone's notifications, 90 days, behind the PIN; 5.37 (10 Nov 2026, owner: "do the phone update"): the Calls tab's HubSpot Lead Status as a dot and plain text like Nexus (Converted quieter); an outgoing call not answered says so; 5.36 (10 Nov 2026, owner: "Calls tab on the phone. Opens slow. Plays slow"): the last calls list shown at once while the new one comes; the player warmed when the tab opens; the last 20 recordings played kept on the phone, replays at once; 5.35 (9 Nov 2026, owner): a missed call silenced in Nexus is not red here ("missed · silenced"); 5.34 (9 Nov 2026, owner: "yes match"): the Calls tab shows HubSpot as Nexus does - a green Lead Status, a red Not in HubSpot; 5.33 (9 Nov 2026, owner): a Calls tab, locked or not - the reception phone's last 7 days (in / out / missed, name, number, Play; Spam and Wrong number greyed; the clinic's own numbers grey, admin key only), from Nexus through relay r4.60, the recording from the Drive copy (plays with the server off); 5.32 (9 Nov 2026): number only - Echo Files changed, one number for all; 5.31 (8 Nov 2026, audit L5): the screen text says "server", not "reception PC" (owner's rule); nothing else. 5.30 (5 Nov 2026, owner): "+ Mark" beside the day's title adds a one-off mark, tapping a mark removes it (relay r4.56). 5.27 (2 Nov 2026, audit): the Move sheet marks booked and closed times; the calendar shows today's booking changes from phones (relay r4.52); intraoral small pictures from Drive away from the clinic; says "server". 5.26 (2 Nov 2026): a phone-moved booking can be moved back (undo) or changed again after its first day; UI says "server". 5.25 (1 Nov 2026): Move or cancel a booking from the phone (relay r4.50)
 let currentTab = 'calendar';
 let openRx = null;
 /* Which patient, if any, has had their older prescriptions unfolded. */
@@ -9622,6 +9647,83 @@ async function resetCodeAsk(){
     say(/unknown action/.test(why) ? 'The relay needs updating (r4.14) first.' : /unlock|session/.test(why) ? 'Admin has locked \u2014 unlock it again.' : 'Could not get a code (' + escapeHtml(why) + ').');
   }
 }
+/* ---- 5.38: the bell's list - what this phone was told, kept by sw.js as it arrived ---- */
+let nlFilter = '';
+let nlItems = [];
+function nlCat(x){
+  const t = String((x && x.title) || '');
+  if(/^(Staff arrived|Echo Files)/.test(t)) return 'staff';
+  if(/^(Reception is live|Google Drive|Phone PIN changed|Restore drill)/.test(t)) return 'system';
+  if(x && x.kind === 'money') return 'money';
+  return 'visit';
+}
+async function nlLoad(){
+  let list = [];
+  try{
+    if(typeof caches !== 'undefined'){ const c = await caches.open('echo-nexus-lastapp'); const hit = await c.match('/__notifs'); if(hit) list = await hit.json(); }
+  }catch(e){ list = []; }
+  const from = Date.now() - 90 * 24 * 3600 * 1000;
+  nlItems = (Array.isArray(list) ? list : []).filter(x => x && x.at && Date.parse(x.at) >= from).reverse();
+  return nlItems;
+}
+function nlDayLabel(iso){
+  const d = new Date(iso), t = new Date(), y = new Date(Date.now() - 864e5);
+  const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if(same(d, t)) return 'Today';
+  if(same(d, y)) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function nlTime(iso){
+  const d = new Date(iso); let h = d.getHours(); const m = String(d.getMinutes()).padStart(2, '0'); const ap = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12;
+  return h + ':' + m + ' ' + ap;
+}
+const NL_ICON = { money: '₹', visit: '✓', staff: '⏱', system: '⚙' };
+function nlPaint(){
+  const chips = document.getElementById('nlChips'), body = document.getElementById('nlBody');
+  if(!chips || !body) return;
+  if(!adminOn()){
+    chips.innerHTML = '';
+    body.innerHTML = '<div class="nl-empty">They hold names and money, so they show only after the PIN.<br><br><button type="button" class="nl-set" onclick="notifListClose(); openPinPad()">Enter PIN</button></div>';
+    return;
+  }
+  const cats = [['', 'All'], ['money', 'Money'], ['visit', 'Visits'], ['staff', 'Staff'], ['system', 'System']];
+  chips.innerHTML = cats.map(c => '<button type="button" class="nl-chip' + (c[0] === nlFilter ? ' on' : '') + '" onclick="nlFilter=\'' + c[0] + '\'; nlPaint()">' + c[1] + '</button>').join('');
+  const list = nlFilter ? nlItems.filter(x => nlCat(x) === nlFilter) : nlItems;
+  if(!list.length){
+    body.innerHTML = '<div class="nl-empty">' + (nlItems.length ? 'None of this kind in the last 90 days.' : 'Nothing yet. From now on, every notification this phone gets is kept here for 90 days.') + '</div>';
+    return;
+  }
+  let html = '', day = '';
+  list.slice(0, 400).forEach((x, i) => {
+    const dl = nlDayLabel(x.at);
+    if(dl !== day){ day = dl; html += '<div class="nl-day">' + escapeHtml(dl) + '</div>'; }
+    const cat = nlCat(x), tap = !!x.pid;
+    html += '<div class="nl-it nl-' + cat + (tap ? ' tap' : '') + '"' + (tap ? ' onclick="nlGo(' + nlItems.indexOf(x) + ')"' : '') + '>'
+      + '<span class="nl-ic">' + NL_ICON[cat] + '</span><div style="min-width:0;"><div class="nl-t">' + escapeHtml(x.title) + '</div><div class="nl-b">' + escapeHtml(x.body).replace(/\n/g, '<br>') + '</div></div>'
+      + '<span class="nl-tm">' + escapeHtml(nlTime(x.at)) + '</span></div>';
+  });
+  body.innerHTML = html;
+}
+/* a tap: a visit opens that day with the patient; anything else with a patient opens the patient */
+function nlGo(i){
+  const x = nlItems[i];
+  if(!x || !x.pid) return;
+  notifListClose();
+  if(nlCat(x) === 'visit' && x.date){ setTab('calendar'); notifGoTo(x.date, x.pid); return; }
+  setTab('patients');
+  if(typeof openPt === 'function') openPt(x.pid);
+}
+async function notifListOpen(){
+  const w = document.getElementById('nlWrap');
+  if(!w) return;
+  w.classList.remove('hidden');
+  await nlLoad();
+  nlPaint();
+}
+function notifListClose(){
+  const w = document.getElementById('nlWrap');
+  if(w) w.classList.add('hidden');
+}
 function notifClose(e){
   if(e && e.target && e.target.id !== 'notifWrap' && e.type === 'click' && e.currentTarget !== e.target) return;
   const w = document.getElementById('notifWrap');
@@ -9717,6 +9819,7 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', (e) => {
     const d = e && e.data;
     if(d && d.type === 'openVisit') notifGoTo(d.date, d.pid);
+    if(d && d.type === 'notifKept'){ const w = document.getElementById('nlWrap'); if(w && !w.classList.contains('hidden')) nlLoad().then(nlPaint); }   // 5.38
   });
 }
 /* READ AT LOAD, NOT AT BOOT (4.20). takeSetupFromLink clears the address bar

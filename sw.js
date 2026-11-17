@@ -26,7 +26,7 @@
    Bump CACHE_VERSION whenever this file or the icons change, too. The old cache
    is deleted on activate, so nothing accumulates on the phone.
    ====================================================================== */
-const CACHE_VERSION = 'echo-nexus-5.37';  // 5.37 (10 Nov 2026): the Calls tab's HubSpot dots and not answered; 5.36 (10 Nov 2026): the Calls tab is quicker; 5.35 (9 Nov 2026): silenced missed calls not red on the Calls tab; 5.34 (9 Nov 2026): the Calls tab shows HubSpot; 5.33 (9 Nov 2026): lite and admin got a Calls tab; one number across all five apps - lite, reception, ipad, admin, files - and this file (5.30: marks from the phones - lite, reception, iPad, admin; 5.29: Echo Files - leave on mobile data and before a punch, quicker leave calls, closed days greyed; 5.28: Echo Files tidied, a Leave button, first-half leave - files.html and this file only; 5.27: audit fixes - Move sheet marks taken times, admin sees phone changes, intraoral small pictures; 5.25: Move… and Cancel booking from the phones; 5.24: Echo Files says "Leave" when My attendance is off; 5.23: admin says Discomfort / Pain; 5.22: Echo Files shows leaving early; 5.21: Intraoral button beside RVG on lite, reception, ipad and admin; 5.16: Echo Files redesign - photos first, attendance and leave behind the fingerprint, back works; 5.15: Echo Files day off; 5.11, audit L24: ipad and files had joined)
+const CACHE_VERSION = 'echo-nexus-5.38';  // 5.38 (17 Nov 2026): the phone keeps the notifications it gets, 90 days - the admin app lists them under its bell; 5.37 (10 Nov 2026): the Calls tab's HubSpot dots and not answered; 5.36 (10 Nov 2026): the Calls tab is quicker; 5.35 (9 Nov 2026): silenced missed calls not red on the Calls tab; 5.34 (9 Nov 2026): the Calls tab shows HubSpot; 5.33 (9 Nov 2026): lite and admin got a Calls tab; one number across all five apps - lite, reception, ipad, admin, files - and this file (5.30: marks from the phones - lite, reception, iPad, admin; 5.29: Echo Files - leave on mobile data and before a punch, quicker leave calls, closed days greyed; 5.28: Echo Files tidied, a Leave button, first-half leave - files.html and this file only; 5.27: audit fixes - Move sheet marks taken times, admin sees phone changes, intraoral small pictures; 5.25: Move… and Cancel booking from the phones; 5.24: Echo Files says "Leave" when My attendance is off; 5.23: admin says Discomfort / Pain; 5.22: Echo Files shows leaving early; 5.21: Intraoral button beside RVG on lite, reception, ipad and admin; 5.16: Echo Files redesign - photos first, attendance and leave behind the fingerprint, back works; 5.15: Echo Files day off; 5.11, audit L24: ipad and files had joined)
 const PAGE_FUSE_MS = 2500;
 /* Which app this phone runs. lite.html and admin.html share one worker
    because they share a folder, so when a notification is tapped with no
@@ -234,10 +234,37 @@ self.addEventListener('push', (event) => {
     if(face) opts.icon = face;
     await Promise.all([
       self.registration.showNotification(title, opts),
-      d.kind === 'photo' ? keepArrival(d) : Promise.resolve()
+      d.kind === 'photo' ? keepArrival(d) : keepNotif(d, title, body)
     ]);
   })());
 });
+/* THE PHONE KEEPS WHAT IT WAS TOLD (5.38, owner 17 Nov: "the notification sent on admin phone. can it be stored").
+   Every notification but a "Photo needed" is kept here as it arrives, 90 days, newest last; the admin app lists it under
+   its bell (behind the PIN). Kept in the same cache as the last app, which a new version does not clear. One write at a
+   time, so two buzzes together do not lose one. */
+const NOTIFS_KEY = '/__notifs';
+const NOTIFS_KEEP_MS = 90 * 24 * 3600 * 1000;
+let notifChain = Promise.resolve();
+function keepNotif(d, title, body){
+  const n = { at: new Date().toISOString(), title: String(title || '').slice(0, 120), body: String(body || '').slice(0, 600),
+    kind: d.kind === 'money' ? 'money' : 'visit', pid: /^[A-Za-z0-9]{1,20}$/.test(String(d.pid || '')) ? String(d.pid) : '',
+    date: /^\d{4}-\d{2}-\d{2}$/.test(String(d.date || '')) ? String(d.date) : '' };
+  notifChain = notifChain.then(async () => {
+    const cache = await caches.open(LAST_APP_CACHE);
+    let list = [];
+    try{ const hit = await cache.match(NOTIFS_KEY); if(hit) list = await hit.json(); }catch(e){ list = []; }
+    if(!Array.isArray(list)) list = [];
+    const from = Date.now() - NOTIFS_KEEP_MS;
+    list = list.filter(x => x && x.at && Date.parse(x.at) >= from);
+    list.push(n);
+    await cache.put(NOTIFS_KEY, new Response(JSON.stringify(list.slice(-2000)), { headers: { 'Content-Type': 'application/json' } }));
+    try{
+      const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      open.forEach(c => { try{ c.postMessage({ type: 'notifKept' }); }catch(e){} });
+    }catch(e){}
+  }).catch(() => {});
+  return notifChain;
+}
 const FACE_KEEP = '/__face/';
 async function faceFor(pid){
   if(!pid || !/^[A-Za-z0-9]{1,20}$/.test(String(pid))) return '';
